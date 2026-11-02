@@ -1,10 +1,12 @@
 /*
  * Mixer.h - многодорожечный микшер (без зависимостей от Haiku, чтобы тестировать на Linux).
  *
- * Дорожка 0 («основная») - это тот самый буфер Pool.sample_memory, с которым работают
- * правка, фильтры, undo и буфер обмена; её сэмплы микшер не хранит, он только держит
- * параметры её канала (громкость, баланс, mute, solo). Остальные дорожки хранят
- * свои сэмплы сами (interleaved float, 1 или 2 канала, частота дискретизации = Pool.frequency).
+ * Активная дорожка - это тот самый буфер Pool.sample_memory, с которым работают
+ * правка, фильтры, undo и буфер обмена; её сэмплы микшер в этот момент не читает
+ * (их воспроизводит BufferPlayer), он только применяет параметры её канала (громкость,
+ * баланс, mute, solo). Остальные дорожки хранят сэмплы сами (interleaved float, 1 или 2
+ * канала, частота дискретизации = Pool.frequency). При смене активной дорожки данные
+ * копируются между Pool и микшером (см. Tracks.cpp).
  */
 #ifndef MIXER_H
 #define MIXER_H
@@ -17,7 +19,7 @@
 
 struct MixTrack {
 	bool	used;
-	bool	owns_data;		// false у основной дорожки
+	bool	owns_data;		// данные принадлежат микшеру (у активной дорожки актуальные сэмплы лежат в Pool)
 	float	*data;			// interleaved
 	int64_t	frames;
 	int		channels;		// 1 или 2
@@ -39,8 +41,11 @@ public:
 	int		AddTrack(const char *name, const float *data, int64_t frames, int channels);
 	int		AddEmptyTrack(const char *name, int channels);	// пустая, для записи
 	void	RemoveTrack(int i);								// основную (0) удалить нельзя
-	// Заменить содержимое (после записи): данные копируются.
-	bool	SetTrackData(int i, const float *data, int64_t frames);
+	// Заменить содержимое: данные копируются (i может быть 0, channels 1/2).
+	bool	SetTrackData(int i, const float *data, int64_t frames, int channels);
+	int		Active() const { return fActive; }
+	void	SetActive(int i) { if (Track(i)) fActive = i; }
+	int		ArmedTrack() const;							// -1, если нет
 	// Дописывать при записи (вызывается не из аудио-потока воспроизведения)
 	bool	AppendTrackData(int i, const float *data, int64_t frames);
 
@@ -48,7 +53,7 @@ public:
 	void	SetPan(int i, float p);
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
-	void	SetArmed(int i, bool a);
+	void	SetArmed(int i, bool a);			// armed только у одной дорожки
 
 	// Задержка записи (кадров): записанные данные сдвигаются на это число кадров назад.
 	void	SetRecordOffset(int64_t frames) { fRecordOffset = frames; }
@@ -75,6 +80,7 @@ private:
 	int64_t		fRecordOffset;
 	std::atomic_flag fLock;
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
+	int			fActive;
 };
 
 extern Mixer Mix;

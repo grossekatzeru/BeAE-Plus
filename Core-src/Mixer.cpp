@@ -6,7 +6,7 @@
 
 Mixer Mix;
 
-Mixer::Mixer() : fCount(1), fRecordOffset(0)
+Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0)
 {
 	fLock.clear();
 	memset(fTracks, 0, sizeof(fTracks));
@@ -14,7 +14,7 @@ Mixer::Mixer() : fCount(1), fRecordOffset(0)
 	memset(fPeakR, 0, sizeof(fPeakR));
 	MixTrack &t = fTracks[0];
 	t.used = true;
-	t.owns_data = false;
+	t.owns_data = true;
 	t.channels = 2;
 	t.gain = 1.0f;
 	strcpy(t.name, "Track 1");
@@ -22,7 +22,7 @@ Mixer::Mixer() : fCount(1), fRecordOffset(0)
 
 Mixer::~Mixer()
 {
-	for (int i=1; i<MIX_MAX_TRACKS; i++)
+	for (int i=0; i<MIX_MAX_TRACKS; i++)
 		if (fTracks[i].used && fTracks[i].owns_data)
 			free(fTracks[i].data);
 }
@@ -74,7 +74,9 @@ void Mixer::RemoveTrack(int i)
 	Lock();
 	if (fTracks[i].used) {
 		float *old = fTracks[i].data;
+		if (fActive == i) fActive = 0;
 		fTracks[i].used = false;
+		fTracks[i].armed = false;
 		fTracks[i].data = NULL;
 		fTracks[i].frames = 0;
 		while (fCount > 1 && !fTracks[fCount-1].used) fCount--;
@@ -85,21 +87,21 @@ void Mixer::RemoveTrack(int i)
 	Unlock();
 }
 
-bool Mixer::SetTrackData(int i, const float *data, int64_t frames)
+bool Mixer::SetTrackData(int i, const float *data, int64_t frames, int channels)
 {
-	if (i < 1 || i >= MIX_MAX_TRACKS || frames < 0) return false;
+	if (i < 0 || i >= MIX_MAX_TRACKS || frames < 0 || !fTracks[i].used) return false;
+	if (channels != 1 && channels != 2) return false;
 	float *copy = NULL;
-	if (fTracks[i].used == false) return false;
-	int ch = fTracks[i].channels;
 	if (frames > 0) {
-		copy = (float*)malloc((size_t)frames*ch*sizeof(float));
+		copy = (float*)malloc((size_t)frames*channels*sizeof(float));
 		if (!copy) return false;
-		memcpy(copy, data, (size_t)frames*ch*sizeof(float));
+		memcpy(copy, data, (size_t)frames*channels*sizeof(float));
 	}
 	Lock();
 	float *old = fTracks[i].data;
 	fTracks[i].data = copy;
 	fTracks[i].frames = frames;
+	fTracks[i].channels = channels;
 	Unlock();
 	free(old);
 	return true;
@@ -129,7 +131,19 @@ void Mixer::SetGain(int i, float g)	{ if (Track(i)) fTracks[i].gain = g<0?0:(g>2
 void Mixer::SetPan(int i, float p)	{ if (Track(i)) fTracks[i].pan = p<-1?-1:(p>1?1:p); }
 void Mixer::SetMute(int i, bool m)	{ if (Track(i)) fTracks[i].mute = m; }
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) fTracks[i].solo = s; }
-void Mixer::SetArmed(int i, bool a)	{ if (Track(i)) fTracks[i].armed = a; }
+void Mixer::SetArmed(int i, bool a)
+{
+	if (!Track(i)) return;
+	if (a) for (int k=0; k<MIX_MAX_TRACKS; k++) fTracks[k].armed = false;
+	fTracks[i].armed = a;
+}
+
+int Mixer::ArmedTrack() const
+{
+	for (int k=0; k<MIX_MAX_TRACKS; k++)
+		if (fTracks[k].used && fTracks[k].armed) return k;
+	return -1;
+}
 
 // Баланс: центр = 1.0 в обоих каналах (как раньше у моно), к краю гасится противоположный канал
 void Mixer::Gains(const MixTrack &t, bool anySolo, float &gl, float &gr)
@@ -146,9 +160,10 @@ void Mixer::Process(float *buf, int frames, int64_t start, bool mixExtras)
 	for (int i=0; i<fCount; i++)
 		if (fTracks[i].used && fTracks[i].solo) { anySolo = true; break; }
 
-	// основная дорожка: канал в самом буфере
+	// активная дорожка: она уже в буфере, применяем её канал
+	const int act = fActive;
 	{
-		const MixTrack &t = fTracks[0];
+		const MixTrack &t = fTracks[act];
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
@@ -160,14 +175,15 @@ void Mixer::Process(float *buf, int frames, int64_t start, bool mixExtras)
 			if (a > pl) pl = a;
 			if (b > pr) pr = b;
 		}
-		fPeakL[0] = pl; fPeakR[0] = pr;
+		fPeakL[act] = pl; fPeakR[act] = pr;
 	}
 
 	if (!mixExtras || fCount < 2 || !TryLock()) {
-		for (int i=1; i<fCount; i++) fPeakL[i] = fPeakR[i] = 0;
+		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;
 		return;
 	}
-	for (int i=1; i<fCount; i++) {
+	for (int i=0; i<fCount; i++) {
+		if (i == act) continue;
 		MixTrack &t = fTracks[i];
 		fPeakL[i] = fPeakR[i] = 0;
 		if (!t.used || !t.data || t.frames <= 0) continue;

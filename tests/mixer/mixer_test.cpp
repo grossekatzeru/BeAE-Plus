@@ -47,6 +47,19 @@ int main(){
 	// предел числа дорожек
 	int n=0; while(m.AddEmptyTrack("x",1)>=0) n++;
 	CHECK(m.TrackCount()==MIX_MAX_TRACKS);
+	// активная дорожка: смена, сохранение данных, удаление активной
+	Mixer q;
+	int a=q.AddEmptyTrack("a",2), b2=q.AddEmptyTrack("b",1);
+	CHECK(a==1 && b2==2);
+	float st[4]={.1f,.2f,.3f,.4f};
+	CHECK(q.SetTrackData(0,st,2,2) && q.Track(0)->frames==2);
+	q.SetActive(1); CHECK(q.Active()==1);
+	// неактивная дорожка 0 играет, активная (1) - только баланс
+	float o[4]={0}; q.Process(o,2,0,true);
+	CHECK(fabsf(o[0]-.1f)<1e-6 && fabsf(o[3]-.4f)<1e-6);
+	q.SetArmed(1,true); q.SetArmed(2,true);
+	CHECK(q.ArmedTrack()==2 && !q.Track(1)->armed);
+	q.RemoveTrack(1); CHECK(q.Active()==0);
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

@@ -59,6 +59,8 @@
 #include "AudioRecorder.h"
 #include "LadspaFilter.h"
 #include "Mixer.h"
+#include "Tracks.h"
+#include "TrackPanelView.h"
 
 cookie_record play_cookie;
 #define UPDATE	'updt'
@@ -475,6 +477,12 @@ MainWindow::MainWindow(BRect frame)
 	sv.top += ((mainMenuBar->Bounds().Height() + 2) +32);
 	sv.bottom -= 63;
 
+	r = sv;							// track panel (left)
+	r.right = r.left + TRACKPANEL_WIDTH - 1;
+	AddChild(new TrackPanelView(r));
+
+	sv.left += TRACKPANEL_WIDTH;	// everything else is shifted right
+
 	r = sv;							// wave display
 	r.left += VALUEBAR_WIDTH;
 	r.bottom -= TIMEBAR_HEIGHT;
@@ -485,16 +493,16 @@ MainWindow::MainWindow(BRect frame)
 	
 	r = sv;							// left sample heights
 //	r.top += INDEXVIEW_HEIGHT;
-	r.right = VALUEBAR_WIDTH-1;
+	r.right = r.left + VALUEBAR_WIDTH-1;
 	AddChild(new ValuesView(r));
 	
 	r = sv;							// bottom timescale
-	r.left = VALUEBAR_WIDTH;
+	r.left += VALUEBAR_WIDTH;
 	r.top = r.bottom - TIMEBAR_HEIGHT+1;
 	AddChild(new TimeBarView(r));
 
 	r = sv;							// scroll_view / overview
-	r.left = VALUEBAR_WIDTH;
+	r.left += VALUEBAR_WIDTH;
 	r.bottom = r.top + INDEXVIEW_HEIGHT-1;
 	AddChild(index_view = new IndexView(r));
 	
@@ -502,6 +510,8 @@ MainWindow::MainWindow(BRect frame)
 //	r.bottom = r.top + INDEXVIEW_HEIGHT-1;
 //	AddChild(new IndexView(r));
 
+
+	Tracks_Init();					// 4 пустые дорожки, активная - первая
 
 	Pool.SetLoop(  (transport_view->loop->Value() == B_CONTROL_ON) );
 	SetSizeLimits(MIN_W ,MAX_W, MIN_H , MAX_H);
