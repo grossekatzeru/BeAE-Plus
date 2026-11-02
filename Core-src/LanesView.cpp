@@ -11,7 +11,15 @@
 #include "Globals.h"
 #include "Mixer.h"
 #include "Tracks.h"
+#include "Preferences.h"
 #include "LanesView.h"
+
+#ifndef MIN
+#define MIN(a,b) ((a)<(b)?(a):(b))
+#endif
+#ifndef MAX
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#endif
 
 extern cookie_record play_cookie;
 
