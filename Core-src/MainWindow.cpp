@@ -58,6 +58,7 @@
 #include "VMSystem.h"
 #include "AudioRecorder.h"
 #include "LadspaFilter.h"
+#include "Mixer.h"
 
 cookie_record play_cookie;
 #define UPDATE	'updt'
@@ -212,6 +213,11 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	if (stop_needed)
 		Pool.mainWindow->PostMessage(TRANSPORT_STOP);
 
+	// микшер: канал основной дорожки (громкость/баланс/mute/solo) + остальные дорожки
+	// (только при ходе 1:1 вперёд, без пересэмплинга и реверса)
+	Mix.Process(buf, (int)(float_size/2), mix_start,
+		!cookie->pause && Pool.frequency > 0 && fabs(fraq-1.0) < 1e-6);
+
 	for (int i=0; i<PLAY_HOOKS; i++){
 		if (Pool.BufferHook[i]){
 			(Pool.BufferHook[i])(buf, float_size, Pool.BufferCookie[i]);
@@ -251,6 +257,10 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	cookie_record *cookie = (cookie_record *) theCookie;
 	float left = 0.0, right = 0.0;
 	double fraq = fabs(Pool.frequency/Pool.system_frequency);
+	// позиция в кадрах на начало буфера - по ней микшер подмешивает остальные дорожки
+	int64 mix_start = 0;
+	if (Pool.sample_type != NONE && Pool.sample_memory)
+		mix_start = (cookie->mem - Pool.sample_memory) / Pool.sample_type;
 	
 	if ((Pool.selection == NONE) | cookie->end){
 		cookie->end_mem = Pool.sample_memory + Pool.size*Pool.sample_type;
