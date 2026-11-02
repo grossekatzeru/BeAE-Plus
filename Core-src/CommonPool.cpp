@@ -239,6 +239,21 @@ void CommonPool::InitBufferPlayer(float f)
 	}
 #endif
 
+void CommonPool::StartTailPlaying(double pos)
+{
+	m_playing = true;
+	play_cookie.pause = false;
+	play_cookie.tailing = true;
+	play_cookie.tail_pos = pos;
+	play_cookie.end = true;
+	play_cookie.frequency = frequency;
+	play_cookie.add = 0;
+	last_pointer = 0;
+
+	player->Start();
+	player->SetHasData(true);
+}
+
 void CommonPool::StopPlaying()
 {
 	m_playing = false;

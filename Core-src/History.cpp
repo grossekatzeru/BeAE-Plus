@@ -41,6 +41,7 @@
 #include "CommonPool.h"
 #include "History.h"
 #include "MyClipBoard.h"
+#include "Mixer.h"
 
 History Hist;
 
@@ -51,6 +52,10 @@ History Hist;
 *******************************************************/
 History::History()
 {
+	fOffsetTrack = -1;
+	fOffsetValue = 0;
+	m_undo = false;
+	m_redo = false;
 }
 
 /*******************************************************
@@ -105,7 +110,22 @@ History::~History(){
 /*******************************************************
 *   
 *******************************************************/
+void History::SetOffsetUndo(int track, double seconds)
+{
+	fOffsetTrack = track;
+	fOffsetValue = seconds;
+}
+
 bool History::Save(uint32 action, uint32 start, uint32 end){
+	fOffsetTrack = -1;
+	if (action == H_EMPTY){			// прежнее состояние - пустая дорожка
+		acquire_sem(histSem);
+		HistoryFile->Seek(0, SEEK_SET);
+		HistoryFile->Write(&action,sizeof(&action));
+		m_undo = true;
+		release_sem(histSem);
+		return true;
+	}
 	if (Pool.size == 0)	return false;
 	acquire_sem(histSem);
 
@@ -218,6 +238,12 @@ bool History::Restore(){
 	}
 
 	switch(action){
+	case H_EMPTY:
+		Pool.size = 0;
+		Pool.sample_type = NONE;
+		Pool.selection = NONE;
+		Pool.pointer = Pool.l_pointer = Pool.r_pointer = Pool.r_sel_pointer = 0;
+		break;
 	case H_PASTE:
 {		HistoryFile->Read(&start,sizeof(&start));
 		HistoryFile->Read(&end,sizeof(&end));
@@ -313,6 +339,10 @@ bool History::Restore(){
 		break;
 	}
 	
+	if ((action == H_FULL || action == H_EMPTY) && fOffsetTrack >= 0 && fOffsetTrack == Mix.Active())
+		Mix.SetOffset(fOffsetTrack, fOffsetValue);		// undo записи возвращает и смещение дорожки
+	fOffsetTrack = -1;
+
 	m_undo = false;
 	m_redo = true;
 

@@ -140,6 +140,7 @@ class CommonPool{
 	
 	void	InitBufferPlayer(float freq);
 	void	StartPlaying(int64 p, bool end);	// play back the sound, convert data and
+	void	StartTailPlaying(double pos);		// играть только остальные дорожки (запись), pos - кадры активной
 	void	StopPlaying();				// sync VU meters
 	bool	IsPlaying();
 	bool	SetLoop(bool);				// returns old state

@@ -31,7 +31,7 @@
 
 #include <Entry.h>
 
-enum{ H_REPLACE, H_DELETE, H_FULL, H_PASTE };
+enum{ H_REPLACE, H_DELETE, H_FULL, H_PASTE, H_EMPTY };
 /*******************************************************
 *   
 *******************************************************/
@@ -51,10 +51,15 @@ class History{
    
 	void Reset();
 
+	// Запомнить смещение дорожки, чтобы undo записи вернуло и его (действует до следующего Save)
+	void SetOffsetUndo(int track, double seconds);
+
   private:
 	BFile *HistoryFile;
 	entry_ref file_ref;
    
+	int fOffsetTrack;
+	double fOffsetValue;
 	bool m_undo;
 	bool m_redo;
    

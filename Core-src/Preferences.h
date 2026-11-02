@@ -76,6 +76,7 @@ class Preferences{
 	int32	keep_free;				// keep free diskspace
 
 	int32	buffer_size;			// media buffer-size
+	int32	rec_latency_ms;			// компенсация задержки записи, мс
 	int32	cache_size;				// size of the VM cache
 
 

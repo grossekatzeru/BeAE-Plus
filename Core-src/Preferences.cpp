@@ -113,6 +113,9 @@ void Preferences::Init(){
    if(prefs.FindInt32("buffer_size", &buffer_size) != B_OK)
       buffer_size = BUFFER_SIZE;
 
+   if(prefs.FindInt32("rec_latency_ms", &rec_latency_ms) != B_OK)
+      rec_latency_ms = 0;
+
    if(prefs.FindInt32("cache_size", &cache_size) != B_OK)
       cache_size = CACHE_SIZE;
 
@@ -240,6 +243,7 @@ void Preferences::Sync(){
 	prefs.SetBool("follow_playing", follow_playing);
 
 	prefs.SetInt32("buffer_size",buffer_size);
+	prefs.SetInt32("rec_latency_ms",rec_latency_ms);
 	prefs.SetInt32("cache_size",cache_size);
 	prefs.SetInt32("keep_free",keep_free);
 	prefs.SetInt32("display_time",display_time);
@@ -360,6 +364,7 @@ void Preferences::FactorySettings(){
 	
 	keep_free = 500;		// keep 500 Mb free disk space
 	buffer_size = BUFFER_SIZE;
+	rec_latency_ms = 0;
 	cache_size = CACHE_SIZE;
 	
 	spectrum_analyzer_pos.Set(50,200,270, 300);

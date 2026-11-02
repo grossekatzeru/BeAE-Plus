@@ -54,6 +54,9 @@ class MainWindow : public BWindow {
 	void UpdateRecordingTitle();
 	BMessageRunner	*rec_runner;
 	BString			rec_old_title;
+	double			rec_start_time;		// секунды на общей шкале, откуда пошла запись
+	double			rec_old_offset;		// прежнее смещение дорожки (для undo)
+	double			rec_tail_start;		// позиция остальных дорожек при старте (кадры активной)
 
  	friend class SampleView;
 	BMenuBar	*mainMenuBar;

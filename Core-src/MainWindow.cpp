@@ -366,7 +366,12 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 		const double aRate = (fabs(Pool.frequency) > 1.0) ? fabs(Pool.frequency) : 44100.0;
 		double next = mix_start + (double)(float_size/2) * mix_step;
 		double t_next = next / aRate + (Mix.Track(Mix.Active()) ? Mix.Track(Mix.Active())->offset : 0);
-		if (whole && Pool.frequency > 0 && !cookie->loop && t_next < Mix.EndTimeExtras()){
+		if (Pool.play_mode == RECORD){
+			// идёт запись: остальные дорожки играют, остановка - только по кнопке «Стоп»
+			cookie->tailing = true;
+			cookie->tail_pos = next;
+			stop_needed = false;
+		}else if (whole && Pool.frequency > 0 && !cookie->loop && t_next < Mix.EndTimeExtras()){
 			cookie->tailing = true;
 			cookie->tail_pos = next;
 			stop_needed = false;
@@ -722,9 +727,21 @@ void MainWindow::StartRecording()
 		Pool.StopPlaying();
 	}
 
-	// спросить про несохранённые изменения (новая запись заменит текущий файл)
-	if (Pool.IsChanged())
-		return;
+	// запись идёт в дорожку с кнопкой R (если такой нет - в активную)
+	int armed = Mix.ArmedTrack();
+	if (armed >= 0 && armed != Mix.Active()){
+		if (!Tracks_Activate(armed))
+			return;
+	}
+
+	// старт записи на общей шкале времени: позиция курсора в активной дорожке + её смещение
+	{
+		MixTrack *at = Mix.Track(Mix.Active());
+		rec_old_offset = at ? at->offset : 0;
+		double rate = (fabs(Pool.frequency) > 1.0) ? fabs(Pool.frequency) : 44100.0;
+		rec_tail_start = (Pool.sample_type != NONE) ? (double)Pool.pointer : 0.0;
+		rec_start_time = rec_old_offset + rec_tail_start / rate;
+	}
 
 	BString error;
 	status_t err = Recorder.Start(&error);
@@ -736,6 +753,7 @@ void MainWindow::StartRecording()
 	}
 
 	Pool.play_mode = RECORD;
+	Pool.StartTailPlaying(rec_tail_start);		// остальные дорожки играют во время записи
 	rec_old_title = Title();
 	UpdateRecordingTitle();
 	delete rec_runner;
@@ -747,6 +765,8 @@ void MainWindow::StopRecording()
 	delete rec_runner;
 	rec_runner = NULL;
 	Recorder.Stop();
+	Pool.StopPlaying();					// остановить воспроизведение остальных дорожек
+	play_cookie.tailing = false;
 	FinishRecording();
 }
 
@@ -755,7 +775,7 @@ void MainWindow::FinishRecording()
 {
 	Pool.play_mode = NONE;
 
-	const int64 frames = Recorder.Frames();
+	int64 frames = Recorder.Frames();
 	const int32 channels = Recorder.Channels();
 	const float rate = Recorder.Rate();
 
@@ -774,6 +794,22 @@ void MainWindow::FinishRecording()
 
 	uint32 srcFormat = Recorder.SourceFormat();
 	Recorder.Clear();
+
+	// компенсация задержки: вход приходит позже воспроизведения, отбрасываем начало записи
+	{
+		int64 skip = (int64)((double)Prefs.rec_latency_ms * rate / 1000.0);
+		if (skip > 0 && skip < frames - 2){
+			memmove(mem, mem + skip * channels, (size_t)((frames - skip) * channels) * sizeof(float));
+			frames -= skip;
+		}
+	}
+
+	// undo: прежнее содержимое дорожки и её смещение (без предупреждений о замене)
+	if (Pool.sample_type != NONE && Pool.size > 0)
+		Hist.Save(H_FULL, 0, Pool.size);
+	else
+		Hist.Save(H_EMPTY, 0, 0);
+	Hist.SetOffsetUndo(Mix.Active(), rec_old_offset);
 
 	Pool.sample_type = NONE;		// как при загрузке: блокируем отрисовку на время замены
 	bool temp_pause = play_cookie.pause;
@@ -831,7 +867,7 @@ void MainWindow::FinishRecording()
 
 	Pool.changed = true;				// запись ещё не сохранена
 	Pool.ResetIndexView();
-	Hist.Reset();
+	Mix.SetOffset(Mix.Active(), rec_start_time);	// запись лежит там, где стоял курсор
 
 	char title[B_FILE_NAME_LENGTH + 20];
 	sprintf(title, "BeAE - %s", Language.get("UNTITLED"));
