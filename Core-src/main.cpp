@@ -43,6 +43,7 @@
 #include "PeakFile.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
+#include "Tracks.h"
 
 extern cookie_record play_cookie;
 
@@ -91,7 +92,9 @@ void MyApplication::MessageReceived(BMessage *message)
 		}else{
 			save_start = 0;				// save the whole memory
 			save_end = Pool.size;
+			Tracks_SaveRange(save_start, save_end);	// без тишины, добавленной лентой времени
 		}
+		save_whole = !(Pool.save_selection && Pool.selection != NONE);
 		Save(message);
 		break;
 		
@@ -332,6 +335,8 @@ void MyApplication::RefsReceived(BMessage *message)
 			else
 				Pool.sample_type = STEREO;
 
+			Tracks_PlaceActive(0.0);		// файл ложится на ленту времени активной дорожки
+
 			Pool.r_pointer = Pool.size;
 			Pool.pointer = 0;
 			Pool.r_sel_pointer = Pool.pointer;
@@ -436,7 +441,7 @@ void MyApplication::Save(BMessage *message){
 			if (outTrack){
 				file.CommitHeader();
 
-				if (save_start == 0){			// save as
+				if (save_whole){			// save as
 					char s[B_FILE_NAME_LENGTH +20];
 					sprintf(s, "BeAE - %s", file_ref.name);
 					mainWindow->SetTitle(s);

@@ -852,6 +852,7 @@ void MainWindow::FinishRecording()
 	Pool.frequency = rate;
 	Pool.size = frames - 1;				// как при загрузке: последний кадр не считается
 	Pool.sample_type = (channels == 1) ? MONO : STEREO;
+	Tracks_PlaceActive(rec_start_time);			// запись ложится на ленту там, где стоял курсор
 	Pool.selection = NONE;
 	Pool.r_pointer = Pool.size;
 	Pool.pointer = 0;
@@ -871,7 +872,6 @@ void MainWindow::FinishRecording()
 
 	Pool.changed = true;				// запись ещё не сохранена
 	Pool.ResetIndexView();
-	Mix.SetOffset(Mix.Active(), rec_start_time);	// запись лежит там, где стоял курсор
 
 	char title[B_FILE_NAME_LENGTH + 20];
 	sprintf(title, "BeAE - %s", Language.get("UNTITLED"));

@@ -124,6 +124,7 @@ class CommonPool{
 	int64	last_pointer;
 	int64	play_pointer;	// used during playback
 	int64	size;			// sample size (in samples)
+	int64	pad_lead, pad_tail;	// тишина слева/справа, добавленная лентой времени (при сохранении дорожки отрезается)
 	int64	l_pointer;		// left start of edit window
 	int64	r_pointer;		// right end of edit window
 	int64	r_sel_pointer;	// right selection pointer

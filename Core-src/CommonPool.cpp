@@ -112,6 +112,8 @@ void CommonPool::Init(){
 	r_pointer = 0;
 	r_sel_pointer = 0;
 	size = 0;
+	pad_lead = 0;
+	pad_tail = 0;
 	selection = NONE;
 	sample_type = NONE;
 	sample_bits = 16;

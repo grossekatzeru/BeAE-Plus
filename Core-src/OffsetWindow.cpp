@@ -10,6 +10,7 @@
 #include "CommonPool.h"
 #include "Globals.h"
 #include "Mixer.h"
+#include "Tracks.h"
 #include "OffsetWindow.h"
 
 #define MSG_OFFSET_OK		'ofok'
@@ -28,7 +29,7 @@ OffsetWindow::OffsetWindow(int trackIndex, BWindow *parent)
 	char title[64], value[32];
 	snprintf(title, sizeof(title), "%s - offset (ms)", t ? t->name : "Track");
 	SetTitle(title);
-	snprintf(value, sizeof(value), "%.0f", t ? t->offset * 1000.0 : 0.0);
+	snprintf(value, sizeof(value), "%.0f", t ? Tracks_Offset(trackIndex) * 1000.0 : 0.0);
 
 	fText = new BTextControl(BRect(12, 12, 247, 32), "ms", "Offset (ms):", value, NULL);
 	fText->SetDivider(90);
@@ -49,7 +50,7 @@ void OffsetWindow::MessageReceived(BMessage *msg)
 {
 	switch (msg->what){
 	case MSG_OFFSET_OK:
-		Mix.SetOffset(fTrack, atof(fText->Text()) / 1000.0);
+		Tracks_SetOffset(fTrack, atof(fText->Text()) / 1000.0);
 		PostMessage(B_QUIT_REQUESTED);
 		break;
 	case MSG_OFFSET_CANCEL:

@@ -49,6 +49,7 @@ class MyApplication : public BApplication {
  	MainWindow		*mainWindow;
  private:
  	int64		save_start, save_end;
+ 	bool		save_whole;
 };
 
 #endif
