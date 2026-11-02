@@ -97,7 +97,7 @@ void CPeakFile::CreatePeaks(int32 start, int32 end, int32 progress)
 	float min, max, max_r, min_r;
 	int32 to, ii;
 
-	start &= 0xfffffff8;	// mask off 1st 7 bits to round on 128 bytes
+	start &= 0xffffff80;	// блок пиков = 128 кадров
 	int32 p_add = 0, p_count = 0, count = 0;
 	if (progress){	// init progress process
 		p_count = (end-start)/(100*128);
@@ -150,17 +150,20 @@ void CPeakFile::CreatePeaks(int32 start, int32 end, int32 progress)
 			VM.ReadBlockAt(start, p, BUFFER_SIZE);
 		#endif
 
-		for (int32 i=start*2; i<=end*2; i+=256){
+		// i - номер кадра (не float!): блок = 128 кадров. Раньше счёт шёл по float-индексам,
+		// из-за чего пики стерео ложились в буфер с шагом в 2 раза мельче, чем их читают
+		// (волна растягивалась вдвое), а вторая половина файла обнулялась ограничением по Pool.size.
+		for (int32 i=start; i<=end; i+=128){
 			min = max = 0.0;
 			min_r = max_r = 0.0;
-			to = i+255;
+			to = i+127;
 			if (to>Pool.size)	to = Pool.size;
-			for (int32 x=i; x<=to; x+=2){
+			for (int32 x=i; x<=to; x++){
 				#ifndef __VM_SYSTEM	// RAM
-					if (p[x]>max)		max = p[x];
-					if (p[x]<min)		min = p[x];
-					if (p[x+1]>max_r)	max_r = p[x+1];
-					if (p[x+1]<min_r)	min_r = p[x+1];
+					if (p[2*x]>max)		max = p[2*x];
+					if (p[2*x]<min)		min = p[2*x];
+					if (p[2*x+1]>max_r)	max_r = p[2*x+1];
+					if (p[2*x+1]<min_r)	min_r = p[2*x+1];
 				#else
 					if (p[index]>max)		max = p[index];
 					if (p[index]<min)		min = p[index];
