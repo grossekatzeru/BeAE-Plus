@@ -215,11 +215,6 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	if (stop_needed)
 		Pool.mainWindow->PostMessage(TRANSPORT_STOP);
 
-	// микшер: канал основной дорожки (громкость/баланс/mute/solo) + остальные дорожки
-	// (только при ходе 1:1 вперёд, без пересэмплинга и реверса)
-	Mix.Process(buf, (int)(float_size/2), mix_start, Pool.frequency, Pool.system_frequency,
-		!cookie->pause);
-
 	for (int i=0; i<PLAY_HOOKS; i++){
 		if (Pool.BufferHook[i]){
 			(Pool.BufferHook[i])(buf, float_size, Pool.BufferCookie[i]);
@@ -362,6 +357,10 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 
 	if (stop_needed)
 		Pool.mainWindow->PostMessage(TRANSPORT_STOP);
+
+	// микшер: параметры активной дорожки (громкость/баланс/mute/solo) + остальные дорожки
+	Mix.Process(buf, (int)(float_size/2), mix_start, Pool.frequency, Pool.system_frequency,
+		!cookie->pause);
 
 	for (int i=0; i<PLAY_HOOKS; i++){
 		if (Pool.BufferHook[i]){
