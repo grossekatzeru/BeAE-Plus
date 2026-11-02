@@ -23,6 +23,7 @@ struct MixTrack {
 	float	*data;			// interleaved
 	int64_t	frames;
 	int		channels;		// 1 или 2
+	float	rate;			// частота дискретизации дорожки, Гц
 	float	gain;			// 0..2 (линейно)
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
@@ -42,7 +43,7 @@ public:
 	int		AddEmptyTrack(const char *name, int channels);	// пустая, для записи
 	void	RemoveTrack(int i);								// основную (0) удалить нельзя
 	// Заменить содержимое: данные копируются (i может быть 0, channels 1/2).
-	bool	SetTrackData(int i, const float *data, int64_t frames, int channels);
+	bool	SetTrackData(int i, const float *data, int64_t frames, int channels, float rate);
 	int		Active() const { return fActive; }
 	void	SetActive(int i) { if (Track(i)) fActive = i; }
 	int		ArmedTrack() const;							// -1, если нет
@@ -59,11 +60,13 @@ public:
 	void	SetRecordOffset(int64_t frames) { fRecordOffset = frames; }
 	int64_t	RecordOffset() const { return fRecordOffset; }
 
-	// Вызывается из аудио-callback. buf - уже заполненный основной дорожкой стерео-буфер
-	// (interleaved L,R), frames - число кадров, start - позиция в кадрах от начала.
-	// Применяет канал основной дорожки и подмешивает остальные.
-	// mixExtras=false, если ход воспроизведения не 1:1 (пересэмплинг/реверс).
-	void	Process(float *buf, int frames, int64_t start, bool mixExtras);
+	// Вызывается из аудио-callback. buf - уже заполненный активной дорожкой стерео-буфер
+	// (interleaved L,R), frames - число кадров. activePos - позиция активной дорожки (в её
+	// кадрах) на начало буфера, activeRate - её частота (отрицательная = реверс), sysRate -
+	// частота выхода. Применяет канал активной дорожки и подмешивает остальные дорожки
+	// с учётом их собственной частоты (линейная интерполяция).
+	void	Process(float *buf, int frames, double activePos, double activeRate,
+				double sysRate, bool mixExtras);
 
 	// Пиковые уровни последнего буфера для дорожки (для индикаторов)
 	float	PeakL(int i) const { return (i>=0 && i<MIX_MAX_TRACKS) ? fPeakL[i] : 0; }

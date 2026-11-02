@@ -16,6 +16,7 @@ Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0)
 	t.used = true;
 	t.owns_data = true;
 	t.channels = 2;
+	t.rate = 44100.0f;
 	t.gain = 1.0f;
 	strcpy(t.name, "Track 1");
 }
@@ -60,6 +61,7 @@ int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int cha
 	t.data = copy;
 	t.frames = frames;
 	t.channels = channels;
+	t.rate = 44100.0f;
 	t.gain = 1.0f;
 	if (name) { strncpy(t.name, name, sizeof(t.name)-1); t.name[sizeof(t.name)-1] = 0; }
 	else snprintf(t.name, sizeof(t.name), "Track %d", idx+1);
@@ -87,7 +89,7 @@ void Mixer::RemoveTrack(int i)
 	Unlock();
 }
 
-bool Mixer::SetTrackData(int i, const float *data, int64_t frames, int channels)
+bool Mixer::SetTrackData(int i, const float *data, int64_t frames, int channels, float rate)
 {
 	if (i < 0 || i >= MIX_MAX_TRACKS || frames < 0 || !fTracks[i].used) return false;
 	if (channels != 1 && channels != 2) return false;
@@ -102,6 +104,7 @@ bool Mixer::SetTrackData(int i, const float *data, int64_t frames, int channels)
 	fTracks[i].data = copy;
 	fTracks[i].frames = frames;
 	fTracks[i].channels = channels;
+	if (rate > 0) fTracks[i].rate = rate;
 	Unlock();
 	free(old);
 	return true;
@@ -154,7 +157,8 @@ void Mixer::Gains(const MixTrack &t, bool anySolo, float &gl, float &gr)
 	gr = t.gain * (p < 0 ? 1.0f + p : 1.0f);
 }
 
-void Mixer::Process(float *buf, int frames, int64_t start, bool mixExtras)
+void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
+	double sysRate, bool mixExtras)
 {
 	bool anySolo = false;
 	for (int i=0; i<fCount; i++)
@@ -190,12 +194,23 @@ void Mixer::Process(float *buf, int frames, int64_t start, bool mixExtras)
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
-		for (int k=0; k<frames; k++) {
-			int64_t pos = start + k;
-			if (pos < 0 || pos >= t.frames) continue;
+		// позиция в кадрах этой дорожки: то же время, что у активной
+		const double aRate = fabs(activeRate) > 1.0 ? fabs(activeRate) : 44100.0;
+		const double dir = (activeRate < 0) ? -1.0 : 1.0;
+		const double step = dir * (double)t.rate / sysRate;
+		double p = activePos / aRate * (double)t.rate;
+		for (int k=0; k<frames; k++, p += step) {
+			if (p < 0 || p >= (double)t.frames) continue;
+			int64_t i0 = (int64_t)p;
+			int64_t i1 = (i0 + 1 < t.frames) ? i0 + 1 : i0;
+			float fr = (float)(p - (double)i0);
 			float l, r;
-			if (t.channels == 1) { l = r = t.data[pos]; }
-			else { l = t.data[2*pos]; r = t.data[2*pos+1]; }
+			if (t.channels == 1) {
+				l = r = t.data[i0] + (t.data[i1] - t.data[i0]) * fr;
+			} else {
+				l = t.data[2*i0]   + (t.data[2*i1]   - t.data[2*i0])   * fr;
+				r = t.data[2*i0+1] + (t.data[2*i1+1] - t.data[2*i0+1]) * fr;
+			}
 			l *= gl; r *= gr;
 			buf[2*k] += l; buf[2*k+1] += r;
 			if (fabsf(l) > pl) pl = fabsf(l);

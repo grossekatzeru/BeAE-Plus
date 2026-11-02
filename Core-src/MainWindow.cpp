@@ -217,8 +217,8 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 
 	// микшер: канал основной дорожки (громкость/баланс/mute/solo) + остальные дорожки
 	// (только при ходе 1:1 вперёд, без пересэмплинга и реверса)
-	Mix.Process(buf, (int)(float_size/2), mix_start,
-		!cookie->pause && Pool.frequency > 0 && fabs(fraq-1.0) < 1e-6);
+	Mix.Process(buf, (int)(float_size/2), mix_start, Pool.frequency, Pool.system_frequency,
+		!cookie->pause);
 
 	for (int i=0; i<PLAY_HOOKS; i++){
 		if (Pool.BufferHook[i]){
@@ -260,9 +260,9 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	float left = 0.0, right = 0.0;
 	double fraq = fabs(Pool.frequency/Pool.system_frequency);
 	// позиция в кадрах на начало буфера - по ней микшер подмешивает остальные дорожки
-	int64 mix_start = 0;
+	double mix_start = 0;
 	if (Pool.sample_type != NONE && Pool.sample_memory)
-		mix_start = (cookie->mem - Pool.sample_memory) / Pool.sample_type;
+		mix_start = (double)((cookie->mem - Pool.sample_memory) / Pool.sample_type) + cookie->add;
 	
 	if ((Pool.selection == NONE) | cookie->end){
 		cookie->end_mem = Pool.sample_memory + Pool.size*Pool.sample_type;

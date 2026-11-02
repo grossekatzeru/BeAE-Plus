@@ -30,9 +30,9 @@ void Tracks_Stash()
 	int a = Mix.Active();
 	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0){
 		MixTrack *t = Mix.Track(a);
-		Mix.SetTrackData(a, NULL, 0, t ? t->channels : 2);
+		Mix.SetTrackData(a, NULL, 0, t ? t->channels : 2, Pool.frequency);
 	}else{
-		Mix.SetTrackData(a, Pool.sample_memory, Pool.size, Pool.sample_type);
+		Mix.SetTrackData(a, Pool.sample_memory, Pool.size, Pool.sample_type, Pool.frequency);
 	}
 }
 
@@ -67,6 +67,8 @@ bool Tracks_Activate(int index)
 		memset((char*)Pool.sample_memory + (size_t)frames*ch*4, 0, 1024);
 		Pool.size = frames;
 		Pool.sample_type = (ch == 1) ? MONO : STEREO;
+		Pool.frequency = t->rate;		// у каждой дорожки своя частота
+		play_cookie.frequency = Pool.frequency;
 		Pool.m_format.u.raw_audio.channel_count = Pool.sample_type;
 	}else{
 		Pool.size = 0;
@@ -123,6 +125,6 @@ void Tracks_RemoveActive()
 		Mix.RemoveTrack(a);
 	}else{
 		// дорожка 0 не удаляется физически - очищаем её
-		Mix.SetTrackData(0, NULL, 0, 2);
+		Mix.SetTrackData(0, NULL, 0, 2, Pool.frequency);
 	}
 }
