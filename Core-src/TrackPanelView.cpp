@@ -10,16 +10,18 @@
 #include "Globals.h"
 #include "Mixer.h"
 #include "Tracks.h"
+#include <Region.h>
 #include "TrackPanelView.h"
 #include "OffsetWindow.h"
 
 #define HEADER_H	INDEXVIEW_HEIGHT		// верхняя полоска - на уровне обзорной панели
+// полоса дорожки: верхние POINTER_BAR_HEIGHT пикселей - как у полоски над волной
 #define DB_MIN		-60.0f
 #define DB_MAX		6.0f
 
 TrackPanelView::TrackPanelView(BRect r)
 	: BView(r, "Track panel", B_FOLLOW_TOP_BOTTOM | B_FOLLOW_LEFT, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1)
+	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1), fLastCount(-1), fLastScroll(-1), fLastHeight(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -45,10 +47,18 @@ float TrackPanelView::PosToVol(float pos)
 	return powf(10.0f, db / 20.0f);
 }
 
-BRect TrackPanelView::StripRect(int index) const
+// область полос по высоте: от низа заголовка до верха шкалы времени (как у полос с волнами)
+static float AreaHeight(BRect b)
 {
-	float top = HEADER_H + index * TRACKSTRIP_HEIGHT - fScroll;
-	return BRect(0, top, Bounds().right, top + TRACKSTRIP_HEIGHT - 1);
+	return b.Height() + 1 - HEADER_H - TIMEBAR_HEIGHT;
+}
+
+BRect TrackPanelView::StripRect(int slot) const
+{
+	int rank = Tracks_Rank(slot);
+	float top, bottom;
+	Tracks_LaneSpan(rank < 0 ? 0 : rank, AreaHeight(Bounds()), top, bottom);
+	return BRect(0, HEADER_H + top, Bounds().right, HEADER_H + bottom);
 }
 
 BRect TrackPanelView::ButtonRect(int index, int which) const
@@ -136,6 +146,8 @@ void TrackPanelView::Draw(BRect update)
 
 	const int active = Mix.Active();
 	const bool playing = Pool.IsPlaying();
+	BRegion clip(BRect(0, HEADER_H, b.right, HEADER_H + AreaHeight(b) - 1));
+	ConstrainClippingRegion(&clip);
 	for (int i=0; i<MIX_MAX_TRACKS; i++){
 		MixTrack *t = Mix.Track(i);
 		if (!t) continue;
@@ -191,6 +203,7 @@ void TrackPanelView::Draw(BRect update)
 		DrawString(buf, BPoint(PanRect(i).right + 4, PanRect(i).bottom));
 	}
 
+	ConstrainClippingRegion(NULL);
 	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeLine(BPoint(b.right, 0), BPoint(b.right, b.bottom));
 }
@@ -314,11 +327,7 @@ void TrackPanelView::MessageReceived(BMessage *msg)
 	if (msg->what == B_MOUSE_WHEEL_CHANGED){
 		float dy = 0;
 		if (msg->FindFloat("be:wheel_delta_y", &dy) == B_OK){
-			int n = Mix.TrackCount();
-			float maxScroll = HEADER_H + n * TRACKSTRIP_HEIGHT - Bounds().Height();
-			fScroll += dy * TRACKSTRIP_HEIGHT / 2;
-			if (fScroll > maxScroll) fScroll = maxScroll;
-			if (fScroll < 0) fScroll = 0;
+			Tracks_SetScroll(Tracks_Scroll() + dy * MIN_LANE_HEIGHT / 2, AreaHeight(Bounds()));
 			Invalidate();
 		}
 		return;
@@ -329,9 +338,13 @@ void TrackPanelView::MessageReceived(BMessage *msg)
 void TrackPanelView::Pulse()
 {
 	// перерисовка, пока идёт воспроизведение (индикаторы уровня) или сменилась активная дорожка
-	if (Pool.IsPlaying() || fLastActive != Mix.Active() || fLastRevision != Mix.Revision()){
+	if (Pool.IsPlaying() || fLastActive != Mix.Active() || fLastRevision != Mix.Revision()
+		|| fLastScroll != Tracks_Scroll() || fLastCount != Tracks_Count() || fLastHeight != Bounds().Height()){
 		fLastActive = Mix.Active();
 		fLastRevision = Mix.Revision();
+		fLastScroll = Tracks_Scroll();
+		fLastCount = Tracks_Count();
+		fLastHeight = Bounds().Height();
 		Invalidate();
 	}
 }

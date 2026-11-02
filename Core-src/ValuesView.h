@@ -39,7 +39,7 @@ class ValuesView: public BView{
 	virtual void Draw(BRect);
 
  private:
-	
+	void DrawAxis(BRect lane, int type);
 };
 
 #endif

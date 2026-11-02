@@ -61,6 +61,7 @@
 #include "Mixer.h"
 #include "Tracks.h"
 #include "TrackPanelView.h"
+#include "LanesView.h"
 
 cookie_record play_cookie;
 #define UPDATE	'updt'
@@ -512,7 +513,10 @@ MainWindow::MainWindow(BRect frame)
 	r.left += VALUEBAR_WIDTH;
 	r.bottom -= TIMEBAR_HEIGHT;
 	r.top += INDEXVIEW_HEIGHT;
-	AddChild(sample_view = new SampleView(r));
+	LanesView *lanes_view = new LanesView(r);		// стопка полос; в полосе активной дорожки - SampleView
+	AddChild(lanes_view);
+	sample_view = new SampleView(BRect(0, 0, r.Width(), r.Height()));
+	lanes_view->AddChild(sample_view);
 	Pool.m_SampleView = sample_view;	// for the player
 	((SampleView*)sample_view)->Init();
 	

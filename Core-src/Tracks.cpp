@@ -133,14 +133,45 @@ static bool Load(int index)
 	return true;
 }
 
-static void RefreshUI(bool keepCursor)
+// Положение окна волны и курсора в секундах - чтобы пережить пересборку дорожки
+struct ViewState {
+	bool	had;
+	double	tl, tr, tp;
+};
+
+static ViewState CaptureView()
 {
-	int64 oldPointer = Pool.pointer;
+	ViewState v;
+	const double rate = (Pool.frequency > 1.0f) ? Pool.frequency : 44100.0;
+	v.had = (Pool.sample_type != NONE && Pool.size > 0);
+	v.tl = Pool.l_pointer / rate;
+	v.tr = Pool.r_pointer / rate;
+	v.tp = Pool.pointer / rate;
+	return v;
+}
+
+static void RefreshUI(const ViewState &v)
+{
 	Pool.selection = NONE;
-	Pool.pointer = (keepCursor && oldPointer < Pool.size) ? oldPointer : 0;
-	Pool.r_pointer = Pool.size;
-	Pool.l_pointer = 0;
 	Pool.r_sel_pointer = 0;
+	Pool.l_pointer = 0;
+	Pool.r_pointer = Pool.size;
+	Pool.pointer = 0;
+	if (v.had && Pool.sample_type != NONE && Pool.size > 2){
+		const double rate = Pool.frequency;
+		int64 l = (int64)floor(v.tl * rate + 0.5);
+		int64 r = (int64)floor(v.tr * rate + 0.5);
+		int64 p = (int64)floor(v.tp * rate + 0.5);
+		if (l < 0) l = 0;
+		if (r > Pool.size) r = Pool.size;
+		if (r - l >= 16){
+			Pool.l_pointer = l;
+			Pool.r_pointer = r;
+		}
+		if (p < 0) p = 0;
+		if (p >= Pool.size) p = Pool.size - 1;
+		Pool.pointer = p;
+	}
 	play_cookie.mem = Pool.sample_memory + (Pool.sample_type == NONE ? 0 : Pool.pointer * Pool.sample_type);
 	play_cookie.start_mem = play_cookie.mem;
 	play_cookie.end_mem = Pool.sample_memory + Pool.size * (Pool.sample_type == NONE ? 1 : Pool.sample_type);
@@ -168,7 +199,7 @@ static void StopAll()
 		Pool.player->Stop();
 }
 
-bool Tracks_Activate(int index)
+bool Tracks_Activate(int index, double cursorTime)
 {
 	MixTrack *t = Mix.Track(index);
 	if (t == NULL || index == Mix.Active())
@@ -176,6 +207,9 @@ bool Tracks_Activate(int index)
 	if (Recorder.IsRecording())
 		return false;
 
+	ViewState view = CaptureView();
+	if (cursorTime >= 0.0)
+		view.tp = cursorTime;
 	StopAll();
 	Tracks_Stash();
 	if (!Load(index)){
@@ -183,7 +217,7 @@ bool Tracks_Activate(int index)
 		return false;
 	}
 	Hist.Reset();					// undo относится к одной дорожке
-	RefreshUI(false);
+	RefreshUI(view);
 	return true;
 }
 
@@ -215,11 +249,12 @@ double Tracks_Offset(int index)
 // пересобрать активную дорожку под текущую ленту (например, после удаления дорожки)
 static void Reload()
 {
+	ViewState view = CaptureView();
 	StopAll();
 	Tracks_Stash();
 	if (Load(Mix.Active())){
 		Hist.Reset();
-		RefreshUI(true);
+		RefreshUI(view);
 	}
 }
 
@@ -228,13 +263,14 @@ bool Tracks_SetOffset(int index, double seconds)
 	if (!Mix.Track(index) || Recorder.IsRecording())
 		return false;
 	if (seconds < 0) seconds = 0;
+	ViewState view = CaptureView();
 	StopAll();
 	Tracks_Stash();					// активная дорожка без полей, лента пересчитывается ниже
 	Mix.SetOffset(index, seconds);
 	if (!Load(Mix.Active()))
 		return false;
 	Hist.Reset();
-	RefreshUI(true);
+	RefreshUI(view);
 	return true;
 }
 
@@ -285,4 +321,69 @@ void Tracks_SaveRange(int64 &start, int64 &end)
 		return;
 	start = s;
 	end = e;
+}
+
+// ---- раскладка по вертикали ----
+static float gScroll = 0;
+
+int Tracks_Count()
+{
+	int n = 0;
+	for (int i=0; i<MIX_MAX_TRACKS; i++)
+		if (Mix.Track(i)) n++;
+	return n;
+}
+
+int Tracks_Rank(int slot)
+{
+	if (!Mix.Track(slot)) return -1;
+	int r = 0;
+	for (int i=0; i<slot; i++)
+		if (Mix.Track(i)) r++;
+	return r;
+}
+
+int Tracks_SlotAt(int rank)
+{
+	int r = 0;
+	for (int i=0; i<MIX_MAX_TRACKS; i++){
+		if (!Mix.Track(i)) continue;
+		if (r == rank) return i;
+		r++;
+	}
+	return -1;
+}
+
+float Tracks_LaneHeight(float areaHeight)
+{
+	int n = Tracks_Count();
+	if (n < 1) n = 1;
+	float h = floorf(areaHeight / n);
+	return (h < MIN_LANE_HEIGHT) ? (float)MIN_LANE_HEIGHT : h;
+}
+
+float Tracks_Scroll()
+{
+	return gScroll;
+}
+
+void Tracks_SetScroll(float scroll, float areaHeight)
+{
+	float total = Tracks_LaneHeight(areaHeight) * Tracks_Count();
+	float max = total - areaHeight;
+	if (max < 0) max = 0;
+	if (scroll > max) scroll = max;
+	if (scroll < 0) scroll = 0;
+	gScroll = scroll;
+}
+
+void Tracks_LaneSpan(int rank, float areaHeight, float &top, float &bottom)
+{
+	const float h = Tracks_LaneHeight(areaHeight);
+	const int n = Tracks_Count();
+	Tracks_SetScroll(gScroll, areaHeight);			// вдруг дорожек стало меньше
+	top = rank * h - gScroll;
+	bottom = top + h - 1;
+	if (rank == n - 1 && n * h <= areaHeight)
+		bottom = areaHeight - 1;					// последняя полоса добирает остаток, пока всё помещается
 }

@@ -8,7 +8,6 @@
 #include <View.h>
 
 #define TRACKPANEL_WIDTH	136
-#define TRACKSTRIP_HEIGHT	52
 
 class TrackPanelView : public BView {
 public:
@@ -40,7 +39,8 @@ private:
 
 	int		fDragWhat, fDragIndex;
 	float	fScroll;
-	int		fLastActive, fLastRevision;
+	int		fLastActive, fLastRevision, fLastCount;
+	float	fLastScroll, fLastHeight;
 };
 
 #endif

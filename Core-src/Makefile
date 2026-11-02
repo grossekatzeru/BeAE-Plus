@@ -31,7 +31,7 @@ APP_MIME_SIG =
 #	Also note that spaces in folder names do not work well with this Makefile.
 SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp AnalyzeWindow.cpp BassBoostFilter.cpp \
 	BigView.cpp ByteSwap.cpp BitmapDrawer.cpp CommonClass.cpp CommonPool.cpp CompressorFilter.cpp \
-	DelayWindow.cpp Filters.cpp FreqWindow.cpp LadspaFilter.cpp LadspaHost.cpp Mixer.cpp Tracks.cpp TrackPanelView.cpp OffsetWindow.cpp History.cpp IndexView.cpp LimiterFilter.cpp \
+	DelayWindow.cpp Filters.cpp FreqWindow.cpp LadspaFilter.cpp LadspaHost.cpp Mixer.cpp Tracks.cpp TrackPanelView.cpp OffsetWindow.cpp LanesView.cpp History.cpp IndexView.cpp LimiterFilter.cpp \
 	MainWindow.cpp MyClipBoard.cpp NormalizeFilter.cpp OpenPanel.cpp PeakFile.cpp \
 	PointersView.cpp PrefColors.cpp PrefGeneral.cpp PrefKeys.cpp PrefView.cpp \
 	PrefWindow.cpp Preferences.cpp ProgressWindow.cpp RealtimeFilter.cpp ResampleWindow.cpp \

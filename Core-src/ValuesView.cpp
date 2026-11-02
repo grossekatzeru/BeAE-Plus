@@ -33,6 +33,9 @@
 #include "ValuesView.h"
 #include "MainWindow.h"
 #include "Globals.h"
+#include <Region.h>
+#include "Mixer.h"
+#include "Tracks.h"
 
 ValuesView::ValuesView(BRect r) : 
 	BView(r, "Values view", B_FOLLOW_TOP_BOTTOM, B_WILL_DRAW | B_FULL_UPDATE_ON_RESIZE)
@@ -53,20 +56,45 @@ void ValuesView::AttachedToWindow()
 //*****************************************************
 void ValuesView::Draw(BRect rect)
 {
-	int conv[] = {0, 2, 4, 8, 8, 10, 10, 10, 20, 20, 20, 20};
-	int height_div;
 	BRect r = Bounds();
-	char s[255];
-
 	SetLowColor(Prefs.time_back_color);
 	FillRect(r, B_SOLID_LOW);
 	SetHighColor(64,64,64);
 	StrokeLine(r.RightTop(), BPoint(r.right, r.bottom - TIMEBAR_HEIGHT));
-	
+
 	if (Pool.sample_type == NONE)	return;
 
-	r.bottom -= TIMEBAR_HEIGHT;
-	r.top += INDEXVIEW_HEIGHT;
+	// шкала для каждой полосы: область полос - от нижнего края обзорной панели до верха шкалы времени
+	const float areaTop = INDEXVIEW_HEIGHT;
+	const float area = r.Height() + 1 - INDEXVIEW_HEIGHT - TIMEBAR_HEIGHT;
+	if (area <= 0) return;
+	BRegion clip(BRect(0, areaTop, r.right, areaTop + area - 1));
+	ConstrainClippingRegion(&clip);
+
+	const int n = Tracks_Count();
+	for (int rank=0; rank<n; rank++){
+		int slot = Tracks_SlotAt(rank);
+		MixTrack *t = Mix.Track(slot);
+		if (!t) continue;
+		float top, bottom;
+		Tracks_LaneSpan(rank, area, top, bottom);
+		top += areaTop;
+		bottom += areaTop;
+		if (bottom < areaTop || top > areaTop + area) continue;
+		int type = (slot == Mix.Active()) ? Pool.sample_type : (t->channels == 1 ? MONO : STEREO);
+		DrawAxis(BRect(0, top, r.right, bottom), type);
+	}
+	ConstrainClippingRegion(NULL);
+}
+
+// шкала одной полосы (lane - вся полоса, включая верхнюю полоску указателей)
+void ValuesView::DrawAxis(BRect lane, int type)
+{
+	int conv[] = {0, 2, 4, 8, 8, 10, 10, 10, 20, 20, 20, 20};
+	int height_div;
+	BRect r = lane;
+	char s[255];
+
 	r.top += POINTER_BAR_HEIGHT;
 
 	BFont font;
@@ -75,9 +103,9 @@ void ValuesView::Draw(BRect rect)
 	font.GetHeight(&fh);
 	
 	SetHighColor(Prefs.time_text_color);
-	DrawString("\%", BPoint(r.right - font.StringWidth("%"), INDEXVIEW_HEIGHT+POINTER_BAR_HEIGHT/2));
+	DrawString("\%", BPoint(r.right - font.StringWidth("%"), lane.top + POINTER_BAR_HEIGHT/2));
 
-	switch(Pool.sample_type){
+	switch(type){
 	case MONO:
 		height_div = (int)ceil(r.Height()/(font.Size()*2)) & 0xfffffe;
 		if (height_div>20)	height_div = 20;

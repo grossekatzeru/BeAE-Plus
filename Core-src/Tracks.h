@@ -16,7 +16,7 @@
 #define TIMELINE_MARGIN	10.0		// секунд запаса после самой дальней дорожки
 
 void	Tracks_Init();							// создать DEFAULT_TRACKS пустых дорожек (один раз при старте)
-bool	Tracks_Activate(int index);				// сделать дорожку активной; false - нельзя (идёт запись)
+bool	Tracks_Activate(int index, double cursorTime = -1.0);	// сделать дорожку активной (курсор - на ленте, сек; <0 - как был); false - нельзя
 void	Tracks_Stash();							// сохранить содержимое Pool в активную дорожку (без тишины по краям)
 void	Tracks_PlaceActive(double offsetSeconds);	// Pool содержит свежий звук (файл, запись): положить на ленту
 bool	Tracks_SetOffset(int index, double seconds);	// сдвинуть дорожку на ленте
@@ -24,5 +24,15 @@ double	Tracks_Offset(int index);				// положение начала звук�
 int		Tracks_Add();							// добавить пустую дорожку, вернуть индекс или -1
 void	Tracks_RemoveActive();					// удалить активную дорожку (последнюю оставшуюся удалить нельзя)
 void	Tracks_SaveRange(int64 &start, int64 &end);	// диапазон кадров активной дорожки без добавленной тишины
+
+// Раскладка дорожек по вертикали - одна и та же для панели слева и для полос с волнами.
+#define MIN_LANE_HEIGHT	52
+int		Tracks_Count();							// число дорожек
+int		Tracks_Rank(int slot);					// номер дорожки сверху вниз (или -1)
+int		Tracks_SlotAt(int rank);				// слот микшера по номеру сверху вниз (или -1)
+float	Tracks_LaneHeight(float areaHeight);		// высота одной полосы: область делится поровну, но не меньше MIN_LANE_HEIGHT
+void	Tracks_LaneSpan(int rank, float areaHeight, float &top, float &bottom);	// с учётом прокрутки
+float	Tracks_Scroll();
+void	Tracks_SetScroll(float scroll, float areaHeight);	// прокрутка по вертикали (с ограничением)
 
 #endif
