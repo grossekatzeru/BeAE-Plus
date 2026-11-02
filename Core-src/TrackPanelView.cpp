@@ -1,3 +1,4 @@
+#include <StorageKit.h>
 #include <Window.h>
 #include <Font.h>
 #include <Message.h>
