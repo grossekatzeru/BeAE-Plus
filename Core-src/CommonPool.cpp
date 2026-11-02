@@ -187,7 +187,7 @@ void CommonPool::InitBufferPlayer(float f)
 	{
 		m_playing = true;
 		if (p){
-			play_cookie.mem = sample_memory +p*4;
+			play_cookie.mem = sample_memory + p;
 		}else{
 			play_cookie.mem = sample_memory;
 		}
