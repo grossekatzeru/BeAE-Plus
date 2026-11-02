@@ -727,9 +727,13 @@ void MainWindow::StartRecording()
 		Pool.StopPlaying();
 	}
 
-	// запись идёт в дорожку с кнопкой R (если такой нет - в активную)
+	// запись идёт только в дорожку с кнопкой R
 	int armed = Mix.ArmedTrack();
-	if (armed >= 0 && armed != Mix.Active()){
+	if (armed < 0){
+		(new BAlert(NULL, Language.get("REC_ERR_NO_ARMED"), Language.get("OK")))->Go();
+		return;
+	}
+	if (armed != Mix.Active()){
 		if (!Tracks_Activate(armed))
 			return;
 	}
