@@ -24,6 +24,7 @@ struct MixTrack {
 	int64_t	frames;
 	int		channels;		// 1 или 2
 	float	rate;			// частота дискретизации дорожки, Гц
+	double	offset;			// смещение начала дорожки на общей шкале времени, секунды (>= 0)
 	float	gain;			// 0..2 (линейно)
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
@@ -55,6 +56,12 @@ public:
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
+	void	SetOffset(int i, double seconds);
+	// Конец самой «длинной» неактивной дорожки на шкале времени (сек); 0, если данных нет
+	double	EndTimeExtras() const;
+	// Счётчик изменений параметров - интерфейс перерисовывается, когда он меняется
+	int		Revision() const { return fRevision.load(); }
+	void	Touch() { fRevision++; }
 
 	// Задержка записи (кадров): записанные данные сдвигаются на это число кадров назад.
 	void	SetRecordOffset(int64_t frames) { fRecordOffset = frames; }
@@ -84,6 +91,7 @@ private:
 	std::atomic_flag fLock;
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
 	int			fActive;
+	std::atomic<int> fRevision;
 };
 
 extern Mixer Mix;

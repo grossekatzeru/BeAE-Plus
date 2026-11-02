@@ -256,8 +256,11 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	double fraq = fabs(Pool.frequency/Pool.system_frequency);
 	// позиция в кадрах на начало буфера - по ней микшер подмешивает остальные дорожки
 	double mix_start = 0;
-	if (Pool.sample_type != NONE && Pool.sample_memory)
+	if (cookie->tailing)
+		mix_start = cookie->tail_pos;
+	else if (Pool.sample_type != NONE && Pool.sample_memory)
 		mix_start = (double)((cookie->mem - Pool.sample_memory) / Pool.sample_type) + cookie->add;
+	const double mix_step = ((Pool.frequency < 0) ? -1.0 : 1.0) * fraq;	// кадров активной дорожки на кадр выхода
 	
 	if ((Pool.selection == NONE) | cookie->end){
 		cookie->end_mem = Pool.sample_memory + Pool.size*Pool.sample_type;
@@ -267,7 +270,7 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	
 	// Now fill the buffer with sound! 
 
-	if (cookie->pause){
+	if (cookie->pause || cookie->tailing){
 		for (i=0; i<float_size; i++) { 
 			buf[i] = 0.0;
 		}
@@ -354,6 +357,24 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	Pool.last_pointer = (cookie->mem - Pool.sample_memory);	// set the last played location
 	if (Pool.sample_type == STEREO)
 		Pool.last_pointer >>= 1;
+
+	// Активная дорожка закончилась, а другие ещё звучат - продолжаем «хвостом»,
+	// пока не кончится самая длинная (только при обычном проигрывании вперёд до конца файла).
+	if (cookie->tailing || stop_needed){
+		const bool wasTail = cookie->tailing;
+		const bool whole = (Pool.selection == NONE) || cookie->end;
+		const double aRate = (fabs(Pool.frequency) > 1.0) ? fabs(Pool.frequency) : 44100.0;
+		double next = mix_start + (double)(float_size/2) * mix_step;
+		double t_next = next / aRate + (Mix.Track(Mix.Active()) ? Mix.Track(Mix.Active())->offset : 0);
+		if (whole && Pool.frequency > 0 && !cookie->loop && t_next < Mix.EndTimeExtras()){
+			cookie->tailing = true;
+			cookie->tail_pos = next;
+			stop_needed = false;
+		}else{
+			cookie->tailing = false;
+			if (wasTail) stop_needed = true;	// хвост закончился
+		}
+	}
 
 	if (stop_needed)
 		Pool.mainWindow->PostMessage(TRANSPORT_STOP);

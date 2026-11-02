@@ -11,6 +11,7 @@
 #include "Mixer.h"
 #include "Tracks.h"
 #include "TrackPanelView.h"
+#include "OffsetWindow.h"
 
 #define HEADER_H	INDEXVIEW_HEIGHT		// верхняя полоска - на уровне обзорной панели
 #define DB_MIN		-60.0f
@@ -18,7 +19,7 @@
 
 TrackPanelView::TrackPanelView(BRect r)
 	: BView(r, "Track panel", B_FOLLOW_TOP_BOTTOM | B_FOLLOW_LEFT, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1)
+	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -152,6 +153,11 @@ void TrackPanelView::Draw(BRect update)
 		char name[40];
 		snprintf(name, sizeof(name), "%s%s", t->name, t->channels == 1 ? " (mono)" : "");
 		DrawString(name, BPoint(s.left + 5, s.top + 12));
+		if (t->offset > 0.0005){
+			char off[24];
+			snprintf(off, sizeof(off), "+%.3f s", t->offset);
+			DrawString(off, BPoint(s.right - 6 - StringWidth(off), s.top + 12));
+		}
 
 		// кнопки
 		DrawButton(ButtonRect(i, 0), "S", t->solo, make_color(255, 220, 0));
@@ -266,7 +272,11 @@ void TrackPanelView::MouseDown(BPoint p)
 		Invalidate();
 		break;
 	case HIT_NAME:
-		Tracks_Activate(index);
+		if (clicks >= 2){				// двойной клик по имени - смещение дорожки
+			(new OffsetWindow(index, Window()))->Show();
+		}else{
+			Tracks_Activate(index);
+		}
 		Invalidate();
 		break;
 	case HIT_VOL:
@@ -319,8 +329,9 @@ void TrackPanelView::MessageReceived(BMessage *msg)
 void TrackPanelView::Pulse()
 {
 	// перерисовка, пока идёт воспроизведение (индикаторы уровня) или сменилась активная дорожка
-	if (Pool.IsPlaying() || fLastActive != Mix.Active()){
+	if (Pool.IsPlaying() || fLastActive != Mix.Active() || fLastRevision != Mix.Revision()){
 		fLastActive = Mix.Active();
+		fLastRevision = Mix.Revision();
 		Invalidate();
 	}
 }

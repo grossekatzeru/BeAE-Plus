@@ -200,6 +200,8 @@ void CommonPool::InitBufferPlayer(float f)
 			play_cookie.end_mem = sample_memory + r_sel_pointer*sample_type;
 
 		play_cookie.end = end;
+		play_cookie.tailing = false;
+		play_cookie.tail_pos = 0;
 		play_cookie.frequency = frequency;
 		play_cookie.add = 0;
 		last_pointer = 0;

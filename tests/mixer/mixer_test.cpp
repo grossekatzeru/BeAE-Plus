@@ -65,6 +65,18 @@ int main(){
 	int rt=w.AddTrack("r",ramp,4,1); w.Track(rt)->rate=22050;
 	float ob[16]={0}; w.Process(ob,8,0,44100,44100,true);
 	CHECK(fabsf(ob[0]-0)<1e-6 && fabsf(ob[2]-0.5f)<1e-6 && fabsf(ob[4]-1)<1e-6);
+	// смещения: дорожка с offset 1 с, активная без смещения
+	Mixer mo; float one[4]={1,1,1,1};
+	int ot=mo.AddTrack("o",one,4,1); mo.Track(ot)->rate=4;	// 4 кадра при 4 Гц = 1 с
+	mo.SetOffset(ot,1.0);
+	CHECK(fabsf((float)mo.EndTimeExtras()-2.0f)<1e-6);
+	float s1[8]={0}; mo.Process(s1,4,0,4,4,true);		// t=0..1 с -> тишина
+	CHECK(s1[0]==0 && s1[6]==0);
+	float s2[8]={0}; mo.Process(s2,4,4,4,4,true);		// t=1..2 с -> звук
+	CHECK(fabsf(s2[0]-1)<1e-6 && fabsf(s2[6]-1)<1e-6);
+	mo.SetActive(0); mo.SetOffset(0,1.0);				// у активной смещение 1 с: t=1..2 при activePos 0
+	float s3[8]={0}; mo.Process(s3,4,0,4,4,true);
+	CHECK(fabsf(s3[0]-1)<1e-6);
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

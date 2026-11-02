@@ -40,7 +40,7 @@ private:
 
 	int		fDragWhat, fDragIndex;
 	float	fScroll;
-	int		fLastActive;
+	int		fLastActive, fLastRevision;
 };
 
 #endif

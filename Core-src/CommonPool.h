@@ -55,6 +55,8 @@ typedef struct cookie_record{
 	bool mono;
 	bool loop;
 	bool end;
+	bool tailing;		// активная дорожка кончилась, но другие ещё звучат
+	double tail_pos;	// позиция «хвоста» в кадрах активной дорожки
 	int count;
 } cookie_record; 
 

@@ -6,7 +6,7 @@
 
 Mixer Mix;
 
-Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0)
+Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0)
 {
 	fLock.clear();
 	memset(fTracks, 0, sizeof(fTracks));
@@ -130,15 +130,34 @@ bool Mixer::AppendTrackData(int i, const float *data, int64_t frames)
 	return true;
 }
 
-void Mixer::SetGain(int i, float g)	{ if (Track(i)) fTracks[i].gain = g<0?0:(g>2?2:g); }
-void Mixer::SetPan(int i, float p)	{ if (Track(i)) fTracks[i].pan = p<-1?-1:(p>1?1:p); }
-void Mixer::SetMute(int i, bool m)	{ if (Track(i)) fTracks[i].mute = m; }
-void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) fTracks[i].solo = s; }
+void Mixer::SetGain(int i, float g)	{ if (Track(i)) { fTracks[i].gain = g<0?0:(g>2?2:g); fRevision++; } }
+void Mixer::SetPan(int i, float p)	{ if (Track(i)) { fTracks[i].pan = p<-1?-1:(p>1?1:p); fRevision++; } }
+void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevision++; } }
+void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
 void Mixer::SetArmed(int i, bool a)
 {
 	if (!Track(i)) return;
 	if (a) for (int k=0; k<MIX_MAX_TRACKS; k++) fTracks[k].armed = false;
 	fTracks[i].armed = a;
+}
+
+void Mixer::SetOffset(int i, double seconds)
+{
+	if (!Track(i)) return;
+	fTracks[i].offset = seconds < 0 ? 0 : seconds;
+	fRevision++;
+}
+
+double Mixer::EndTimeExtras() const
+{
+	double end = 0;
+	for (int i=0; i<MIX_MAX_TRACKS; i++) {
+		const MixTrack &t = fTracks[i];
+		if (!t.used || i == fActive || !t.data || t.frames <= 0 || t.rate <= 0) continue;
+		double e = t.offset + (double)t.frames / t.rate;
+		if (e > end) end = e;
+	}
+	return end;
 }
 
 int Mixer::ArmedTrack() const
@@ -198,7 +217,9 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		const double aRate = fabs(activeRate) > 1.0 ? fabs(activeRate) : 44100.0;
 		const double dir = (activeRate < 0) ? -1.0 : 1.0;
 		const double step = dir * (double)t.rate / sysRate;
-		double p = activePos / aRate * (double)t.rate;
+		// время на общей шкале в начале буфера -> позиция в этой дорожке
+		const double now = activePos / aRate + fTracks[act].offset;
+		double p = (now - t.offset) * (double)t.rate;
 		for (int k=0; k<frames; k++, p += step) {
 			if (p < 0 || p >= (double)t.frames) continue;
 			int64_t i0 = (int64_t)p;
