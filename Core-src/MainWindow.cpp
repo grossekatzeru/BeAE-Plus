@@ -64,9 +64,7 @@
 #include "LanesView.h"
 #include "Project.h"
 
-#define PROJECT_SAVE		'prjS'
-#define PROJECT_SAVE_AS		'prjA'
-#define PROJECT_OPEN		'prjO'
+#define PROJECT_NEW			'prjW'
 #define MSG_PROJECT_FOLDER	'prjF'
 #define MSG_PROJECT_NAME	'prjN'
 #define MSG_PROJECT_FILE	'prjP'
@@ -586,6 +584,7 @@ void MainWindow::AddMenu()
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
 	menuItem->SetEnabled(false);
 	menu->AddSeparatorItem();
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_NEW"), new BMessage(PROJECT_NEW)));
 	menu->AddItem(new BMenuItem(Language.get("PROJECT_OPEN"), new BMessage(PROJECT_OPEN)));
 	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE"), new BMessage(PROJECT_SAVE)));
 	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE_AS"), new BMessage(PROJECT_SAVE_AS)));
@@ -1308,6 +1307,15 @@ void MainWindow::MessageReceived(BMessage *message)
 		delete help;
 }		break;
 		
+	case PROJECT_NEW:
+		if (Recorder.IsRecording() || Pool.IsChanged()) break;
+		Tracks_BeginProject();
+		Project_Forget();
+		Tracks_Init();
+		Tracks_FinishProject();
+		SetTitle(Project_Title().String());
+		break;
+
 	case PROJECT_SAVE:
 	case PROJECT_SAVE_AS:
 	{

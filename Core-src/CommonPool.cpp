@@ -42,6 +42,7 @@
 #include <unistd.h> // header with crypt in it :)
 
 #include "Globals.h"
+#include "Project.h"
 #include "CommonPool.h"
 #include "ProgressWindow.h"
 #include "YPreferences.h"
@@ -507,14 +508,20 @@ void CommonPool::UpdateToolBar()
 bool CommonPool::IsChanged(int32 mode)
 {
 	if (changed){
-		int32 k = (new BAlert(NULL,Language.get("SAVE_NEEDED"),Language.get("SAVE"),Language.get("DISCARD"),Language.get("CANCEL")))->Go();
+		int32 k = (new BAlert(NULL,Language.get("SAVE_NEEDED"),Language.get("PROJECT_SAVE"),Language.get("DISCARD"),Language.get("CANCEL")))->Go();
 		switch(k){
 		case 0:
-			save_selection = false;
-			save_mode = mode;
-			mainWindow->PostMessage(SAVE_AS);
+		{
+			BString err;
+			if (Project_HasFolder()){		// проект уже лежит на диске - пишем туда же и продолжаем
+				if (Project_SaveAgain(err))
+					return false;
+				(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+				return true;
+			}
+			mainWindow->PostMessage(PROJECT_SAVE_AS);	// сначала выбрать папку и имя; действие отменяется
 			return true;
-			break;
+		}
 		case 1:
 			return false;
 			break;
