@@ -119,7 +119,9 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	}
 	json << "\n  ]\n}\n";
 
-	BPath desc(folder.Path(), (proj + ".bemix").String());
+	BString descName(proj);
+	descName << ".bemix";
+	BPath desc(folder.Path(), descName.String());
 	if (!WriteText(desc.Path(), json)){
 		err = "Cannot write "; err << desc.Path();
 		return false;
