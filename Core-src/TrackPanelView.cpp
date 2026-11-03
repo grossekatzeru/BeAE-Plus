@@ -1,4 +1,5 @@
 #include <StorageKit.h>
+#include <String.h>
 #include <Window.h>
 #include <Font.h>
 #include <Message.h>
@@ -162,14 +163,18 @@ void TrackPanelView::Draw(BRect update)
 		// имя
 		SetHighColor(text);
 		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
-		char name[40];
+		char name[80];
 		snprintf(name, sizeof(name), "%s%s", t->name, t->channels == 1 ? " (mono)" : "");
-		DrawString(name, BPoint(s.left + 5, s.top + 12));
+		float room = s.Width() - 10;
 		if (t->offset > 0.0005){
 			char off[24];
 			snprintf(off, sizeof(off), "+%.3f s", t->offset);
 			DrawString(off, BPoint(s.right - 6 - StringWidth(off), s.top + 12));
+			room -= StringWidth(off) + 6;
 		}
+		BString shown(name);
+		TruncateString(&shown, B_TRUNCATE_END, room < 20 ? 20 : room);
+		DrawString(shown.String(), BPoint(s.left + 5, s.top + 12));
 
 		// кнопки
 		DrawButton(ButtonRect(i, 0), "S", t->solo, make_color(255, 220, 0));

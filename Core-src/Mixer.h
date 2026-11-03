@@ -28,7 +28,7 @@ struct MixTrack {
 	float	gain;			// 0..2 (линейно)
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
-	char	name[32];
+	char	name[64];
 };
 
 class Mixer {
@@ -45,6 +45,7 @@ public:
 	void	RemoveTrack(int i);								// основную (0) удалить нельзя
 	// Заменить содержимое: данные копируются (i может быть 0, channels 1/2).
 	bool	SetTrackData(int i, const float *data, int64_t frames, int channels, float rate);
+	void	ResetAll();								// новый проект: одна пустая дорожка 0, остальные удалены
 	int		Active() const { return fActive; }
 	void	SetActive(int i) { if (Track(i)) fActive = i; }
 	int		ArmedTrack() const;							// -1, если нет

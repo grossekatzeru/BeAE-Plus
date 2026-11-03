@@ -15,6 +15,7 @@ public:
 private:
 	int			fTrack;
 	BTextControl *fText;
+	BTextControl *fName;
 };
 
 #endif

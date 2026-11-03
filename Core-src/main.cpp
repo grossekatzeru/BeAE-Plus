@@ -44,6 +44,7 @@
 #include "VMSystem.h"
 #include "AudioRecorder.h"
 #include "Tracks.h"
+#include "Project.h"
 
 extern cookie_record play_cookie;
 
@@ -151,9 +152,7 @@ void MyApplication::RefsReceived(BMessage *message)
 		BMediaFile		inFile(&ref);
 		if (inFile.InitCheck() == B_OK){
 
-			char s[B_FILE_NAME_LENGTH +20];
-			sprintf(s, "BeAE - %s", ref.name);
-			mainWindow->SetTitle(s);
+			mainWindow->SetTitle(Project_Title(ref.name).String());
 
 			Pool.sample_view_dirty = true;	// update the sample-view
 			Pool.update_index = true;
@@ -442,9 +441,7 @@ void MyApplication::Save(BMessage *message){
 				file.CommitHeader();
 
 				if (save_whole){			// save as
-					char s[B_FILE_NAME_LENGTH +20];
-					sprintf(s, "BeAE - %s", file_ref.name);
-					mainWindow->SetTitle(s);
+					mainWindow->SetTitle(Project_Title(file_ref.name).String());
 				}
 
 				raf = &(format.u.raw_audio);

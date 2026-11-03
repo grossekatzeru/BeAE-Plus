@@ -70,6 +70,28 @@ int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int cha
 	return idx;
 }
 
+void Mixer::ResetAll()
+{
+	float *old[MIX_MAX_TRACKS];
+	Lock();
+	for (int i=0; i<MIX_MAX_TRACKS; i++) {
+		old[i] = fTracks[i].used ? fTracks[i].data : NULL;
+		memset(&fTracks[i], 0, sizeof(MixTrack));
+	}
+	MixTrack &t = fTracks[0];
+	t.used = true;
+	t.owns_data = true;
+	t.channels = 2;
+	t.rate = 44100.0f;
+	t.gain = 1.0f;
+	strcpy(t.name, "Track 1");
+	fCount = 1;
+	fActive = 0;
+	Unlock();
+	for (int i=0; i<MIX_MAX_TRACKS; i++) free(old[i]);
+	fRevision++;
+}
+
 void Mixer::RemoveTrack(int i)
 {
 	if (i < 1 || i >= MIX_MAX_TRACKS) return;

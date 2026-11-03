@@ -62,6 +62,18 @@
 #include "Tracks.h"
 #include "TrackPanelView.h"
 #include "LanesView.h"
+#include "Project.h"
+
+#define PROJECT_SAVE		'prjS'
+#define PROJECT_SAVE_AS		'prjA'
+#define PROJECT_OPEN		'prjO'
+#define MSG_PROJECT_FOLDER	'prjF'
+#define MSG_PROJECT_NAME	'prjN'
+#define MSG_PROJECT_FILE	'prjP'
+
+static BFilePanel *gProjFolderPanel = NULL;
+static BFilePanel *gProjOpenPanel = NULL;
+static BPath	   gProjParent;
 
 cookie_record play_cookie;
 #define UPDATE	'updt'
@@ -464,9 +476,7 @@ MainWindow::MainWindow(BRect frame)
 	// Set the last filter
 	FiltersInit();
 
-	char s[255];
-	sprintf(s, "BeAE - %s", Language.get("UNTITLED"));
-	SetTitle(s);
+	SetTitle(Project_Title().String());
 
 // GUI
 	mainMenuBar = NULL;
@@ -575,6 +585,10 @@ void MainWindow::AddMenu()
 	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
 	menuItem->SetEnabled(false);
+	menu->AddSeparatorItem();
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_OPEN"), new BMessage(PROJECT_OPEN)));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE"), new BMessage(PROJECT_SAVE)));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE_AS"), new BMessage(PROJECT_SAVE_AS)));
 	menu->AddSeparatorItem();
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_SAVE"), new BMessage(SAVE), KeyBind.GetKey("FILE_SAVE"), KeyBind.GetMod("FILE_SAVE")));
 	Pool.mn_save = menuItem;
@@ -877,9 +891,7 @@ void MainWindow::FinishRecording()
 	Pool.changed = true;				// запись ещё не сохранена
 	Pool.ResetIndexView();
 
-	char title[B_FILE_NAME_LENGTH + 20];
-	sprintf(title, "BeAE - %s", Language.get("UNTITLED"));
-	SetTitle(title);
+	SetTitle(Project_Title().String());
 
 	Pool.sample_view_dirty = true;
 	Pool.update_draw_cache = true;
@@ -1296,6 +1308,79 @@ void MainWindow::MessageReceived(BMessage *message)
 		delete help;
 }		break;
 		
+	case PROJECT_SAVE:
+	case PROJECT_SAVE_AS:
+	{
+		if (Recorder.IsRecording()) break;
+		if (message->what == PROJECT_SAVE && Project_HasFolder()){
+			BString err;
+			if (!Project_SaveAgain(err))
+				(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+			else
+				SetTitle(Project_Title().String());
+			break;
+		}
+		if (gProjFolderPanel == NULL){
+			BMessage *m = new BMessage(MSG_PROJECT_FOLDER);
+			gProjFolderPanel = new BFilePanel(B_OPEN_PANEL, new BMessenger(this), NULL, B_DIRECTORY_NODE, false, m);
+			gProjFolderPanel->Window()->SetTitle(Language.get("PROJECT_FOLDER_PANEL"));
+		}
+		gProjFolderPanel->Show();
+		break;
+	}
+
+	case MSG_PROJECT_FOLDER:
+	{
+		entry_ref ref;
+		if (message->FindRef("refs", &ref) == B_OK){
+			BEntry e(&ref);
+			if (e.GetPath(&gProjParent) == B_OK){
+				const char *def = Project_Name()[0] ? Project_Name() : Language.get("PROJECT_DEFAULT_NAME");
+				(new ProjectNameWindow(this, MSG_PROJECT_NAME, def))->Show();
+			}
+		}
+		break;
+	}
+
+	case MSG_PROJECT_NAME:
+	{
+		const char *name = NULL;
+		if (message->FindString("name", &name) != B_OK || gProjParent.InitCheck() != B_OK) break;
+		BString err;
+		if (!Project_Save(gProjParent, name, err))
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		else
+			SetTitle(Project_Title().String());
+		break;
+	}
+
+	case PROJECT_OPEN:
+		if (Recorder.IsRecording()) break;
+		if (gProjOpenPanel == NULL){
+			gProjOpenPanel = new BFilePanel(B_OPEN_PANEL, new BMessenger(this), NULL, B_FILE_NODE, false,
+				new BMessage(MSG_PROJECT_FILE));
+			gProjOpenPanel->Window()->SetTitle(Language.get("PROJECT_OPEN"));
+		}
+		gProjOpenPanel->Show();
+		break;
+
+	case MSG_PROJECT_FILE:
+	{
+		entry_ref ref;
+		if (message->FindRef("refs", &ref) != B_OK) break;
+		BPath p(&ref);
+		BString err;
+		bool ok = Project_Open(p.Path(), err);
+		if (!ok)
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		else{
+			SetTitle(Project_Title().String());
+			if (err.Length() > 0)		// проект открыт, но часть файлов не найдена
+				(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		}
+		break;
+	}
+
 	case NEW:
 	{	app_info info;
 		be_app->GetAppInfo(&info);

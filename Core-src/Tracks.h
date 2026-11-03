@@ -26,6 +26,12 @@ int		Tracks_Add();							// добавить пустую дорожку, вер
 void	Tracks_RemoveActive();					// удалить активную дорожку (последнюю оставшуюся удалить нельзя)
 void	Tracks_SaveRange(int64 &start, int64 &end);	// диапазон кадров активной дорожки без добавленной тишины
 
+bool	Tracks_SetName(int index, const char *name);	// переименовать (UTF-8, обрезается по границе символа)
+// Для сохранения проекта: звук дорожки без тишины по краям, ничего не меняя. false - дорожка пуста.
+bool	Tracks_Snapshot(int index, const float *&data, int64 &frames, int &channels, float &rate, double &offset);
+void	Tracks_BeginProject();					// очистить всё перед открытием проекта
+void	Tracks_FinishProject();					// после заполнения микшера: показать дорожку 0
+
 // Раскладка дорожек по вертикали - одна и та же для панели слева и для полос с волнами.
 #define MIN_LANE_HEIGHT	52
 int		Tracks_Count();							// число дорожек

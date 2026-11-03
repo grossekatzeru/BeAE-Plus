@@ -13,6 +13,7 @@
 #include "AudioRecorder.h"
 
 extern cookie_record play_cookie;
+static float gScroll = 0;
 
 void Tracks_Init()
 {
@@ -123,6 +124,15 @@ static bool Load(int index)
 	Pool.frequency = rate;
 	Pool.pad_lead = lead;
 	Pool.pad_tail = F - lead - len;
+	if (Pool.m_format.type != B_MEDIA_RAW_AUDIO || Pool.m_format.u.raw_audio.format == 0){
+		// проект ещё не знает формата (открыт без файла) - пишем без потерь, float
+		Pool.m_format = media_format();
+		Pool.m_format.type = B_MEDIA_RAW_AUDIO;
+		Pool.m_format.u.raw_audio.format = media_raw_audio_format::B_AUDIO_FLOAT;
+		Pool.m_format.u.raw_audio.byte_order = B_MEDIA_HOST_ENDIAN;
+		Pool.m_format.u.raw_audio.buffer_size = 4 * ch * 2048;
+		Pool.sample_bits = 32;
+	}
 	Pool.m_format.u.raw_audio.channel_count = Pool.sample_type;
 	Pool.m_format.u.raw_audio.frame_rate = rate;
 
@@ -274,6 +284,66 @@ bool Tracks_SetOffset(int index, double seconds)
 	return true;
 }
 
+bool Tracks_SetName(int index, const char *name)
+{
+	MixTrack *t = Mix.Track(index);
+	if (!t || !name) return false;
+	size_t n = strlen(name);
+	if (n > sizeof(t->name) - 1) {
+		n = sizeof(t->name) - 1;
+		while (n > 0 && ((unsigned char)name[n] & 0xC0) == 0x80) n--;	// не рвать UTF-8 символ
+	}
+	memcpy(t->name, name, n);
+	t->name[n] = 0;
+	Mix.Touch();
+	return true;
+}
+
+bool Tracks_Snapshot(int index, const float *&data, int64 &frames, int &channels, float &rate, double &offset)
+{
+	MixTrack *t = Mix.Track(index);
+	if (!t) return false;
+	if (index == Mix.Active()){
+		int64 first = 0, last = 0;
+		if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0
+			|| !ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
+			return false;
+		channels = Pool.sample_type;
+		data = Pool.sample_memory + first * channels;
+		frames = last - first + 1;
+		rate = Pool.frequency;
+		offset = (double)first / rate;
+		return true;
+	}
+	if (!t->data || t->frames <= 0) return false;
+	data = t->data; frames = t->frames; channels = t->channels; rate = t->rate; offset = t->offset;
+	return true;
+}
+
+void Tracks_BeginProject()
+{
+	StopAll();
+	Hist.Reset();
+	Mix.ResetAll();
+	free(Pool.sample_memory);
+	Pool.sample_memory = NULL;
+	Pool.size = 0;
+	Pool.sample_type = NONE;
+	Pool.pad_lead = Pool.pad_tail = 0;
+	Pool.m_format = media_format();				// формат определится при загрузке
+	gScroll = 0;
+}
+
+void Tracks_FinishProject()
+{
+	ViewState none;
+	none.had = false; none.tl = none.tr = none.tp = 0;
+	Load(0);
+	Hist.Reset();
+	Pool.changed = false;
+	RefreshUI(none);
+}
+
 bool Tracks_ActiveRange(int64 &first, int64 &last)
 {
 	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0)
@@ -331,7 +401,6 @@ void Tracks_SaveRange(int64 &start, int64 &end)
 }
 
 // ---- раскладка по вертикали ----
-static float gScroll = 0;
 
 int Tracks_Count()
 {
