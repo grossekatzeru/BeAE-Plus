@@ -128,6 +128,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	}
 	gName = name;
 	gFolder = folder.Path();
+	Pool.changed = false;			// всё уже лежит в проекте
 	return true;
 }
 
