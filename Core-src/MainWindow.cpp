@@ -64,6 +64,8 @@
 #include "LanesView.h"
 #include "Project.h"
 
+#define MIXDOWN_AS			'mixA'
+#define MSG_MIXDOWN_FILE	'mixF'
 #define PROJECT_NEW			'prjW'
 #define MSG_PROJECT_FOLDER	'prjF'
 #define MSG_PROJECT_NAME	'prjN'
@@ -71,6 +73,7 @@
 
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
+static BFilePanel *gMixdownPanel = NULL;
 static BPath	   gProjParent;
 
 cookie_record play_cookie;
@@ -582,7 +585,7 @@ void MainWindow::AddMenu()
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_APPEND"), new BMessage(APPEND), KeyBind.GetKey("FILE_APPEND"), KeyBind.GetMod("FILE_APPEND")));
 	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
-	menuItem->SetEnabled(false);
+	menu->AddItem(new BMenuItem(Language.get("FILE_MIX_AS"), new BMessage(MIXDOWN_AS)));
 	menu->AddSeparatorItem();
 	menu->AddItem(new BMenuItem(Language.get("PROJECT_NEW"), new BMessage(PROJECT_NEW)));
 	menu->AddItem(new BMenuItem(Language.get("PROJECT_OPEN"), new BMessage(PROJECT_OPEN)));
@@ -1307,6 +1310,53 @@ void MainWindow::MessageReceived(BMessage *message)
 		delete help;
 }		break;
 		
+	case OPEN_MIX:
+	{
+		if (Recorder.IsRecording()) break;
+		BPath def;
+		if (!Project_MixdownDefault(def)){
+			PostMessage(MIXDOWN_AS);			// проект ещё не на диске - спросить, куда
+			break;
+		}
+		BEntry e(def.Path());
+		if (e.Exists()){
+			int32 k = (new BAlert(NULL, Language.get("MIXDOWN_OVERWRITE"), Language.get("OK"), Language.get("CANCEL")))->Go();
+			if (k != 0) break;
+		}
+		BString err;
+		if (!Project_Mixdown(def.Path(), err))
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		break;
+	}
+
+	case MIXDOWN_AS:
+		if (Recorder.IsRecording()) break;
+		if (gMixdownPanel == NULL){
+			gMixdownPanel = new BFilePanel(B_SAVE_PANEL, new BMessenger(this), NULL, 0, false,
+				new BMessage(MSG_MIXDOWN_FILE));
+			gMixdownPanel->Window()->SetTitle(Language.get("FILE_MIX_AS"));
+		}
+		{
+			BString n(Project_Name()[0] ? Project_Name() : Language.get("MIXDOWN_DEFAULT_NAME"));
+			n << ".wav";
+			gMixdownPanel->SetSaveText(n.String());
+		}
+		gMixdownPanel->Show();
+		break;
+
+	case MSG_MIXDOWN_FILE:
+	{
+		entry_ref dir;
+		const char *name = NULL;
+		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
+		BPath p(&dir);
+		p.Append(name);
+		BString err;
+		if (!Project_Mixdown(p.Path(), err))
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		break;
+	}
+
 	case PROJECT_NEW:
 		if (Recorder.IsRecording() || Pool.IsChanged()) break;
 		Tracks_BeginProject();

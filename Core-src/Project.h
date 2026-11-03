@@ -17,6 +17,10 @@ const char *Project_Name();						// "" если проекта нет
 void	Project_Forget();							// «Файл → Новый»
 BString	Project_Title(const char *item = NULL);	// заголовок окна: BeAE - Проект [- файл]
 
+// Свести все дорожки в один WAV (громкость, панорама, mute/solo, смещения учитываются).
+bool	Project_Mixdown(const char *path, BString &err);
+bool	Project_MixdownDefault(BPath &out);	// <папка проекта>/<Имя>.wav; false, если проект ещё не на диске
+
 // Окно запроса имени проекта; результат уходит окну target сообщением msgWhat с полем "name".
 class ProjectNameWindow : public BWindow {
 public:

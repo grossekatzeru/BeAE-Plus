@@ -206,6 +206,77 @@ bool Project_Open(const char *bemixPath, BString &err)
 	return true;
 }
 
+// --------------------------------------------------------------- сведение
+
+bool Project_MixdownDefault(BPath &out)
+{
+	if (!Project_HasFolder()) return false;
+	BString n = Sanitize(gName.String());
+	n << ".wav";
+	return out.SetTo(gFolder.String(), n.String()) == B_OK;
+}
+
+bool Project_Mixdown(const char *path, BString &err)
+{
+	struct Src { const float *d; int64 n; int ch; float rate; double off; float gl, gr; };
+	std::vector<Src> src;
+	bool anySolo = false;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		MixTrack *t = Mix.Track(i);
+		if (t && t->solo) anySolo = true;
+	}
+	float outRate = 0;
+	double endTime = 0;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		MixTrack *t = Mix.Track(i);
+		if (!t) continue;
+		Src s;
+		if (!Tracks_Snapshot(i, s.d, s.n, s.ch, s.rate, s.off)) continue;
+		if (t->mute || (anySolo && !t->solo)) continue;
+		s.gl = t->gain * (t->pan > 0 ? 1.0f - t->pan : 1.0f);
+		s.gr = t->gain * (t->pan < 0 ? 1.0f + t->pan : 1.0f);
+		src.push_back(s);
+		if (s.rate > outRate) outRate = s.rate;
+		double e = s.off + (double)s.n / s.rate;
+		if (e > endTime) endTime = e;
+	}
+	if (src.empty() || outRate <= 0){ err = Language.get("MIXDOWN_EMPTY"); return false; }
+
+	const int64 total = (int64)(endTime * outRate + 0.5) + 1;
+	if (total * 8 > 0xFFFFFF00LL){ err = "The mixdown is too long for a WAV file"; return false; }
+	std::vector<float> out;
+	try { out.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
+
+	for (size_t k = 0; k < src.size(); k++){
+		const Src &s = src[k];
+		const int64 n0 = (int64)(s.off * outRate + 0.5);
+		const int64 n1 = n0 + (int64)((double)s.n * outRate / s.rate);
+		const double step = (double)s.rate / outRate;
+		for (int64 n = n0; n < n1 && n < total; n++){
+			double pos = (n - s.off * outRate) * step;
+			if (pos < 0) pos = 0;
+			int64 i0 = (int64)pos;
+			if (i0 >= s.n) break;
+			int64 i1 = (i0 + 1 < s.n) ? i0 + 1 : i0;
+			float f = (float)(pos - (double)i0);
+			float l, r;
+			if (s.ch == 2){
+				l = s.d[i0*2]   + (s.d[i1*2]   - s.d[i0*2])   * f;
+				r = s.d[i0*2+1] + (s.d[i1*2+1] - s.d[i0*2+1]) * f;
+			}else{
+				l = r = s.d[i0] + (s.d[i1] - s.d[i0]) * f;
+			}
+			out[(size_t)n*2]   += l * s.gl;
+			out[(size_t)n*2+1] += r * s.gr;
+		}
+	}
+	if (!WavWriteFloat(path, &out[0], total, 2, outRate)){
+		err = "Cannot write "; err << path;
+		return false;
+	}
+	return true;
+}
+
 // --------------------------------------------------------------- окно имени
 
 ProjectNameWindow::ProjectNameWindow(BWindow *target, uint32 msgWhat, const char *defaultName)
