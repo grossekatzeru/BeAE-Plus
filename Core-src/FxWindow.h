@@ -13,6 +13,7 @@ class BButton;
 class BView;
 class BScrollView;
 class LadspaSlider;
+class VstSlider;
 
 class FxWindow : public BWindow {
 public:
@@ -34,6 +35,7 @@ private:
 	BView			*fParams;
 	std::vector<LadspaSlider*>	fSliders;
 	std::vector<class BCheckBox*>	fChecks;
+	std::vector<VstSlider*>	fVstSliders;
 	std::vector<int>	fPorts;
 };
 

@@ -121,7 +121,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 			FxChain &fx = Mix.Fx(i);
 			for (int e = 0; e < fx.Count(); e++){
 				const FxChain::Slot *s = fx.At(e);
-				json << (e ? ",\n" : "\n") << "        {\"type\": \"ladspa\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
+				json << (e ? ",\n" : "\n") << "        {\"type\": \"" << (s->kind == FxChain::KIND_VST2 ? "vst2" : "ladspa") << "\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
 					<< "\", \"file\": \"" << JsonEscape(s->plugin.file).c_str()
 					<< "\", \"label\": \"" << JsonEscape(s->plugin.label).c_str()
 					<< "\", \"enabled\": " << (s->enabled ? "true" : "false") << ", \"values\": {";
@@ -222,15 +222,19 @@ bool Project_Open(const char *bemixPath, BString &err)
 			for (size_t e = 0; e < jfx->a.size(); e++){
 				const JValue &je = jfx->a[e];
 				std::string file = je.String("file"), label = je.String("label"), pname = je.String("name");
-				const Ladspa::Plugin *pl = LadspaFind(file.c_str(), label.c_str());
-				if (!pl){		// файл мог переехать: ищем по метке
-					const std::vector<Ladspa::Plugin> &all = LadspaList();
-					for (size_t q = 0; q < all.size() && !pl; q++)
-						if (all[q].label == label && all[q].name == pname) pl = &all[q];
-				}
-				if (!pl){
-					warnings << Language.get("FX_NOT_FOUND") << " " << pname.c_str() << "\n";
-					continue;
+				const bool isVst = je.String("type") == "vst2";
+				const Ladspa::Plugin *pl = NULL;
+				if (!isVst){
+					pl = LadspaFind(file.c_str(), label.c_str());
+					if (!pl){		// файл мог переехать: ищем по метке
+						const std::vector<Ladspa::Plugin> &all = LadspaList();
+						for (size_t q = 0; q < all.size() && !pl; q++)
+							if (all[q].label == label && all[q].name == pname) pl = &all[q];
+					}
+					if (!pl){
+						warnings << Language.get("FX_NOT_FOUND") << " " << pname.c_str() << "\n";
+						continue;
+					}
 				}
 				Ladspa::Values vals;
 				const JValue *jv = je.Get("values");
@@ -239,7 +243,9 @@ bool Project_Open(const char *bemixPath, BString &err)
 						if (jv->o[q].second.type == JValue::Num)
 							vals[atoi(jv->o[q].first.c_str())] = (float)jv->o[q].second.n;
 				std::string ferr;
-				if (!Mix.Fx(slot).Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true)))
+				bool added = isVst ? Mix.Fx(slot).AddVst(file, sysRate, &ferr, &vals, je.Boolean("enabled", true))
+					: Mix.Fx(slot).Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true));
+				if (!added)
 					warnings << pname.c_str() << ": " << ferr.c_str() << "\n";
 			}
 		}
@@ -335,7 +341,7 @@ bool Project_Mixdown(const char *path, BString &err)
 				const FxChain::Slot *sl = live.At(e);
 				std::string ferr;
 				if (!sl->enabled) continue;
-				if (!local.Add(sl->plugin, outRate, &ferr, &sl->values, true)){
+				if (!local.AddCopyOf(*sl, outRate, &ferr)){
 					err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
 					return false;
 				}

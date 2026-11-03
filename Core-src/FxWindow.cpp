@@ -10,10 +10,12 @@
 #include "Mixer.h"
 #include "LadspaFilter.h"
 #include "LadspaSlider.h"
+#include "Vst2Host.h"
 #include "FxWindow.h"
 
 #define FX_ADD_BTN		'fxAb'
 #define FX_ADD_PLUGIN	'fxAp'
+#define FX_ADD_VST		'fxAv'
 #define FX_REMOVE		'fxRm'
 #define FX_UP			'fxUp'
 #define FX_DOWN			'fxDn'
@@ -22,6 +24,45 @@
 #define FX_PARAM		'fxPm'
 
 static FxWindow *sOpen[MIX_MAX_TRACKS];
+
+// ---- VST2: список плагинов (без синтезаторов), ищется при первом обращении ----
+static std::vector<Vst2::Info> sVst;
+static bool sVstScanned = false;
+
+static const std::vector<Vst2::Info> &VstList()
+{
+	if (!sVstScanned){
+		std::vector<std::string> log;
+		std::vector<Vst2::Info> all = Vst2::Scan(Vst2::DefaultPaths(), &log);
+		for (size_t i = 0; i < log.size(); i++) fprintf(stderr, "VST2: %s\n", log[i].c_str());
+		for (size_t i = 0; i < all.size(); i++)
+			if (!all[i].synth) sVst.push_back(all[i]);
+		sVstScanned = true;
+	}
+	return sVst;
+}
+
+// ползунок параметра VST2 (0..1); подпись показывает текст значения от самого плагина
+class VstSlider : public BSlider {
+public:
+	VstSlider(const char *label, BMessage *msg, Vst2::Instance *vst, int param, float v)
+		: BSlider(NULL, label, msg, 0, 1000, B_HORIZONTAL), fVst(vst), fParam(param)
+	{
+		SetModificationMessage(new BMessage(*msg));
+		SetValue((int32)(v * 1000.0f + 0.5f));
+	}
+	float ValueF() const { return (float)Value() / 1000.0f; }
+	virtual const char *UpdateText() const
+	{
+		std::string d = fVst->ParamDisplay(fParam), u = fVst->ParamUnit(fParam);
+		snprintf(fText, sizeof(fText), "%s%s%s", d.c_str(), u.empty() ? "" : " ", u.c_str());
+		return fText;
+	}
+private:
+	Vst2::Instance	*fVst;
+	int				fParam;
+	mutable char	fText[96];
+};
 
 void FxWindow::Open(int track, BWindow *near)
 {
@@ -85,7 +126,7 @@ void FxWindow::RefreshList(int select)
 	for (int i = 0; i < fx.Count(); i++){
 		const FxChain::Slot *s = fx.At(i);
 		BString n(s->enabled ? "" : "[off] ");
-		n << "[LADSPA] " << s->plugin.name.c_str();
+		n << (s->kind == FxChain::KIND_VST2 ? "[VST2] " : "[LADSPA] ") << s->plugin.name.c_str();
 		fList->AddItem(new BStringItem(n.String()));
 	}
 	if (select >= fx.Count()) select = fx.Count() - 1;
@@ -99,7 +140,7 @@ void FxWindow::BuildParams()
 		fParams->RemoveChild(c);
 		delete c;
 	}
-	fSliders.clear(); fChecks.clear(); fPorts.clear();
+	fSliders.clear(); fChecks.clear(); fPorts.clear(); fVstSliders.clear();
 
 	FxChain &fx = Mix.Fx(fTrack);
 	int sel = fList->CurrentSelection();
@@ -116,9 +157,31 @@ void FxWindow::BuildParams()
 	fEnabled->SetValue(s->enabled ? B_CONTROL_ON : B_CONTROL_OFF);
 
 	const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
-	std::vector<int> ctl = s->plugin.ControlInputs();
 	float y = 6;
 	const float w = fParams->Bounds().Width() - 12;
+	if (s->kind == FxChain::KIND_VST2){
+		for (int k = 0; k < s->vst->NumParams(); k++){
+			std::string pn = s->vst->ParamName(k);
+			if (pn.empty()){ char b[24]; snprintf(b, sizeof(b), "Param %d", k + 1); pn = b; }
+			float v = s->values.count(k) ? s->values.find(k)->second : s->vst->GetParam(k);
+			VstSlider *sl = new VstSlider(pn.c_str(), new BMessage(FX_PARAM), s->vst, k, v);
+			sl->MoveTo(6, y);
+			sl->ResizeTo(w, 44);
+			fParams->AddChild(sl);
+			fVstSliders.push_back(sl);
+			fPorts.push_back(k);
+			y += 50;
+		}
+		if (s->vst->NumParams() == 0){
+			fParams->AddChild(new BStringView(BRect(6, 6, 6 + w, 22), NULL, Language.get("FX_NO_PARAMS")));
+			y = 30;
+		}
+		fParams->ResizeTo(fParams->Bounds().Width(), y + 6);
+		for (int i = 0; i < fParams->CountChildren(); i++)
+			if (BControl *c = dynamic_cast<BControl*>(fParams->ChildAt(i))) c->SetTarget(this);
+		return;
+	}
+	std::vector<int> ctl = s->plugin.ControlInputs();
 	for (size_t i = 0; i < ctl.size(); i++){
 		const Ladspa::Port &p = s->plugin.ports[ctl[i]];
 		Ladspa::Range r = Ladspa::ResolveRange(p, rate);
@@ -185,11 +248,20 @@ void FxWindow::ShowAddMenu()
 	}
 	menu->AddItem(ladspa);
 
-	// VST2: хост ещё не подключён
+	// VST2
 	BMenu *vst = new BMenu("VST2");
-	BMenuItem *soon = new BMenuItem(Language.get("FX_VST_SOON"), NULL);
-	soon->SetEnabled(false);
-	vst->AddItem(soon);
+	const std::vector<Vst2::Info> &vl = VstList();
+	if (vl.empty()){
+		BMenuItem *none = new BMenuItem(Language.get("FX_VST_NONE"), NULL);
+		none->SetEnabled(false);
+		vst->AddItem(none);
+	}else{
+		for (size_t i = 0; i < vl.size(); i++){
+			BMessage *m = new BMessage(FX_ADD_VST);
+			m->AddString("file", vl[i].file.c_str());
+			vst->AddItem(new BMenuItem(vl[i].name.c_str(), m));
+		}
+	}
 	menu->AddItem(vst);
 
 	menu->SetTargetForItems(this);
@@ -216,6 +288,20 @@ void FxWindow::MessageReceived(BMessage *msg)
 		std::string err;
 		const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
 		if (!fx.Add(*p, rate, &err)){
+			(new BAlert(NULL, err.c_str(), Language.get("OK")))->Go();
+			break;
+		}
+		Mix.Touch();
+		RefreshList(fx.Count() - 1);
+		break;
+	}
+	case FX_ADD_VST:
+	{
+		const char *file = NULL;
+		if (msg->FindString("file", &file) != B_OK) break;
+		std::string err;
+		const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
+		if (!fx.AddVst(file, rate, &err)){
 			(new BAlert(NULL, err.c_str(), Language.get("OK")))->Go();
 			break;
 		}
@@ -259,6 +345,13 @@ void FxWindow::MessageReceived(BMessage *msg)
 	{
 		int sel = fList->CurrentSelection();
 		if (sel < 0) break;
+		if (!fVstSliders.empty()){
+			for (size_t i = 0; i < fVstSliders.size(); i++){
+				fx.SetValue(sel, fPorts[i], fVstSliders[i]->ValueF());
+				fVstSliders[i]->Invalidate();		// обновить текст значения
+			}
+			break;
+		}
 		for (size_t i = 0; i < fPorts.size(); i++){
 			float v;
 			if (fSliders[i]) v = fSliders[i]->ValueF();
