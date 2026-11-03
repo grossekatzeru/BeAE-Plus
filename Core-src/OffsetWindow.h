@@ -14,6 +14,7 @@ public:
 	virtual void MessageReceived(BMessage *msg);
 private:
 	int			fTrack;
+	BWindow		*fParent;
 	BTextControl *fText;
 	BTextControl *fName;
 };

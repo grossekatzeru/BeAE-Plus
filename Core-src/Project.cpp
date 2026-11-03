@@ -16,6 +16,8 @@
 #include "Tracks.h"
 #include "ProjectIO.h"
 #include "Project.h"
+#include "LadspaFilter.h"
+#include "FxChain.h"
 
 static BString	gName;
 static BString	gFolder;		// полный путь к папке проекта (с подпапкой)
@@ -114,7 +116,26 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		json << "      \"channels\": " << ch << ",\n";
 		json << "      \"rate\": " << Num(rate) << ",\n";
 		json << "      \"color\": null,\n";
-		json << "      \"effects\": []\n";
+		json << "      \"effects\": [";
+		{
+			FxChain &fx = Mix.Fx(i);
+			for (int e = 0; e < fx.Count(); e++){
+				const FxChain::Slot *s = fx.At(e);
+				json << (e ? ",\n" : "\n") << "        {\"type\": \"ladspa\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
+					<< "\", \"file\": \"" << JsonEscape(s->plugin.file).c_str()
+					<< "\", \"label\": \"" << JsonEscape(s->plugin.label).c_str()
+					<< "\", \"enabled\": " << (s->enabled ? "true" : "false") << ", \"values\": {";
+				bool fv = true;
+				for (Ladspa::Values::const_iterator it = s->values.begin(); it != s->values.end(); ++it){
+					if (!fv) json << ", ";
+					fv = false;
+					json << "\"" << it->first << "\": " << Num(it->second);
+				}
+				json << "}}";
+			}
+			if (fx.Count() > 0) json << "\n      ";
+		}
+		json << "]\n";
 		json << "    }";
 	}
 	json << "\n  ]\n}\n";
@@ -194,6 +215,34 @@ bool Project_Open(const char *bemixPath, BString &err)
 				warnings << jf->s.c_str() << ": " << werr.c_str() << "\n";
 			}
 		}
+		// эффекты дорожки
+		const JValue *jfx = jt.Get("effects");
+		if (jfx && jfx->type == JValue::Arr){
+			const float sysRate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
+			for (size_t e = 0; e < jfx->a.size(); e++){
+				const JValue &je = jfx->a[e];
+				std::string file = je.String("file"), label = je.String("label"), pname = je.String("name");
+				const Ladspa::Plugin *pl = LadspaFind(file.c_str(), label.c_str());
+				if (!pl){		// файл мог переехать: ищем по метке
+					const std::vector<Ladspa::Plugin> &all = LadspaList();
+					for (size_t q = 0; q < all.size() && !pl; q++)
+						if (all[q].label == label && all[q].name == pname) pl = &all[q];
+				}
+				if (!pl){
+					warnings << Language.get("FX_NOT_FOUND") << " " << pname.c_str() << "\n";
+					continue;
+				}
+				Ladspa::Values vals;
+				const JValue *jv = je.Get("values");
+				if (jv && jv->type == JValue::Obj)
+					for (size_t q = 0; q < jv->o.size(); q++)
+						if (jv->o[q].second.type == JValue::Num)
+							vals[atoi(jv->o[q].first.c_str())] = (float)jv->o[q].second.n;
+				std::string ferr;
+				if (!Mix.Fx(slot).Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true)))
+					warnings << pname.c_str() << ": " << ferr.c_str() << "\n";
+			}
+		}
 		slot++;
 	}
 
@@ -218,7 +267,7 @@ bool Project_MixdownDefault(BPath &out)
 
 bool Project_Mixdown(const char *path, BString &err)
 {
-	struct Src { const float *d; int64 n; int ch; float rate; double off; float gl, gr; };
+	struct Src { const float *d; int64 n; int ch; float rate; double off; float gl, gr; int idx; bool fx; };
 	std::vector<Src> src;
 	bool anySolo = false;
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
@@ -235,9 +284,11 @@ bool Project_Mixdown(const char *path, BString &err)
 		if (t->mute || (anySolo && !t->solo)) continue;
 		s.gl = t->gain * (t->pan > 0 ? 1.0f - t->pan : 1.0f);
 		s.gr = t->gain * (t->pan < 0 ? 1.0f + t->pan : 1.0f);
+		s.idx = i;
+		s.fx = Mix.Fx(i).HasEffects();
 		src.push_back(s);
 		if (s.rate > outRate) outRate = s.rate;
-		double e = s.off + (double)s.n / s.rate;
+		double e = s.off + (double)s.n / s.rate + (s.fx ? 4.0 : 0.0);	// хвост эффектов
 		if (e > endTime) endTime = e;
 	}
 	if (src.empty() || outRate <= 0){ err = Language.get("MIXDOWN_EMPTY"); return false; }
@@ -247,8 +298,15 @@ bool Project_Mixdown(const char *path, BString &err)
 	std::vector<float> out;
 	try { out.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
 
+	std::vector<float> tmp;
 	for (size_t k = 0; k < src.size(); k++){
 		const Src &s = src[k];
+		float *dst = &out[0];
+		float gl = s.gl, gr = s.gr;
+		if (s.fx){
+			try { tmp.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
+			dst = &tmp[0]; gl = gr = 1.0f;
+		}
 		const int64 n0 = (int64)(s.off * outRate + 0.5);
 		const int64 n1 = n0 + (int64)((double)s.n * outRate / s.rate);
 		const double step = (double)s.rate / outRate;
@@ -266,8 +324,30 @@ bool Project_Mixdown(const char *path, BString &err)
 			}else{
 				l = r = s.d[i0] + (s.d[i1] - s.d[i0]) * f;
 			}
-			out[(size_t)n*2]   += l * s.gl;
-			out[(size_t)n*2+1] += r * s.gr;
+			dst[(size_t)n*2]   += l * gl;
+			dst[(size_t)n*2+1] += r * gr;
+		}
+		if (s.fx){
+			// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
+			FxChain local;
+			FxChain &live = Mix.Fx(s.idx);
+			for (int e = 0; e < live.Count(); e++){
+				const FxChain::Slot *sl = live.At(e);
+				std::string ferr;
+				if (!sl->enabled) continue;
+				if (!local.Add(sl->plugin, outRate, &ferr, &sl->values, true)){
+					err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
+					return false;
+				}
+			}
+			for (int64 from = 0; from < total; from += 4096){
+				int nfr = (int)((total - from < 4096) ? total - from : 4096);
+				local.Process(&tmp[(size_t)from * 2], nfr, outRate);
+			}
+			for (int64 n = 0; n < total; n++){
+				out[(size_t)n*2]   += tmp[(size_t)n*2]   * s.gl;
+				out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * s.gr;
+			}
 		}
 	}
 	if (!WavWriteFloat(path, &out[0], total, 2, outRate)){

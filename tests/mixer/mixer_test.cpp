@@ -2,8 +2,10 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <string>
+#include <vector>
 #define CHECK(c) do{ if(!(c)){ printf("FAIL line %d: %s\n",__LINE__,#c); fails++; } }while(0)
-int main(){
+int main(int argc,char**argv){
 	int fails=0;
 	Mixer m;
 	CHECK(m.TrackCount()==1);
@@ -77,6 +79,44 @@ int main(){
 	mo.SetActive(0); mo.SetOffset(0,1.0);				// у активной смещение 1 с: t=1..2 при activePos 0
 	float s3[8]={0}; mo.Process(s3,4,0,4,4,true);
 	CHECK(fabsf(s3[0]-1)<1e-6);
+	// эффекты: плагин amp (из tests/ladspa) на неактивной и на активной дорожке
+	if(argc>1){
+		std::vector<std::string> dirs(1,argv[1]);
+		std::vector<Ladspa::Plugin> pl=Ladspa::Scan(dirs);
+		const Ladspa::Plugin *amp=NULL;
+		for(size_t i=0;i<pl.size();i++) if(pl[i].label=="amp") amp=&pl[i];
+		CHECK(amp!=NULL);
+		if(amp){
+			Mixer fm; float dd[8]={1,1,1,1,1,1,1,1};
+			int ft=fm.AddTrack("f",dd,8,1);
+			std::string err;
+			CHECK(fm.Fx(ft).Add(*amp,44100,&err));
+			CHECK(fm.Fx(ft).Count()==1 && fm.Fx(ft).HasEffects());
+			int gport=amp->ControlInputs()[0];
+			fm.Fx(ft).SetValue(0,gport,0.25f);
+			float o1[8]={0}; fm.Process(o1,4,0,44100,44100,true);
+			CHECK(fabsf(o1[0]-0.25f)<1e-6 && fabsf(o1[7]-0.25f)<1e-6);
+			fm.Fx(ft).SetEnabled(0,false);
+			float o2[8]={0}; fm.Process(o2,4,0,44100,44100,true);
+			CHECK(fabsf(o2[0]-1.0f)<1e-6);
+			fm.Fx(ft).SetEnabled(0,true);
+			// цепочка: два плагина подряд = 0.25*0.25
+			CHECK(fm.Fx(ft).Add(*amp,44100,&err));
+			fm.Fx(ft).SetValue(1,gport,0.5f);
+			float o3[8]={0}; fm.Process(o3,4,0,44100,44100,true);
+			CHECK(fabsf(o3[0]-0.125f)<1e-6);
+			CHECK(fm.Fx(ft).Move(1,-1) && fm.Fx(ft).At(0)->values.at(gport)==0.5f);
+			fm.Fx(ft).Remove(0); fm.Fx(ft).Remove(0);
+			CHECK(fm.Fx(ft).Count()==0 && !fm.Fx(ft).HasEffects());
+			// на активной дорожке: буфер уже заполнен
+			fm.Fx(0).Add(*amp,44100,&err); fm.Fx(0).SetValue(0,gport,0.5f);
+			float o4[8]={1,1,1,1,1,1,1,1}; fm.Process(o4,4,0,44100,44100,false);
+			CHECK(fabsf(o4[0]-0.5f)<1e-6);
+			// удаление дорожки очищает её цепочку
+			fm.Fx(ft).Add(*amp,44100,&err); fm.RemoveTrack(ft);
+			CHECK(fm.Fx(ft).Count()==0);
+		}
+	}
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

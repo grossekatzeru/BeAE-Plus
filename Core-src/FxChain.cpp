@@ -1,0 +1,118 @@
+#include "FxChain.h"
+
+FxChain::FxChain() : fActive(0)
+{
+	fLock.clear();
+}
+
+FxChain::~FxChain()
+{
+	Clear();
+}
+
+void FxChain::Lock()	{ while (fLock.test_and_set(std::memory_order_acquire)) {} }
+void FxChain::Unlock()	{ fLock.clear(std::memory_order_release); }
+
+void FxChain::Recount()
+{
+	int n = 0;
+	for (size_t i = 0; i < fSlots.size(); i++)
+		if (fSlots[i].enabled && fSlots[i].runner) n++;
+	fActive = n;
+}
+
+bool FxChain::Add(const Ladspa::Plugin &p, float rate, std::string *err,
+				  const Ladspa::Values *init, bool enabled)
+{
+	Slot s;
+	s.plugin = p;
+	s.enabled = enabled;
+	s.rate = rate;
+	s.runner = new Ladspa::Runner();
+	std::string e;
+	if (!s.runner->Start(p, rate, 2, &e)) {
+		delete s.runner;
+		if (err) *err = e;
+		return false;
+	}
+	// значения: по умолчанию, поверх - сохранённые
+	std::vector<int> ctl = p.ControlInputs();
+	for (size_t k = 0; k < ctl.size(); k++) {
+		Ladspa::Range r = Ladspa::ResolveRange(p.ports[ctl[k]], rate);
+		float v = r.def;
+		if (init) {
+			Ladspa::Values::const_iterator it = init->find(ctl[k]);
+			if (it != init->end()) v = it->second;
+		}
+		s.values[ctl[k]] = v;
+		s.runner->SetControl(ctl[k], v);
+	}
+	Lock();
+	fSlots.push_back(s);
+	Recount();
+	Unlock();
+	return true;
+}
+
+void FxChain::Remove(int i)
+{
+	if (i < 0 || i >= Count()) return;
+	Ladspa::Runner *old;
+	Lock();
+	old = fSlots[i].runner;
+	fSlots.erase(fSlots.begin() + i);
+	Recount();
+	Unlock();
+	delete old;
+}
+
+void FxChain::Clear()
+{
+	std::vector<Slot> old;
+	Lock();
+	old.swap(fSlots);
+	fActive = 0;
+	Unlock();
+	for (size_t i = 0; i < old.size(); i++) delete old[i].runner;
+}
+
+bool FxChain::Move(int i, int delta)
+{
+	int j = i + delta;
+	if (i < 0 || j < 0 || i >= Count() || j >= Count() || delta == 0) return false;
+	Lock();
+	Slot t = fSlots[i];
+	fSlots[i] = fSlots[j];
+	fSlots[j] = t;
+	Unlock();
+	return true;
+}
+
+void FxChain::SetEnabled(int i, bool on)
+{
+	if (i < 0 || i >= Count()) return;
+	Lock();
+	fSlots[i].enabled = on;
+	Recount();
+	Unlock();
+}
+
+void FxChain::SetValue(int i, int port, float v)
+{
+	if (i < 0 || i >= Count()) return;
+	fSlots[i].values[port] = v;				// читает только интерфейс
+	if (fSlots[i].runner) fSlots[i].runner->SetControl(port, v);
+}
+
+void FxChain::Process(float *buf, int frames, float rate)
+{
+	if (fActive.load() == 0 || frames <= 0) return;
+	if (fLock.test_and_set(std::memory_order_acquire)) return;	// заняли - пропускаем буфер
+	for (size_t i = 0; i < fSlots.size(); i++) {
+		Slot &s = fSlots[i];
+		if (!s.enabled || !s.runner || !s.runner->IsRunning()) continue;
+		if (s.rate != rate) continue;		// частота выхода сменилась - плагин не трогаем
+		s.runner->Process(buf, (size_t)frames);
+	}
+	Unlock();
+}

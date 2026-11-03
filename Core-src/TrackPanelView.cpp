@@ -164,7 +164,7 @@ void TrackPanelView::Draw(BRect update)
 		SetHighColor(text);
 		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
 		char name[80];
-		snprintf(name, sizeof(name), "%s%s", t->name, t->channels == 1 ? " (mono)" : "");
+		snprintf(name, sizeof(name), "%s%s%s", t->name, t->channels == 1 ? " (mono)" : "", Mix.Fx(i).Count() > 0 ? " [fx]" : "");
 		float room = s.Width() - 10;
 		if (t->offset > 0.0005){
 			char off[24];

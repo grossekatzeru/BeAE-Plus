@@ -88,7 +88,7 @@ void Mixer::ResetAll()
 	fCount = 1;
 	fActive = 0;
 	Unlock();
-	for (int i=0; i<MIX_MAX_TRACKS; i++) free(old[i]);
+	for (int i=0; i<MIX_MAX_TRACKS; i++) { free(old[i]); fFx[i].Clear(); }
 	fRevision++;
 }
 
@@ -106,6 +106,7 @@ void Mixer::RemoveTrack(int i)
 		while (fCount > 1 && !fTracks[fCount-1].used) fCount--;
 		Unlock();
 		free(old);
+		fFx[i].Clear();
 		return;
 	}
 	Unlock();
@@ -212,6 +213,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
+		fFx[act].Process(buf, frames, (float)sysRate);
 		if (gl != 1.0f || gr != 1.0f) {
 			for (int k=0; k<frames; k++) { buf[2*k] *= gl; buf[2*k+1] *= gr; }
 		}
@@ -242,22 +244,39 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		// время на общей шкале в начале буфера -> позиция в этой дорожке
 		const double now = activePos / aRate + fTracks[act].offset;
 		double p = (now - t.offset) * (double)t.rate;
-		for (int k=0; k<frames; k++, p += step) {
-			if (p < 0 || p >= (double)t.frames) continue;
-			int64_t i0 = (int64_t)p;
-			int64_t i1 = (i0 + 1 < t.frames) ? i0 + 1 : i0;
-			float fr = (float)(p - (double)i0);
-			float l, r;
-			if (t.channels == 1) {
-				l = r = t.data[i0] + (t.data[i1] - t.data[i0]) * fr;
-			} else {
-				l = t.data[2*i0]   + (t.data[2*i1]   - t.data[2*i0])   * fr;
-				r = t.data[2*i0+1] + (t.data[2*i1+1] - t.data[2*i0+1]) * fr;
+		FxChain &fx = fFx[i];
+		const bool useFx = fx.HasEffects();
+		// после конца дорожки эффекты (реверберация, эхо) ещё звучат - даём им хвост
+		const double tailFrames = useFx ? 4.0 * (double)t.rate : 0.0;
+		for (int from = 0; from < frames; from += 4096) {
+			const int n = (frames - from < 4096) ? frames - from : 4096;
+			const double pEnd = p + step * n;
+			const double lo = p < pEnd ? p : pEnd, hi = p < pEnd ? pEnd : p;
+			if (hi < 0 || lo >= (double)t.frames + tailFrames) { p = pEnd; continue; }
+			for (int k=0; k<n; k++) {
+				const double q = p + step * k;
+				float l = 0, r = 0;
+				if (q >= 0 && q < (double)t.frames) {
+					int64_t i0 = (int64_t)q;
+					int64_t i1 = (i0 + 1 < t.frames) ? i0 + 1 : i0;
+					float fr = (float)(q - (double)i0);
+					if (t.channels == 1) {
+						l = r = t.data[i0] + (t.data[i1] - t.data[i0]) * fr;
+					} else {
+						l = t.data[2*i0]   + (t.data[2*i1]   - t.data[2*i0])   * fr;
+						r = t.data[2*i0+1] + (t.data[2*i1+1] - t.data[2*i0+1]) * fr;
+					}
+				}
+				fTmp[2*k] = l; fTmp[2*k+1] = r;
 			}
-			l *= gl; r *= gr;
-			buf[2*k] += l; buf[2*k+1] += r;
-			if (fabsf(l) > pl) pl = fabsf(l);
-			if (fabsf(r) > pr) pr = fabsf(r);
+			if (useFx) fx.Process(fTmp, n, (float)sysRate);
+			for (int k=0; k<n; k++) {
+				float l = fTmp[2*k] * gl, r = fTmp[2*k+1] * gr;
+				buf[2*(from+k)] += l; buf[2*(from+k)+1] += r;
+				if (fabsf(l) > pl) pl = fabsf(l);
+				if (fabsf(r) > pr) pr = fabsf(r);
+			}
+			p = pEnd;
 		}
 		fPeakL[i] = pl; fPeakR[i] = pr;
 	}

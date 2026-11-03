@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <atomic>
+#include "FxChain.h"
 
 #define MIX_MAX_TRACKS	16
 
@@ -52,6 +53,8 @@ public:
 	// Дописывать при записи (вызывается не из аудио-потока воспроизведения)
 	bool	AppendTrackData(int i, const float *data, int64_t frames);
 
+	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
+
 	void	SetGain(int i, float g);
 	void	SetPan(int i, float p);
 	void	SetMute(int i, bool m);
@@ -87,6 +90,8 @@ private:
 	static void Gains(const MixTrack &t, bool anySolo, float &gl, float &gr);
 
 	MixTrack	fTracks[MIX_MAX_TRACKS];
+	FxChain		fFx[MIX_MAX_TRACKS];
+	float		fTmp[2 * 4096];			// буфер одной дорожки при обработке эффектами
 	int			fCount;
 	int64_t		fRecordOffset;
 	std::atomic_flag fLock;
