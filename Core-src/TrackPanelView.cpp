@@ -3,6 +3,7 @@
 #include <Window.h>
 #include <Font.h>
 #include <Message.h>
+#include <TextView.h>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -21,9 +22,42 @@
 #define DB_MIN		-60.0f
 #define DB_MAX		6.0f
 
+#define MSG_NAME_OK		'tnOk'
+#define MSG_NAME_CANCEL	'tnCn'
+#define KNOB_W			7		// ширина бегунка
+#define TICKS			10		// число засечек под бегунком
+
+// поле ввода названия дорожки: Enter - принять, Esc - отменить, потеря фокуса - принять
+class NameEdit : public BTextView {
+public:
+	NameEdit(BRect frame, BView *owner)
+		: BTextView(frame, "nameedit", BRect(2, 1, frame.Width() - 2, frame.Height() - 1),
+			B_FOLLOW_NONE, B_WILL_DRAW | B_FRAME_EVENTS),
+		  fOwner(owner)
+	{
+		SetViewColor(255, 255, 255);
+		SetLowColor(255, 255, 255);
+		SetFontSize(10);
+		SetMaxBytes(63);
+	}
+	virtual void KeyDown(const char *bytes, int32 n)
+	{
+		if (n == 1 && (bytes[0] == B_ENTER || bytes[0] == B_TAB)) { fOwner->Window()->PostMessage(MSG_NAME_OK, fOwner); return; }
+		if (n == 1 && bytes[0] == B_ESCAPE) { fOwner->Window()->PostMessage(MSG_NAME_CANCEL, fOwner); return; }
+		BTextView::KeyDown(bytes, n);
+	}
+	virtual void MakeFocus(bool focus = true)
+	{
+		BTextView::MakeFocus(focus);
+		if (!focus && !IsHidden()) fOwner->Window()->PostMessage(MSG_NAME_OK, fOwner);
+	}
+private:
+	BView *fOwner;
+};
+
 TrackPanelView::TrackPanelView(BRect r)
 	: BView(r, "Track panel", B_FOLLOW_TOP_BOTTOM | B_FOLLOW_LEFT, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1), fLastCount(-1), fLastScroll(-1), fLastHeight(-1)
+	  fEdit(NULL), fEditIndex(-1), fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1), fLastCount(-1), fLastScroll(-1), fLastHeight(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -32,6 +66,9 @@ void TrackPanelView::AttachedToWindow()
 {
 	SetFont(be_plain_font);
 	SetFontSize(10);
+	fEdit = new NameEdit(BRect(0, 0, 80, 14), this);
+	AddChild(fEdit);
+	fEdit->Hide();
 }
 
 float TrackPanelView::VolToPos(float gain)
@@ -63,23 +100,37 @@ BRect TrackPanelView::StripRect(int slot) const
 	return BRect(0, HEADER_H + top, Bounds().right, HEADER_H + bottom);
 }
 
+#define CONTENT_X	18		// слева от этого места - индикатор уровня
+
+BRect TrackPanelView::MeterRect(int index) const
+{
+	BRect s = StripRect(index);
+	return BRect(s.left + 1, s.top + 2, s.left + 14, s.bottom - 3);
+}
+
+BRect TrackPanelView::NameRect(int index) const
+{
+	BRect s = StripRect(index);
+	return BRect(s.left + CONTENT_X, s.top + 3, s.right - 5, s.top + 18);
+}
+
 BRect TrackPanelView::ButtonRect(int index, int which) const
 {
 	BRect s = StripRect(index);
-	float x = s.left + 4 + which * 22;
-	return BRect(x, s.top + 16, x + (which == 3 ? 24 : 18), s.top + 29);	// 3 = FX, шире
+	float x = s.left + CONTENT_X + which * 22;
+	return BRect(x, s.top + 23, x + (which == 3 ? 24 : 18), s.top + 36);	// 3 = FX, шире
 }
 
 BRect TrackPanelView::VolRect(int index) const
 {
 	BRect s = StripRect(index);
-	return BRect(s.left + 6, s.top + 33, s.right - 44, s.top + 40);
+	return BRect(s.left + CONTENT_X + KNOB_W / 2, s.top + 41, s.right - 48, s.top + 51);
 }
 
 BRect TrackPanelView::PanRect(int index) const
 {
 	BRect s = StripRect(index);
-	return BRect(s.left + 6, s.top + 42, s.right - 44, s.top + 49);
+	return BRect(s.left + CONTENT_X + KNOB_W / 2, s.top + 62, s.right - 48, s.top + 72);
 }
 
 BRect TrackPanelView::AddRect() const
@@ -109,18 +160,24 @@ void TrackPanelView::DrawButton(BRect r, const char *label, bool on, rgb_color o
 void TrackPanelView::DrawSlider(BRect r, float pos, bool centered)
 {
 	rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
-	BRect groove(r.left, r.top + 2, r.right, r.bottom - 2);
+	BRect groove(r.left - KNOB_W / 2, r.top + 3, r.right + KNOB_W / 2, r.bottom - 3);
 	SetHighColor(tint_color(base, B_DARKEN_2_TINT));
 	FillRect(groove);
 	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeRect(groove);
 	if (centered){
-		float cx = (r.left + r.right) / 2;
+		float cx = floorf((r.left + r.right) / 2);
 		SetHighColor(tint_color(base, B_DARKEN_4_TINT));
 		StrokeLine(BPoint(cx, r.top), BPoint(cx, r.bottom));
 	}
-	float x = r.left + pos * r.Width();
-	BRect knob(x - 2, r.top, x + 2, r.bottom);
+	// 10 засечек под бегунком
+	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
+	for (int k = 0; k < TICKS; k++){
+		float x = floorf(r.left + k * r.Width() / (TICKS - 1) + 0.5f);
+		StrokeLine(BPoint(x, r.bottom + 2), BPoint(x, r.bottom + 4));
+	}
+	float x = floorf(r.left + pos * r.Width() + 0.5f);
+	BRect knob(x - KNOB_W / 2, r.top, x + KNOB_W / 2, r.bottom);
 	SetHighColor(ui_color(B_CONTROL_HIGHLIGHT_COLOR));
 	FillRect(knob);
 	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
@@ -161,21 +218,29 @@ void TrackPanelView::Draw(BRect update)
 		SetHighColor(tint_color(base, B_DARKEN_2_TINT));
 		StrokeLine(BPoint(s.left, s.bottom), BPoint(s.right, s.bottom));
 
-		// имя
-		SetHighColor(text);
-		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
-		char name[80];
-		snprintf(name, sizeof(name), "%s%s%s", t->name, t->channels == 1 ? " (mono)" : "", "");
-		float room = s.Width() - 10;
-		if (t->offset > 0.0005){
-			char off[24];
-			snprintf(off, sizeof(off), "+%.3f s", t->offset);
-			DrawString(off, BPoint(s.right - 6 - StringWidth(off), s.top + 12));
-			room -= StringWidth(off) + 6;
+		// поле имени: белое, чёрная рамка
+		BRect nb = NameRect(i);
+		SetHighColor(255, 255, 255);
+		FillRect(nb);
+		SetHighColor(0, 0, 0);
+		StrokeRect(nb);
+		if (i != fEditIndex){
+			SetHighColor(0, 0, 0);
+			SetLowColor(255, 255, 255);
+			float room = nb.Width() - 8;
+			if (t->offset > 0.0005){
+				char off[24];
+				snprintf(off, sizeof(off), "+%.3f s", t->offset);
+				SetHighColor(110, 110, 110);
+				DrawString(off, BPoint(nb.right - 4 - StringWidth(off), nb.bottom - 4));
+				room -= StringWidth(off) + 6;
+				SetHighColor(0, 0, 0);
+			}
+			BString shown(t->name);
+			TruncateString(&shown, B_TRUNCATE_END, room < 20 ? 20 : room);
+			DrawString(shown.String(), BPoint(nb.left + 4, nb.bottom - 4));
 		}
-		BString shown(name);
-		TruncateString(&shown, B_TRUNCATE_END, room < 20 ? 20 : room);
-		DrawString(shown.String(), BPoint(s.left + 5, s.top + 12));
+		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
 
 		// кнопки
 		DrawButton(ButtonRect(i, 0), "S", t->solo, make_color(255, 220, 0));
@@ -183,15 +248,22 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
 
-		// индикатор уровня справа от кнопок
-		BRect m(s.left + 74, s.top + 17, s.right - 6, s.top + 28);
-		SetHighColor(tint_color(base, B_DARKEN_2_TINT));
+		// индикатор уровня: вертикальный, у левого края, фон «мокрый асфальт»
+		BRect m = MeterRect(i);
+		SetHighColor(52, 73, 94);
 		FillRect(m);
-		float pl = playing ? Mix.PeakL(i) : 0, pr = playing ? Mix.PeakR(i) : 0;
-		float hl = (pl > 1 ? 1 : pl) * m.Width(), hr = (pr > 1 ? 1 : pr) * m.Width();
-		SetHighColor(make_color(40, 200, 60));
-		FillRect(BRect(m.left, m.top + 1, m.left + hl, m.top + 4));
-		FillRect(BRect(m.left, m.top + 6, m.left + hr, m.top + 9));
+		SetHighColor(0, 0, 0);
+		StrokeRect(m);
+		{
+			float pl = playing ? Mix.PeakL(i) : 0, pr = playing ? Mix.PeakR(i) : 0;
+			const float inner = m.Height() - 2;
+			const float bw = 4;
+			float hl = (pl > 1 ? 1 : pl) * inner, hr = (pr > 1 ? 1 : pr) * inner;
+			SetHighColor(pl >= 1.0f ? make_color(255, 60, 40) : make_color(40, 210, 70));
+			if (hl >= 1) FillRect(BRect(m.left + 2, m.bottom - 1 - hl + 1, m.left + 2 + bw - 1, m.bottom - 1));
+			SetHighColor(pr >= 1.0f ? make_color(255, 60, 40) : make_color(40, 210, 70));
+			if (hr >= 1) FillRect(BRect(m.left + 2 + bw + 1, m.bottom - 1 - hr + 1, m.left + 2 + 2 * bw, m.bottom - 1));
+		}
 
 		// громкость
 		DrawSlider(VolRect(i), VolToPos(t->gain), false);
@@ -199,7 +271,7 @@ void TrackPanelView::Draw(BRect update)
 		if (t->gain <= 0.001f) strcpy(buf, "-inf");
 		else snprintf(buf, sizeof(buf), "%.1f dB", 20.0f * log10f(t->gain));
 		SetHighColor(text);
-		DrawString(buf, BPoint(VolRect(i).right + 4, VolRect(i).bottom));
+		DrawString(buf, BPoint(VolRect(i).right + KNOB_W / 2 + 4, VolRect(i).bottom - 1));
 
 		// баланс
 		DrawSlider(PanRect(i), (t->pan + 1.0f) / 2.0f, true);
@@ -207,7 +279,7 @@ void TrackPanelView::Draw(BRect update)
 		if (pv == 0) strcpy(buf, "C");
 		else snprintf(buf, sizeof(buf), "%c%d", t->pan < 0 ? 'L' : 'R', pv);
 		SetHighColor(text);
-		DrawString(buf, BPoint(PanRect(i).right + 4, PanRect(i).bottom));
+		DrawString(buf, BPoint(PanRect(i).right + KNOB_W / 2 + 4, PanRect(i).bottom - 1));
 	}
 
 	ConstrainClippingRegion(NULL);
@@ -229,8 +301,9 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (ButtonRect(i, 1).Contains(p)) return HIT_MUTE;
 		if (ButtonRect(i, 2).Contains(p)) return HIT_REC;
 		if (ButtonRect(i, 3).Contains(p)) return HIT_FX;
+		if (NameRect(i).Contains(p)) return HIT_NAMEBOX;
 		BRect v = VolRect(i), a = PanRect(i);
-		v.InsetBy(-3, -2); a.InsetBy(-3, -2);
+		v.InsetBy(-KNOB_W / 2 - 1, -2); a.InsetBy(-KNOB_W / 2 - 1, -2);
 		if (v.Contains(p)) return HIT_VOL;
 		if (a.Contains(p)) return HIT_PAN;
 		return HIT_NAME;
@@ -258,8 +331,40 @@ void TrackPanelView::SetFromMouse(int what, int index, BPoint p)
 	Invalidate();
 }
 
+void TrackPanelView::BeginNameEdit(int index)
+{
+	MixTrack *t = Mix.Track(index);
+	if (!t || !fEdit) return;
+	EndNameEdit(true);
+	BRect r = NameRect(index);
+	r.InsetBy(1, 1);
+	fEditIndex = index;
+	fEdit->MoveTo(r.LeftTop());
+	fEdit->ResizeTo(r.Width(), r.Height());
+	fEdit->SetTextRect(BRect(2, 0, r.Width() - 2, r.Height()));
+	fEdit->SetText(t->name);
+	fEdit->Show();
+	fEdit->MakeFocus(true);
+	fEdit->SelectAll();
+}
+
+void TrackPanelView::EndNameEdit(bool commit)
+{
+	if (fEditIndex < 0 || !fEdit) return;
+	const int idx = fEditIndex;
+	fEditIndex = -1;							// до Hide(): потеря фокуса не должна зациклить
+	if (commit){
+		BString n(fEdit->Text());
+		n.Trim();
+		if (n.Length() > 0) Tracks_SetName(idx, n.String());
+	}
+	if (!fEdit->IsHidden()) fEdit->Hide();
+	Invalidate();
+}
+
 void TrackPanelView::MouseDown(BPoint p)
 {
+	if (fEditIndex >= 0) EndNameEdit(true);	// клик в другом месте принимает имя
 	int index;
 	int what = HitTest(p, index);
 	int32 clicks = 1;
@@ -295,8 +400,13 @@ void TrackPanelView::MouseDown(BPoint p)
 	case HIT_FX:
 		FxWindow::Open(index, Window());
 		break;
+	case HIT_NAMEBOX:
+		if (index != Mix.Active()) Tracks_Activate(index);
+		BeginNameEdit(index);
+		Invalidate();
+		break;
 	case HIT_NAME:
-		if (clicks >= 2){				// двойной клик по имени - смещение дорожки
+		if (clicks >= 2){				// двойной клик по фону дорожки - смещение
 			(new OffsetWindow(index, Window()))->Show();
 		}else{
 			Tracks_Activate(index);
@@ -335,6 +445,8 @@ void TrackPanelView::MouseUp(BPoint)
 
 void TrackPanelView::MessageReceived(BMessage *msg)
 {
+	if (msg->what == MSG_NAME_OK){ EndNameEdit(true); return; }
+	if (msg->what == MSG_NAME_CANCEL){ EndNameEdit(false); return; }
 	if (msg->what == B_MOUSE_WHEEL_CHANGED){
 		float dy = 0;
 		if (msg->FindFloat("be:wheel_delta_y", &dy) == B_OK){
@@ -348,6 +460,14 @@ void TrackPanelView::MessageReceived(BMessage *msg)
 
 void TrackPanelView::Pulse()
 {
+	if (fEditIndex >= 0){						// прокрутка или смена числа дорожек - поле идёт за дорожкой
+		if (!Mix.Track(fEditIndex)){ EndNameEdit(false); }
+		else{
+			BRect r = NameRect(fEditIndex);
+			r.InsetBy(1, 1);
+			if (fEdit->Frame().LeftTop() != r.LeftTop()) fEdit->MoveTo(r.LeftTop());
+		}
+	}
 	// перерисовка, пока идёт воспроизведение (индикаторы уровня) или сменилась активная дорожка
 	if (Pool.IsPlaying() || fLastActive != Mix.Active() || fLastRevision != Mix.Revision()
 		|| fLastScroll != Tracks_Scroll() || fLastCount != Tracks_Count() || fLastHeight != Bounds().Height()){

@@ -19,7 +19,7 @@
 #define MSG_OFFSET_CANCEL	'ofcn'
 
 OffsetWindow::OffsetWindow(int trackIndex, BWindow *parent)
-	: BWindow(BRect(0, 0, 259, 119), "Track", B_TITLED_WINDOW_LOOK, B_MODAL_APP_WINDOW_FEEL,
+	: BWindow(BRect(0, 0, 259, 89), "Offset", B_TITLED_WINDOW_LOOK, B_MODAL_APP_WINDOW_FEEL,
 		B_NOT_RESIZABLE | B_NOT_ZOOMABLE | B_ASYNCHRONOUS_CONTROLS),
 	  fTrack(trackIndex)
 {
@@ -29,40 +29,30 @@ OffsetWindow::OffsetWindow(int trackIndex, BWindow *parent)
 
 	MixTrack *t = Mix.Track(trackIndex);
 	char title[64], value[32];
-	snprintf(title, sizeof(title), "%s", t ? t->name : "Track");
+	snprintf(title, sizeof(title), "%s - %s", t ? t->name : "Track", Language.get("TRACK_OFFSET"));
 	SetTitle(title);
 	snprintf(value, sizeof(value), "%.0f", t ? Tracks_Offset(trackIndex) * 1000.0 : 0.0);
 
-	fName = new BTextControl(BRect(12, 12, 247, 32), "name", Language.get("TRACK_NAME"), t ? t->name : "", NULL);
-	fName->SetDivider(90);
-	fName->TextView()->SetMaxBytes(63);
-	bg->AddChild(fName);
-
-	fText = new BTextControl(BRect(12, 42, 247, 62), "ms", Language.get("TRACK_OFFSET"), value, NULL);
+	fText = new BTextControl(BRect(12, 12, 247, 32), "ms", Language.get("TRACK_OFFSET"), value, NULL);
 	fText->SetDivider(90);
 	bg->AddChild(fText);
 
-	BButton *ok = new BButton(BRect(170, 82, 247, 106), "ok", Language.get("OK"), new BMessage(MSG_OFFSET_OK));
+	BButton *ok = new BButton(BRect(170, 52, 247, 76), "ok", Language.get("OK"), new BMessage(MSG_OFFSET_OK));
 	ok->MakeDefault(true);
 	bg->AddChild(ok);
-	bg->AddChild(new BButton(BRect(88, 82, 164, 106), "cancel", Language.get("CANCEL"), new BMessage(MSG_OFFSET_CANCEL)));
+	bg->AddChild(new BButton(BRect(88, 52, 164, 76), "cancel", Language.get("CANCEL"), new BMessage(MSG_OFFSET_CANCEL)));
 
 	if (parent){
 		MoveTo(parent->Frame().left + 60, parent->Frame().top + 120);
 	}
-	fName->MakeFocus(true);
-	fName->TextView()->SelectAll();
+	fText->MakeFocus(true);
+	fText->TextView()->SelectAll();
 }
 
 void OffsetWindow::MessageReceived(BMessage *msg)
 {
 	switch (msg->what){
 	case MSG_OFFSET_OK:
-		{
-			BString n(fName->Text());
-			n.Trim();
-			if (n.Length() > 0) Tracks_SetName(fTrack, n.String());
-		}
 		if (fabs(atof(fText->Text()) / 1000.0 - Tracks_Offset(fTrack)) > 0.0000005)
 			Tracks_SetOffset(fTrack, atof(fText->Text()) / 1000.0);
 		PostMessage(B_QUIT_REQUESTED);
