@@ -85,7 +85,7 @@ void FxWindow::RefreshList(int select)
 	for (int i = 0; i < fx.Count(); i++){
 		const FxChain::Slot *s = fx.At(i);
 		BString n(s->enabled ? "" : "[off] ");
-		n << s->plugin.name.c_str();
+		n << "[LADSPA] " << s->plugin.name.c_str();
 		fList->AddItem(new BStringItem(n.String()));
 	}
 	if (select >= fx.Count()) select = fx.Count() - 1;
@@ -153,11 +153,14 @@ void FxWindow::BuildParams()
 void FxWindow::ShowAddMenu()
 {
 	BPopUpMenu *menu = new BPopUpMenu("fxadd", false, false);
+
+	// LADSPA
+	BMenu *ladspa = new BMenu("LADSPA");
 	const std::vector<Ladspa::Plugin> &list = LadspaList();
 	if (list.empty()){
 		BMenuItem *none = new BMenuItem(Language.get("LADSPA_NONE"), NULL);
 		none->SetEnabled(false);
-		menu->AddItem(none);
+		ladspa->AddItem(none);
 	}else{
 		BMenu *group = NULL;
 		char letter = 0;
@@ -167,7 +170,7 @@ void FxWindow::ShowAddMenu()
 			m->AddString("file", list[i].file.c_str());
 			m->AddString("label", list[i].label.c_str());
 			BMenuItem *it = new BMenuItem(list[i].name.c_str(), m);
-			if (!grouped){ menu->AddItem(it); continue; }
+			if (!grouped){ ladspa->AddItem(it); continue; }
 			char c = list[i].name.empty() ? '#' : list[i].name[0];
 			if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
 			if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) c = '#';
@@ -175,12 +178,23 @@ void FxWindow::ShowAddMenu()
 				letter = c;
 				char s[2] = { c, 0 };
 				group = new BMenu(s);
-				menu->AddItem(group);
+				ladspa->AddItem(group);
 			}
 			group->AddItem(it);
 		}
 	}
+	menu->AddItem(ladspa);
+
+	// VST2: хост ещё не подключён
+	BMenu *vst = new BMenu("VST2");
+	BMenuItem *soon = new BMenuItem(Language.get("FX_VST_SOON"), NULL);
+	soon->SetEnabled(false);
+	vst->AddItem(soon);
+	menu->AddItem(vst);
+
 	menu->SetTargetForItems(this);
+	for (int32 i = 0; i < menu->CountItems(); i++)
+		if (BMenu *sub = menu->SubmenuAt(i)) sub->SetTargetForItems(this);
 	BPoint where = fAdd->ConvertToScreen(BPoint(0, fAdd->Bounds().Height() + 1));
 	menu->Go(where, true, true, true);
 }

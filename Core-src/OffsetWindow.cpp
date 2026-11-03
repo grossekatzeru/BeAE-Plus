@@ -14,11 +14,9 @@
 #include "Mixer.h"
 #include "Tracks.h"
 #include "OffsetWindow.h"
-#include "FxWindow.h"
 
 #define MSG_OFFSET_OK		'ofok'
 #define MSG_OFFSET_CANCEL	'ofcn'
-#define MSG_OFFSET_FX		'offx'
 
 OffsetWindow::OffsetWindow(int trackIndex, BWindow *parent)
 	: BWindow(BRect(0, 0, 259, 119), "Track", B_TITLED_WINDOW_LOOK, B_MODAL_APP_WINDOW_FEEL,
@@ -47,7 +45,6 @@ OffsetWindow::OffsetWindow(int trackIndex, BWindow *parent)
 	BButton *ok = new BButton(BRect(170, 82, 247, 106), "ok", Language.get("OK"), new BMessage(MSG_OFFSET_OK));
 	ok->MakeDefault(true);
 	bg->AddChild(ok);
-	bg->AddChild(new BButton(BRect(12, 82, 82, 106), "fx", Language.get("FX_BUTTON"), new BMessage(MSG_OFFSET_FX)));
 	bg->AddChild(new BButton(BRect(88, 82, 164, 106), "cancel", Language.get("CANCEL"), new BMessage(MSG_OFFSET_CANCEL)));
 
 	if (parent){
@@ -61,7 +58,6 @@ void OffsetWindow::MessageReceived(BMessage *msg)
 {
 	switch (msg->what){
 	case MSG_OFFSET_OK:
-	case MSG_OFFSET_FX:
 		{
 			BString n(fName->Text());
 			n.Trim();
@@ -69,8 +65,6 @@ void OffsetWindow::MessageReceived(BMessage *msg)
 		}
 		if (fabs(atof(fText->Text()) / 1000.0 - Tracks_Offset(fTrack)) > 0.0000005)
 			Tracks_SetOffset(fTrack, atof(fText->Text()) / 1000.0);
-		if (msg->what == MSG_OFFSET_FX)
-			FxWindow::Open(fTrack, fParent);		// имя и смещение применены, дальше - эффекты
 		PostMessage(B_QUIT_REQUESTED);
 		break;
 	case MSG_OFFSET_CANCEL:

@@ -14,6 +14,7 @@
 #include <Region.h>
 #include "TrackPanelView.h"
 #include "OffsetWindow.h"
+#include "FxWindow.h"
 
 #define HEADER_H	INDEXVIEW_HEIGHT		// верхняя полоска - на уровне обзорной панели
 // полоса дорожки: верхние POINTER_BAR_HEIGHT пикселей - как у полоски над волной
@@ -66,7 +67,7 @@ BRect TrackPanelView::ButtonRect(int index, int which) const
 {
 	BRect s = StripRect(index);
 	float x = s.left + 4 + which * 22;
-	return BRect(x, s.top + 16, x + 18, s.top + 29);
+	return BRect(x, s.top + 16, x + (which == 3 ? 24 : 18), s.top + 29);	// 3 = FX, шире
 }
 
 BRect TrackPanelView::VolRect(int index) const
@@ -164,7 +165,7 @@ void TrackPanelView::Draw(BRect update)
 		SetHighColor(text);
 		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
 		char name[80];
-		snprintf(name, sizeof(name), "%s%s%s", t->name, t->channels == 1 ? " (mono)" : "", Mix.Fx(i).Count() > 0 ? " [fx]" : "");
+		snprintf(name, sizeof(name), "%s%s%s", t->name, t->channels == 1 ? " (mono)" : "", "");
 		float room = s.Width() - 10;
 		if (t->offset > 0.0005){
 			char off[24];
@@ -180,6 +181,7 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 0), "S", t->solo, make_color(255, 220, 0));
 		DrawButton(ButtonRect(i, 1), "M", t->mute, make_color(255, 140, 0));
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
+		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
 
 		// индикатор уровня справа от кнопок
 		BRect m(s.left + 74, s.top + 17, s.right - 6, s.top + 28);
@@ -226,6 +228,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (ButtonRect(i, 0).Contains(p)) return HIT_SOLO;
 		if (ButtonRect(i, 1).Contains(p)) return HIT_MUTE;
 		if (ButtonRect(i, 2).Contains(p)) return HIT_REC;
+		if (ButtonRect(i, 3).Contains(p)) return HIT_FX;
 		BRect v = VolRect(i), a = PanRect(i);
 		v.InsetBy(-3, -2); a.InsetBy(-3, -2);
 		if (v.Contains(p)) return HIT_VOL;
@@ -288,6 +291,9 @@ void TrackPanelView::MouseDown(BPoint p)
 			Tracks_Activate(index);		// запись идёт в активную дорожку
 		}
 		Invalidate();
+		break;
+	case HIT_FX:
+		FxWindow::Open(index, Window());
 		break;
 	case HIT_NAME:
 		if (clicks >= 2){				// двойной клик по имени - смещение дорожки
