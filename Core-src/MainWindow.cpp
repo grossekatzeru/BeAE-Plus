@@ -1353,6 +1353,11 @@ void MainWindow::MessageReceived(BMessage *message)
 		Pool.UpdateToolBar();
 		break;
 
+	case TOOL_MOVE:
+		Pool.tool_mode = MOVE_TOOL;
+		Pool.UpdateToolBar();
+		break;
+
 	case TOOL_DRAW:
 		Pool.tool_mode = DRAW_TOOL;
 		Pool.UpdateToolBar();

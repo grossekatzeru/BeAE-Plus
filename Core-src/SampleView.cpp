@@ -38,6 +38,8 @@
 #include "Shortcut.h"
 #include "MyClipBoard.h"
 #include "VMSystem.h"
+#include "Mixer.h"
+#include "Tracks.h"
 
 extern cookie_record play_cookie;
 
@@ -49,6 +51,10 @@ SampleView::SampleView(BRect r) :
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 	drag = false;
+	move_drag = false;
+	move_x0 = 0;
+	move_delta = 0;
+	move_first = move_last = 0;
 	edit = false;
 	Pool.update_peak = true;
 	stop_following = false;
@@ -291,6 +297,27 @@ void SampleView::Draw(BRect rect)
 		SetDrawingMode(B_OP_COPY);
 	}
 
+	// перетаскиваемый звук: рамка на новом месте
+	if (move_drag && Pool.r_pointer > Pool.l_pointer){
+		const double span = (double)(Pool.r_pointer - Pool.l_pointer);
+		const float W = Bounds().Width();
+		const double dframes = move_delta * Pool.frequency;
+		float xs = (float)((move_first + dframes - Pool.l_pointer) * (double)W / span);
+		float xe = (float)((move_last + 1 + dframes - Pool.l_pointer) * (double)W / span);
+		BRect g(xs, POINTER_BAR_HEIGHT, xe, Bounds().bottom);
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		SetHighColor(255, 255, 255, 70);
+		FillRect(g);
+		SetDrawingMode(B_OP_COPY);
+		SetHighColor(255, 255, 255);
+		StrokeRect(g);
+		char label[48];
+		snprintf(label, sizeof(label), "%+.3f s", move_delta);
+		SetHighColor(0, 0, 0);
+		DrawString(label, BPoint(MAX(xs, 0.0f) + 4, POINTER_BAR_HEIGHT + 12));
+	}
+
 	// Draw the pointer
 	BRect r = Bounds();
 	int32 xx = POINTER_BAR_HEIGHT/2 -2;
@@ -346,6 +373,15 @@ void SampleView::MouseDown(BPoint p)
 	if ( p.y < POINTER_BAR_HEIGHT)
 	{
 		/* Handle the triangles here */
+		return;
+	}
+
+	if (Pool.tool_mode == MOVE_TOOL){			// тянем звук дорожки по ленте времени
+		if (Pool.frequency > 1.0f && Tracks_ActiveRange(move_first, move_last)){
+			move_drag = true;
+			move_x0 = p.x;
+			move_delta = 0;
+		}
 		return;
 	}
 
@@ -609,6 +645,21 @@ void SampleView::MouseDown(BPoint p)
 *****************************************************/
 void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 {
+	if (move_drag){
+		double frames = (p.x - move_x0) * (double)(Pool.r_pointer - Pool.l_pointer) / Bounds().Width();
+		double d = frames / Pool.frequency;
+		double minD = -(double)move_first / Pool.frequency;		// левее нуля ленты звук не уйдёт
+		if (d < minD) d = minD;
+		move_delta = d;
+		SetViewCursor( Pool.mouseMove );
+		Invalidate();
+		return;
+	}
+	if (Pool.tool_mode == MOVE_TOOL){
+		SetViewCursor( Pool.mouseMove );
+		return;
+	}
+
 	// area where the cursors work for left/right selection
 	float top = (Bounds().Height()-POINTER_BAR_HEIGHT)*0.20 +POINTER_BAR_HEIGHT;	// left
 	float bottom = (Bounds().Height()-POINTER_BAR_HEIGHT)*0.80+POINTER_BAR_HEIGHT;	// right
@@ -755,6 +806,16 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 *****************************************************/
 void SampleView::MouseUp(BPoint p)
 {
+	if (move_drag){
+		move_drag = false;
+		double off = (double)move_first / Pool.frequency + move_delta;
+		if (off < 0) off = 0;
+		move_delta = 0;
+		Tracks_SetOffset(Mix.Active(), off);			// пересобирает активную дорожку под новое положение
+		Invalidate();
+		return;
+	}
+
 	if (drag_selection && start_selection == p)		/* single clicked in selection without drag -> deselect */
 	{
 		old_x = -1;

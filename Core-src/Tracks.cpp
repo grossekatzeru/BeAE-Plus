@@ -274,6 +274,13 @@ bool Tracks_SetOffset(int index, double seconds)
 	return true;
 }
 
+bool Tracks_ActiveRange(int64 &first, int64 &last)
+{
+	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0)
+		return false;
+	return ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last);
+}
+
 int Tracks_Add()
 {
 	char name[32];

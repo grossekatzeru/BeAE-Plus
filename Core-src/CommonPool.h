@@ -36,7 +36,7 @@
 
 #define PLAY_HOOKS	64		// number of realtime effects possible
 
-enum {SELECT_TOOL, DRAW_TOOL, PLAY_TOOL, SCRUB_TOOL};
+enum {SELECT_TOOL, DRAW_TOOL, PLAY_TOOL, SCRUB_TOOL, MOVE_TOOL};
 
 // just a little internal stuff to make life easy
 //typedef Filter*    (*FilterFunc) (BMessage*);

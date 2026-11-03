@@ -404,6 +404,7 @@ void Shortcut::InstallDefaults(){
 	Install(0,"TOOL_DRAW",					  0, 0,					'2', 0,							TOOL_DRAW		);
 	Install(0,"TOOL_PLAY",					  0, 0,					'3', 0,							TOOL_PLAY		);
 	Install(0,"TOOL_JOGG",					  0, 0,					'4', 0,							TOOL_JOGG		);
+	Install(0,"TOOL_MOVE",					  0, 0,					'5', 0,							TOOL_MOVE		);
 
 //	Install(1,"FILE_MIX",			  0, B_COMMAND_KEY,					  0, 0,											);
 

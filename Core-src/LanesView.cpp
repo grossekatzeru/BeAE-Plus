@@ -26,7 +26,7 @@ extern cookie_record play_cookie;
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragX0(0), fDragOffset0(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -170,6 +170,16 @@ void LanesView::MouseDown(BPoint p)
 		int slot = Tracks_SlotAt(rank);
 		if (slot < 0 || slot == Mix.Active())
 			return;
+		if (Pool.tool_mode == MOVE_TOOL){			// тянем дорожку по ленте, не делая её активной
+			MixTrack *mt = Mix.Track(slot);
+			if (mt && mt->data && Pool.sample_type != NONE){
+				fDragSlot = slot;
+				fDragX0 = p.x;
+				fDragOffset0 = mt->offset;
+				SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+			}
+			return;
+		}
 		// время под курсором мыши
 		double t = -1.0;
 		if (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
@@ -181,6 +191,35 @@ void LanesView::MouseDown(BPoint p)
 		Relayout();
 		Invalidate();
 		return;
+	}
+}
+
+void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
+{
+	if (Pool.tool_mode == MOVE_TOOL)
+		SetViewCursor(Pool.mouseMove);
+	else
+		SetViewCursor(B_CURSOR_SYSTEM_DEFAULT);
+
+	if (fDragSlot >= 0 && Mix.Track(fDragSlot) && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
+		const double dt = ((double)(Pool.r_pointer - Pool.l_pointer) / Pool.frequency) / Bounds().Width();
+		double off = fDragOffset0 + (p.x - fDragX0) * dt;
+		if (off < 0) off = 0;
+		Mix.SetOffset(fDragSlot, off);			// живой сдвиг: звук неактивной дорожки не копируется
+		Invalidate();
+	}
+}
+
+void LanesView::MouseUp(BPoint)
+{
+	if (fDragSlot >= 0){
+		int slot = fDragSlot;
+		fDragSlot = -1;
+		MixTrack *mt = Mix.Track(slot);
+		if (mt)
+			Tracks_SetOffset(slot, mt->offset);	// лента могла удлиниться: пересобрать активную дорожку
+		Relayout();
+		Invalidate();
 	}
 }
 

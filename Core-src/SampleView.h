@@ -83,6 +83,10 @@ class SampleView: public BView{
 	float *peak_buffer_r;
 
 	bool drag, edit, stop_following, draw_selection;
+	bool move_drag;				// инструмент «Перемещение»: тянем звук активной дорожки
+	float move_x0;
+	double move_delta;			// сдвиг, секунды
+	int64 move_first, move_last;	// где лежит звук, кадры
 	bool drag_border, drag_selection;
  	bool m_resized, cache_left_valid, cache_right_valid;
  	

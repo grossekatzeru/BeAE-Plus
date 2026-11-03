@@ -15,6 +15,8 @@ public:
 	virtual void AttachedToWindow();
 	virtual void Draw(BRect);
 	virtual void MouseDown(BPoint);
+	virtual void MouseMoved(BPoint, uint32, const BMessage *);
+	virtual void MouseUp(BPoint);
 	virtual void FrameResized(float width, float height);
 	virtual void MessageReceived(BMessage *msg);
 	virtual void Pulse();
@@ -32,6 +34,9 @@ private:
 	long long	fKeyL, fKeyR, fKeyPointer;
 	int			fKeySelection;
 	float		fOldPlayX;
+	int			fDragSlot;			// инструмент «Перемещение»: какую дорожку тянем (или -1)
+	float		fDragX0;
+	double		fDragOffset0;
 };
 
 #endif

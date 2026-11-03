@@ -166,6 +166,7 @@ enum {MONO=1, STEREO=2};
 #define TOOL_DRAW			'Tdrw'
 #define TOOL_PLAY			'TLpl'
 #define TOOL_JOGG			'Tsrb'
+#define TOOL_MOVE			'Tmov'
 
 #define SPECTRUM			'spct'
 #define SAMPLE_SCOPE		'spls'

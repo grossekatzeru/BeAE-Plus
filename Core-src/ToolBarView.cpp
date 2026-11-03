@@ -165,6 +165,8 @@ void ToolBarView::Update()
 
 	tool[16]->SetEnabled(Pool.sample_type != NONE);
 	tool[16]->SetValue(Pool.tool_mode == SELECT_TOOL && Pool.sample_type != NONE);
+	tool[27]->SetEnabled(Pool.sample_type != NONE);
+	tool[27]->SetValue(Pool.tool_mode == MOVE_TOOL && Pool.sample_type != NONE);
 	tool[17]->SetEnabled(Pool.sample_type != NONE && draw);
 	tool[17]->SetValue(Pool.tool_mode == DRAW_TOOL);
 	tool[18]->SetEnabled(Pool.sample_type != NONE);
@@ -218,6 +220,8 @@ void ToolBarView::AttachedToWindow()
 //	AddChild( tool[15] = ToolBarButton( r, 15, Language.get("SET_LOOP"), new BMessage(SET_LOOP), B_ONE_STATE_BUTTON, this));
 	r.OffsetBy(25+8,0);
 	AddChild( tool[16] = ToolBarButton( r, 23, Language.get("TOOL_SELECT"), new BMessage(TOOL_SELECT), B_TWO_STATE_BUTTON, this));
+	r.OffsetBy(25,0);
+	AddChild( tool[27] = ToolBarButton( r, 40, Language.get("TOOL_MOVE"), new BMessage(TOOL_MOVE), B_TWO_STATE_BUTTON, this));
 	r.OffsetBy(25,0);
 	AddChild( tool[17] = ToolBarButton( r, 24, Language.get("TOOL_DRAW"), new BMessage(TOOL_DRAW), B_TWO_STATE_BUTTON, this));
 	r.OffsetBy(25,0);
