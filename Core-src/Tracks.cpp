@@ -283,6 +283,21 @@ static int ChooseClip(int lane, double time)
 	return c;
 }
 
+bool Tracks_SetName(int index, const char *name)
+{
+	MixTrack *t = Mix.Track(index);
+	if (!t || !name) return false;
+	size_t n = strlen(name);
+	if (n > sizeof(t->name) - 1) {
+		n = sizeof(t->name) - 1;
+		while (n > 0 && ((unsigned char)name[n] & 0xC0) == 0x80) n--;	// не рвать UTF-8 символ
+	}
+	memcpy(t->name, name, n);
+	t->name[n] = 0;
+	Mix.Touch();
+	return true;
+}
+
 bool Tracks_Activate(int lane, double cursorTime, int clip)
 {
 	MixTrack *t = Mix.Track(lane);
