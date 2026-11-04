@@ -30,7 +30,7 @@ private:
 	void	Step(int delta);
 	void	DrawSmallButton(int which);
 
-	BBitmap	*display, *digits;
+	BBitmap	*back, *display, *digits;
 	int		fPressed;
 	double	fLastBpm;
 	int		fLastDiv;

@@ -20,12 +20,14 @@ TempoView::TempoView(BRect r)
 	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fRepeat(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
+	back = BTranslationUtils::GetBitmapFile("./Bitmaps/Box.png");
 	display = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDisplay.png");
 	digits = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDigits.png");
 }
 
 TempoView::~TempoView()
 {
+	delete back;
 	delete display;
 	delete digits;
 }
@@ -80,6 +82,11 @@ void TempoView::DrawSmallButton(int which)
 
 void TempoView::Draw(BRect)
 {
+	// фон - тот же градиент Box.png, что и у большого таймера
+	if (back){
+		const int bw = back->Bounds().IntegerWidth();
+		for (int x = 0; x <= Bounds().IntegerWidth(); x += bw) DrawBitmap(back, BPoint(x, 0));
+	}
 	BRect l = LcdRect();
 	if (display){
 		const BRect db = display->Bounds();

@@ -1693,6 +1693,8 @@ void MainWindow::MessageReceived(BMessage *message)
 		BWindow::MessageReceived(message);
 	}
 	
-	if (CurrentFocus())
+	// после каждого сообщения фокус снимается с полей ввода, но не с поля названия дорожки
+	// (его принимает Enter или клик в другом месте): иначе оно закрывалось через секунду после клика
+	if (CurrentFocus() && strcmp(CurrentFocus()->Name(), "nameedit") != 0)
 		CurrentFocus()->MakeFocus(false);
 }
