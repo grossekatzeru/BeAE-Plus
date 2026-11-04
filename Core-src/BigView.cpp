@@ -34,6 +34,7 @@
 #include "BigView.h"
 #include "MainWindow.h"
 #include "Preferences.h"
+#include "TempoView.h"
 
 extern cookie_record play_cookie;
 
@@ -50,6 +51,7 @@ BigView::BigView(BRect r) :
 	right = BTranslationUtils::GetBitmapFile("./Bitmaps/BoxRight.png");
 	display = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDisplay.png");
 	digits = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDigits.png");
+	fTempo = NULL;
 }
 
 //*****************************************************
@@ -63,8 +65,29 @@ BigView::~BigView()
 }
 
 //*****************************************************
+// Таймер и окно темпа стоят рядом и центрируются вместе
+int32 BigView::GroupLeft() const
+{
+	return (int32)((Bounds().IntegerWidth() - (174 + TEMPO_VIEW_WIDTH)) / 2 + Bounds().left);
+}
+
+void BigView::Layout()
+{
+	if (fTempo)
+		fTempo->MoveTo(GroupLeft() + 174 + 2, Bounds().top);
+}
+
 void BigView::AttachedToWindow()
 {
+	fTempo = new TempoView(BRect(0, 0, TEMPO_VIEW_WIDTH - 1, Bounds().Height()));
+	AddChild(fTempo);
+	Layout();
+}
+
+void BigView::FrameResized(float w, float h)
+{
+	BView::FrameResized(w, h);
+	Layout();
 }
 
 //*****************************************************
@@ -104,8 +127,8 @@ void BigView::Draw(BRect r)
 		DrawBitmap(right, right->Bounds(), rect);
 	}
 
-	if (Bounds().IntegerWidth() > 180){
-		int32 x = (int32)(Bounds().IntegerWidth() - 174 - 4 + Bounds().left);	// прижат вправо: рядом темп
+	if (Bounds().IntegerWidth() > 174 + TEMPO_VIEW_WIDTH){
+		int32 x = GroupLeft();
 		if (full_update)
 			DrawBitmap(display, BPoint(x, Bounds().top +8));
 		

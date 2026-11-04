@@ -23,6 +23,52 @@
 
 extern cookie_record play_cookie;
 
+// Объём для рабочей области дорожки (как растяжка на фоне большого таймера): тень под верхним краем,
+// мягкая тень слева и светлая кромка снизу - полоса выглядит утопленной.
+void LanesDrawDepth(BView *v, BRect body)
+{
+	if (body.Height() < 8 || body.Width() < 8)
+		return;
+	v->SetDrawingMode(B_OP_ALPHA);
+	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	const int top = 8;
+	for (int i = 0; i < top; i++){
+		v->SetHighColor(0, 0, 0, (uint8)(95 * (top - i) / top));
+		v->StrokeLine(BPoint(body.left, body.top + i), BPoint(body.right, body.top + i));
+	}
+	for (int i = 0; i < 3; i++){
+		v->SetHighColor(0, 0, 0, (uint8)(55 * (3 - i) / 3));
+		v->StrokeLine(BPoint(body.left + i, body.top), BPoint(body.left + i, body.bottom));
+	}
+	for (int i = 0; i < 4; i++){
+		v->SetHighColor(255, 255, 255, (uint8)(40 * (4 - i) / 4));
+		v->StrokeLine(BPoint(body.left, body.bottom - i), BPoint(body.right, body.bottom - i));
+	}
+	v->SetDrawingMode(B_OP_COPY);
+}
+
+// Фон полосы неактивной дорожки: тот же переход от края к центру, что и у волны активной (back_color -> back_color2)
+static void DrawLaneBackground(BView *v, BRect body, bool stereo)
+{
+	const int parts = stereo ? 2 : 1;
+	const float h = body.Height() / parts;
+	const rgb_color a = Prefs.back_color, b = Prefs.back_color2;
+	for (int p = 0; p < parts; p++){
+		const float top = body.top + p * h, mid = top + h / 2.0f;
+		for (float y = top; y <= top + h - 1 && y <= body.bottom; y += 1.0f){
+			float k = fabsf(y - mid) / (h / 2.0f);		// 0 в центре, 1 у края
+			if (k > 1) k = 1;
+			rgb_color c;
+			c.red = (uint8)(b.red + (a.red - b.red) * k);
+			c.green = (uint8)(b.green + (a.green - b.green) * k);
+			c.blue = (uint8)(b.blue + (a.blue - b.blue) * k);
+			c.alpha = 255;
+			v->SetHighColor(c);
+			v->StrokeLine(BPoint(body.left, y), BPoint(body.right, y));
+		}
+	}
+}
+
 // Линии сетки в полосе дорожки (только если у дорожки включён Grid). Линии на ударах чуть ярче.
 void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W)
 {
@@ -349,12 +395,12 @@ void LanesView::DrawLane(int slot, BRect lane)
 		return;
 
 	// фон
-	SetHighColor(Prefs.back_color);
-	FillRect(body);
+	DrawLaneBackground(this, body, Mix.LaneChannels(slot) == 2);
 
 	if (Pool.sample_type == NONE || Pool.r_pointer <= Pool.l_pointer || Pool.frequency < 1.0f){
 		SetHighColor(make_color(0,0,0));
 		DrawString(t->name, BPoint(lane.left + 4, lane.top + POINTER_BAR_HEIGHT - 3));
+		LanesDrawDepth(this, body);
 		return;
 	}
 
@@ -371,6 +417,7 @@ void LanesView::DrawLane(int slot, BRect lane)
 	SetDrawingMode(B_OP_COPY);
 	LanesDrawClips(this, slot, body, tl, dt, W);
 	LanesDrawGrid(this, slot, body, tl, dt, W);
+	LanesDrawDepth(this, body);
 
 	// курсор (положение на ленте)
 	if (Pool.selection == NONE && !Pool.IsPlaying()){

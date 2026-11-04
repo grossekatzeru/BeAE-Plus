@@ -44,7 +44,7 @@ void	Tracks_BeginProject();					// очистить всё перед откры
 void	Tracks_FinishProject();					// после заполнения микшера: показать дорожку 0
 
 // Раскладка дорожек по вертикали - одна и та же для панели слева и для полос с волнами.
-#define MIN_LANE_HEIGHT	78
+#define MIN_LANE_HEIGHT	98
 int		Tracks_Count();							// число дорожек
 int		Tracks_Rank(int slot);					// номер дорожки сверху вниз (или -1)
 int		Tracks_SlotAt(int rank);				// слот микшера по номеру сверху вниз (или -1)

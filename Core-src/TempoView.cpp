@@ -16,20 +16,16 @@ static const int kDivs[] = { 1, 2, 4, 8, 16, 32 };
 static const int kDivCount = 6;
 
 TempoView::TempoView(BRect r)
-	: BView(r, "Tempo view", B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_PULSE_NEEDED),
+	: BView(r, "Tempo view", B_FOLLOW_NONE, B_WILL_DRAW | B_PULSE_NEEDED),
 	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fRepeat(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
-	back = BTranslationUtils::GetBitmapFile("./Bitmaps/Box.png");
-	right = BTranslationUtils::GetBitmapFile("./Bitmaps/BoxRight.png");
 	display = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDisplay.png");
 	digits = BTranslationUtils::GetBitmapFile("./Bitmaps/BigDigits.png");
 }
 
 TempoView::~TempoView()
 {
-	delete back;
-	delete right;
 	delete display;
 	delete digits;
 }
@@ -84,16 +80,6 @@ void TempoView::DrawSmallButton(int which)
 
 void TempoView::Draw(BRect)
 {
-	BRect b = Bounds();
-	if (back){
-		const int w = back->Bounds().IntegerWidth();
-		for (int x = 0; x <= b.IntegerWidth(); x += w) DrawBitmap(back, BPoint(x, 0));
-	}
-	if (right){
-		BRect rr = b; rr.left = rr.right - 2;
-		DrawBitmap(right, right->Bounds(), rr);
-	}
-
 	BRect l = LcdRect();
 	if (display){
 		const BRect db = display->Bounds();

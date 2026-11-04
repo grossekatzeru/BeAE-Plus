@@ -124,8 +124,7 @@ BRect TrackPanelView::ButtonRect(int index, int which) const
 BRect TrackPanelView::GridRect(int index) const
 {
 	BRect s = StripRect(index);
-	float x = s.left + CONTENT_X + 3 * 22 + 24 + 8;
-	return BRect(x, s.top + 23, x + 42, s.top + 36);
+	return BRect(s.left + CONTENT_X, s.top + 80, s.left + CONTENT_X + 50, s.top + 93);	// следующие чекбоксы - строками ниже
 }
 
 BRect TrackPanelView::VolRect(int index) const
@@ -256,9 +255,11 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 1), "M", t->mute, make_color(255, 140, 0));
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
-		{	// чекбокс Grid: только у дорожки с галочкой работает липкая сетка
+		{	// под регулировкой баланса: подпись «Grid», затем чекбокс. Только у дорожки с галочкой работает липкая сетка.
 			BRect g = GridRect(i);
-			BRect box(g.left, g.top + 1, g.left + 11, g.top + 12);
+			BRect box(g.left + 34, g.top + 1, g.left + 45, g.top + 12);
+			SetHighColor(text);
+			DrawString("Grid", BPoint(g.left, g.bottom - 3));
 			SetHighColor(make_color(255, 255, 255));
 			FillRect(box);
 			SetHighColor(make_color(0, 0, 0));
@@ -269,6 +270,8 @@ void TrackPanelView::Draw(BRect update)
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
 				SetPenSize(1);
 			}
+		}
+
 			SetHighColor(make_color(255, 255, 255));
 			DrawString("Grid", BPoint(box.right + 4, box.bottom - 1));
 		}

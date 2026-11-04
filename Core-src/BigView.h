@@ -38,8 +38,12 @@ class BigView: public BView{
 	virtual void AttachedToWindow();
 	virtual void Draw(BRect);
 	virtual void Pulse();
+	virtual void FrameResized(float width, float height);
 
  private:
+	int32 GroupLeft() const;
+	void Layout();
+	BView *fTempo;
  	int64 pointer;
  	bool full_update;
 	BBitmap *display, *digits, *left, *right, *back;

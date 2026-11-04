@@ -1,5 +1,5 @@
 /*
- * TempoView - темп проекта (BPM) и глубина сетки, справа от большого таймера.
+ * TempoView - темп проекта (BPM) и глубина сетки, рядом с большим таймером (дочерний вид BigView, фон рисует он).
  * Три цифры в том же стиле LCD, рядом кнопки: вверх (+1), кружок (вернуть 120), вниз (-1),
  * и поле глубины квантования (1, 1/2 ... 1/32).  Удержание стрелки - автоповтор.
  */
@@ -30,7 +30,7 @@ private:
 	void	Step(int delta);
 	void	DrawSmallButton(int which);
 
-	BBitmap	*back, *right, *display, *digits;
+	BBitmap	*display, *digits;
 	int		fPressed;
 	double	fLastBpm;
 	int		fLastDiv;

@@ -16,6 +16,9 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 // Линии сетки дорожки slot (если Grid включён) - тот же масштаб, что и у LanesDrawClips.
 void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W);
 
+// Объёмная подсветка краёв рабочей области (тень сверху и слева, светлая кромка снизу).
+void LanesDrawDepth(BView *v, BRect body);
+
 class LanesView : public BView {
 public:
 	LanesView(BRect r);
