@@ -311,6 +311,15 @@ void SampleView::Draw(BRect rect)
 			tl, (tr - tl) / W, W);
 		ConstrainClippingRegion(NULL);
 	}
+	if (Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){		// сетка активной дорожки
+		const double tl = (double)Pool.l_pointer / Pool.frequency;
+		const double tr = (double)Pool.r_pointer / Pool.frequency;
+		const float W = Bounds().Width() + 1;
+		BRegion clip(rect);
+		ConstrainClippingRegion(&clip);
+		LanesDrawGrid(this, Mix.Active(), BRect(0, POINTER_BAR_HEIGHT, Bounds().right, Bounds().bottom), tl, (tr - tl) / W, W);
+		ConstrainClippingRegion(NULL);
+	}
 
 	// перетаскиваемый звук: рамка на новом месте
 	if (move_drag && Pool.r_pointer > Pool.l_pointer){
@@ -685,7 +694,9 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 	if (move_drag){
 		double frames = (p.x - move_x0) * (double)(Pool.r_pointer - Pool.l_pointer) / Bounds().Width();
 		double d = frames / Pool.frequency;
-		double minD = -(double)move_first / Pool.frequency;		// левее нуля ленты звук не уйдёт
+		const double first = (double)move_first / Pool.frequency;
+		d = Mix.Snap(Mix.Active(), first + d) - first;			// липкая сетка: начало звука к линии
+		double minD = -first;									// левее нуля ленты звук не уйдёт
 		if (d < minD) d = minD;
 		move_delta = d;
 		SetViewCursor( Pool.mouseMove );

@@ -13,6 +13,9 @@
 // пиксель, W - ширина в пикселях. skipFill: не заливать фон клипа (используется поверх уже нарисованной волны).
 void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W);
 
+// Линии сетки дорожки slot (если Grid включён) - тот же масштаб, что и у LanesDrawClips.
+void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W);
+
 class LanesView : public BView {
 public:
 	LanesView(BRect r);

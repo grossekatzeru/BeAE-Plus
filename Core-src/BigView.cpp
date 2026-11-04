@@ -105,7 +105,7 @@ void BigView::Draw(BRect r)
 	}
 
 	if (Bounds().IntegerWidth() > 180){
-		int32 x = (int32)((Bounds().IntegerWidth() - 174)/2 + Bounds().left);
+		int32 x = (int32)(Bounds().IntegerWidth() - 174 - 4 + Bounds().left);	// прижат вправо: рядом темп
 		if (full_update)
 			DrawBitmap(display, BPoint(x, Bounds().top +8));
 		

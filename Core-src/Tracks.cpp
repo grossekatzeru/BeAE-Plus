@@ -558,6 +558,7 @@ bool Tracks_PasteClip(double timePos, int count)
 	if (!Tracks_HasClipboard() || count < 1 || count > 1000 || Recorder.IsRecording())
 		return false;
 	if (timePos < 0) timePos = 0;
+	timePos = Mix.Snap(Mix.Active(), timePos);			// первая копия встаёт на сетку
 	const MixClip clip = gClipboard;
 	const double step = clip.Length();
 	return Restructure([&](int lane, int stashed, const ViewState&){

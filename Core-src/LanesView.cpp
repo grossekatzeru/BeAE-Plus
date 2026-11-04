@@ -23,6 +23,31 @@
 
 extern cookie_record play_cookie;
 
+// Линии сетки в полосе дорожки (только если у дорожки включён Grid). Линии на ударах чуть ярче.
+void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W)
+{
+	const MixTrack *t = Mix.Track(slot);
+	if (!t || !t->grid || dt <= 0)
+		return;
+	double step = Mix.GridStep();
+	while (step / dt < 6.0)					// слишком густо: прореживаем вдвое
+		step *= 2.0;
+	const double beat = 60.0 / Mix.Bpm();
+	v->SetDrawingMode(B_OP_ALPHA);
+	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	for (long long k = (long long)floor(tl / step); k * step <= tl + W * dt + step; k++){
+		const double t0 = k * step;
+		if (t0 < 0) continue;
+		const float x = (float)((t0 - tl) / dt);
+		if (x < 0 || x > W) continue;
+		const double r = t0 / beat;
+		const bool onBeat = fabs(r - floor(r + 0.5)) < 1e-6;
+		v->SetHighColor(255, 255, 255, onBeat ? 90 : 40);
+		v->StrokeLine(BPoint(body.left + x, body.top), BPoint(body.left + x, body.bottom));
+	}
+	v->SetDrawingMode(B_OP_COPY);
+}
+
 // Клипы дорожки: у каждого светлая подложка, центральные линии, огибающая волны и белые границы.
 void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W)
 {
@@ -260,6 +285,7 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 	if (fDragSlot >= 0 && Mix.Clip(fDragSlot, fDragClip) && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
 		const double dt = ((double)(Pool.r_pointer - Pool.l_pointer) / Pool.frequency) / Bounds().Width();
 		double pos = fDragPos0 + (p.x - fDragX0) * dt;
+		pos = Mix.Snap(fDragSlot, pos);				// липкая сетка
 		if (pos < 0) pos = 0;
 		Mix.SetClipPos(fDragSlot, fDragClip, pos);	// живой сдвиг: звук клипа не копируется
 		Invalidate();
@@ -344,6 +370,7 @@ void LanesView::DrawLane(int slot, BRect lane)
 	FillRect(body);
 	SetDrawingMode(B_OP_COPY);
 	LanesDrawClips(this, slot, body, tl, dt, W);
+	LanesDrawGrid(this, slot, body, tl, dt, W);
 
 	// курсор (положение на ленте)
 	if (Pool.selection == NONE && !Pool.IsPlaying()){

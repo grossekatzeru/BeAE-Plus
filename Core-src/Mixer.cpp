@@ -26,6 +26,7 @@ Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0)
 	memset(fTmp, 0, sizeof(fTmp));
 	memset(fPeakL, 0, sizeof(fPeakL));
 	memset(fPeakR, 0, sizeof(fPeakR));
+	fBpm = 120.0; fGridDiv = 4;
 	fTracks[0].used = true;
 	strcpy(fTracks[0].name, "Track 1");
 }
@@ -85,6 +86,7 @@ void Mixer::ResetAll()
 	strcpy(fTracks[0].name, "Track 1");
 	fCount = 1;
 	fActive = 0;
+	fBpm = 120.0; fGridDiv = 4;
 	Unlock();
 	for (int i=0; i<MIX_MAX_TRACKS; i++) fFx[i].Clear();
 	fRevision++;
@@ -199,6 +201,26 @@ void Mixer::SetGain(int i, float g)	{ if (Track(i)) { fTracks[i].gain = g<0?0:(g
 void Mixer::SetPan(int i, float p)	{ if (Track(i)) { fTracks[i].pan = p<-1?-1:(p>1?1:p); fRevision++; } }
 void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevision++; } }
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
+void Mixer::SetGrid(int i, bool g)	{ if (Track(i)) { fTracks[i].grid = g; fRevision++; } }
+void Mixer::SetBpm(double bpm)
+{
+	fBpm = bpm < 20.0 ? 20.0 : (bpm > 300.0 ? 300.0 : bpm);
+	fRevision++;
+}
+void Mixer::SetGridDiv(int div)
+{
+	static const int ok[] = { 1, 2, 4, 8, 16, 32 };
+	for (size_t k = 0; k < sizeof(ok) / sizeof(ok[0]); k++)
+		if (ok[k] == div) { fGridDiv = div; fRevision++; return; }
+}
+double Mixer::Snap(int lane, double t) const
+{
+	const MixTrack *tr = Track(lane);
+	if (!tr || !tr->grid) return t;
+	const double s = GridStep();
+	const double r = floor(t / s + 0.5) * s;
+	return r < 0 ? 0 : r;
+}
 void Mixer::SetArmed(int i, bool a)
 {
 	if (!Track(i)) return;

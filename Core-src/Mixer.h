@@ -59,13 +59,14 @@ struct MixTrack {
 	float	gain;			// 0..2 (линейно)
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
+	bool	grid;			// у дорожки включена липкая сетка
 	char	name[64];
 	std::vector<MixClip>	clips;
 	MixTrack() { Reset(); }
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = false; name[0] = 0; clips.clear();
+		mute = solo = armed = grid = false; name[0] = 0; clips.clear();
 	}
 };
 
@@ -75,6 +76,7 @@ public:
 	~Mixer();
 
 	int		TrackCount() const { return fCount; }
+	const MixTrack *Track(int i) const { return (i>=0 && i<MIX_MAX_TRACKS && fTracks[i].used) ? &fTracks[i] : NULL; }
 	MixTrack *Track(int i)		{ return (i>=0 && i<MIX_MAX_TRACKS && fTracks[i].used) ? &fTracks[i] : NULL; }
 
 	// Дорожки. AddTrack: данные копируются, получается дорожка с одним клипом на 0 с (если frames > 0).
@@ -102,6 +104,17 @@ public:
 	void	SetPan(int i, float p);
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
+	void	SetGrid(int i, bool g);
+
+	// Темп проекта и сетка. Проект к тактам не привязан: темп нужен только для шага сетки.
+	// Глубина: 1 = целая нота (4 удара), 2, 4 (= удар), 8, 16, 32.
+	double	Bpm() const { return fBpm; }
+	void	SetBpm(double bpm);
+	int		GridDiv() const { return fGridDiv; }
+	void	SetGridDiv(int div);
+	double	GridStep() const { return 60.0 / fBpm * 4.0 / fGridDiv; }	// секунд между линиями
+	double	Snap(int lane, double t) const;			// t притянуто к сетке, если у дорожки она включена
+
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
 	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
 
@@ -141,6 +154,8 @@ private:
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
 	int			fActive;
 	std::atomic<int> fRevision;
+	double		fBpm;
+	int			fGridDiv;
 };
 
 extern Mixer Mix;

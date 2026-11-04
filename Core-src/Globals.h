@@ -53,7 +53,7 @@
 // The thread names
 #define TOOL_TIP_WINDOW		"Help System"
 
-#define MIN_W 	705
+#define MIN_W 	850
 #define MIN_H	330
 #define MAX_W 	2048
 #define MAX_H	1536

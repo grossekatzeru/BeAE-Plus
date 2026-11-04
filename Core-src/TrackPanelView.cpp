@@ -121,6 +121,13 @@ BRect TrackPanelView::ButtonRect(int index, int which) const
 	return BRect(x, s.top + 23, x + (which == 3 ? 24 : 18), s.top + 36);	// 3 = FX, шире
 }
 
+BRect TrackPanelView::GridRect(int index) const
+{
+	BRect s = StripRect(index);
+	float x = s.left + CONTENT_X + 3 * 22 + 24 + 8;
+	return BRect(x, s.top + 23, x + 42, s.top + 36);
+}
+
 BRect TrackPanelView::VolRect(int index) const
 {
 	BRect s = StripRect(index);
@@ -249,6 +256,22 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 1), "M", t->mute, make_color(255, 140, 0));
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
+		{	// чекбокс Grid: только у дорожки с галочкой работает липкая сетка
+			BRect g = GridRect(i);
+			BRect box(g.left, g.top + 1, g.left + 11, g.top + 12);
+			SetHighColor(make_color(255, 255, 255));
+			FillRect(box);
+			SetHighColor(make_color(0, 0, 0));
+			StrokeRect(box);
+			if (t->grid){
+				SetPenSize(2);
+				StrokeLine(BPoint(box.left + 3, box.top + 6), BPoint(box.left + 5, box.bottom - 3));
+				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
+				SetPenSize(1);
+			}
+			SetHighColor(make_color(255, 255, 255));
+			DrawString("Grid", BPoint(box.right + 4, box.bottom - 1));
+		}
 
 		// индикатор уровня: вертикальный, у левого края, фон «мокрый асфальт»
 		BRect m = MeterRect(i);
@@ -303,6 +326,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (ButtonRect(i, 1).Contains(p)) return HIT_MUTE;
 		if (ButtonRect(i, 2).Contains(p)) return HIT_REC;
 		if (ButtonRect(i, 3).Contains(p)) return HIT_FX;
+		if (GridRect(i).Contains(p)) return HIT_GRID;
 		if (NameRect(i).Contains(p)) return HIT_NAMEBOX;
 		BRect v = VolRect(i), a = PanRect(i);
 		v.InsetBy(-KNOB_W / 2 - 1, -2); a.InsetBy(-KNOB_W / 2 - 1, -2);
@@ -397,6 +421,11 @@ void TrackPanelView::MouseDown(BPoint p)
 			Mix.SetArmed(index, true);
 			Tracks_Activate(index);		// запись идёт в активную дорожку
 		}
+		Invalidate();
+		break;
+	case HIT_GRID:
+		Mix.SetGrid(index, !Mix.Track(index)->grid);
+		Pool.changed = true;
 		Invalidate();
 		break;
 	case HIT_FX:

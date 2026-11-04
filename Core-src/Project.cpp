@@ -133,6 +133,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		trk << "      \"pan\": " << Num(t->pan) << ",\n";
 		trk << "      \"mute\": " << (t->mute ? "true" : "false") << ",\n";
 		trk << "      \"solo\": " << (t->solo ? "true" : "false") << ",\n";
+		trk << "      \"grid\": " << (t->grid ? "true" : "false") << ",\n";
 		trk << "      \"color\": null,\n";
 		trk << "      \"clips\": [" << clipsJson;
 		if (clips.size() > 0) trk << "\n      ";
@@ -163,6 +164,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	BString json;
 	json << "{\n  \"format\": \"BeMIX\",\n  \"version\": 2,\n  \"name\": \"" << JsonEscape(name).c_str() << "\",\n";
 	json << "  \"active\": " << Mix.Active() << ",\n";
+	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"grid_div\": " << Mix.GridDiv() << ",\n";
 	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
 	json << "  \"tracks\": [\n" << trk << "\n  ]\n}\n";
 
@@ -214,6 +216,8 @@ bool Project_Open(const char *bemixPath, BString &err)
 	desc.GetParent(&folder);
 
 	Tracks_BeginProject();
+	Mix.SetBpm(doc.Number("bpm", 120.0));
+	Mix.SetGridDiv((int)doc.Number("grid_div", 4));
 	BString warnings;
 	std::map<int, SourceRef> sources;			// id -> источник (версия 2)
 	const JValue *jsrc = doc.Get("sources");
@@ -245,6 +249,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetPan(slot, (float)jt.Number("pan", 0.0));
 		Mix.SetMute(slot, jt.Boolean("mute", false));
 		Mix.SetSolo(slot, jt.Boolean("solo", false));
+		Mix.SetGrid(slot, jt.Boolean("grid", false));
 
 		// клипы: версия 2 - список клипов со ссылками на источники; версия 1 - один файл и смещение
 		const JValue *jc = jt.Get("clips");

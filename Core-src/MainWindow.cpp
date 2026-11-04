@@ -44,6 +44,7 @@
 #include "PointersView.h"
 #include "ToolBarView.h"
 #include "BigView.h"
+#include "TempoView.h"
 #include "SampleView.h"
 #include "ValuesView.h"
 #include "IndexView.h"
@@ -506,8 +507,14 @@ MainWindow::MainWindow(BRect frame)
 	r = Bounds();					// Big LCD
 	r.top = r.bottom - 62;
 	r.left = 261;
-	r.right -= 260;
+	r.right -= 260 + TEMPO_VIEW_WIDTH;
 	AddChild(new BigView(r));
+
+	r = Bounds();					// Tempo and grid depth, right of the clock
+	r.top = r.bottom - 62;
+	r.right -= 260;
+	r.left = r.right - TEMPO_VIEW_WIDTH + 1;
+	AddChild(new TempoView(r));
 
 
 // sample Views

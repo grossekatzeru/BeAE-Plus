@@ -113,6 +113,21 @@ int main(int argc,char**argv){
 		SourceRef rr=MakeSource(one4,4,1,4); am.AddClip(0,rr,0,4,1.0); CHECK(rr.use_count()==2);
 		am.ResetAll(); CHECK(rr.use_count()==1 && am.ClipCount(0)==0);
 	}
+	// сетка: темп 120, глубина 1/4 -> шаг 0.5 с; привязка только у дорожки с Grid
+	{
+		Mixer gm; gm.AddEmptyTrack("g",1);
+		CHECK(gm.Bpm()==120.0 && gm.GridDiv()==4 && fabs(gm.GridStep()-0.5)<1e-9);
+		CHECK(fabs(gm.Snap(0,0.74)-0.74)<1e-9);					// Grid выключен
+		gm.SetGrid(0,true);
+		CHECK(fabs(gm.Snap(0,0.74)-0.5)<1e-9 && fabs(gm.Snap(0,0.76)-1.0)<1e-9);
+		gm.SetGridDiv(16); CHECK(fabs(gm.GridStep()-0.125)<1e-9);
+		gm.SetGridDiv(1);  CHECK(fabs(gm.GridStep()-2.0)<1e-9);
+		gm.SetGridDiv(7);  CHECK(gm.GridDiv()==1);					// недопустимая глубина игнорируется
+		gm.SetBpm(60); gm.SetGridDiv(4); CHECK(fabs(gm.GridStep()-1.0)<1e-9);
+		gm.SetBpm(1000); CHECK(gm.Bpm()==300.0); gm.SetBpm(1); CHECK(gm.Bpm()==20.0);
+		CHECK(gm.Snap(0,-0.3)==0);
+		gm.ResetAll(); CHECK(gm.Bpm()==120.0 && gm.GridDiv()==4 && !gm.Track(0)->grid);
+	}
 	// эффекты: плагин amp (из tests/ladspa) на неактивной и на активной дорожке
 	if(argc>1){
 		std::vector<std::string> dirs(1,argv[1]);
