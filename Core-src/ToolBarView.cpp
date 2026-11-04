@@ -37,6 +37,7 @@
 #include "ToolBarView.h"
 #include "CommonPool.h"
 #include "MyClipBoard.h"
+#include "Tracks.h"
 
 BPictureButton *ToolBarButton(BRect buttonsize, int32 index, const char *tip, BMessage *msg, uint32 state, BView *view)
 {
@@ -131,8 +132,8 @@ void ToolBarView::Update()
 {
 	tool[3]->SetEnabled(Pool.selection != NONE);					// save selection
 	tool[2]->SetEnabled(Pool.sample_type != NONE && Pool.changed);	// save
-	tool[10]->SetEnabled(Pool.selection != NONE);					// cut
-	tool[11]->SetEnabled(Pool.selection != NONE);					// copy
+	tool[10]->SetEnabled(Pool.sample_type != NONE);					// cut = разрезать клип
+	tool[11]->SetEnabled(Pool.sample_type != NONE);					// copy = копировать клип
 
 	tool[8]->SetEnabled(Hist.HasUndo());							// need history class for this
 
@@ -142,7 +143,7 @@ void ToolBarView::Update()
 	tool[13]->SetEnabled(ClipBoard.HasClip());
 #endif
 
-	tool[12]->SetEnabled(ClipBoard.HasClip());
+	tool[12]->SetEnabled(Tracks_HasClipboard());
 	
 	if (Pool.sample_type != STEREO || Pool.selection == NONE){
 		tool[5]->SetEnabled(false);	// L

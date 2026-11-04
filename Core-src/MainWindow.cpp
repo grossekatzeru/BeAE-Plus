@@ -619,14 +619,10 @@ void MainWindow::AddMenu()
 	menu->AddSeparatorItem();
 	menu->AddItem(menuItem = new BMenuItem(Language.get("COPY"), new BMessage(B_COPY), KeyBind.GetKey("COPY"), KeyBind.GetMod("COPY")));
 	Pool.mn_copy = menuItem;
-	menu->AddItem(menuItem = new BMenuItem(Language.get("COPY_SILENCE"), new BMessage(COPY_SILENCE), KeyBind.GetKey("COPY_SILENCE"), KeyBind.GetMod("COPY_SILENCE")));
-	Pool.mn_copy_silence = menuItem;
 	menu->AddItem(menuItem = new BMenuItem(Language.get("CUT"), new BMessage(B_CUT), KeyBind.GetKey("CUT"), KeyBind.GetMod("CUT")));
 	Pool.mn_cut = menuItem;
 	menu->AddItem(menuItem = new BMenuItem(Language.get("PASTE"), new BMessage(B_PASTE), KeyBind.GetKey("PASTE"), KeyBind.GetMod("PASTE")));
 	Pool.mn_paste = menuItem;
-	menu->AddItem(menuItem = new BMenuItem(Language.get("PASTE_NEW"), new BMessage(PASTE_NEW), KeyBind.GetKey("PASTE_NEW"), KeyBind.GetMod("PASTE_NEW")));
-	Pool.mn_paste_new = menuItem;
 #ifdef __SAMPLE_STUDIO_LE
 	menu->AddItem(menuItem = new BMenuItem(Language.get("EDIT_PASTE_MIX"), new BMessage(PASTE_MIXED), KeyBind.GetKey("EDIT_PASTE_MIX"), KeyBind.GetMod("EDIT_PASTE_MIX")));
 	menuItem->SetEnabled(false);
@@ -652,11 +648,7 @@ void MainWindow::AddMenu()
 
 	// клипы активной дорожки
 	sub = new BMenu(Language.get("CLIP_MENU"));
-	sub->AddItem(new BMenuItem(Language.get("CLIP_SPLIT"), new BMessage(CLIP_SPLIT)));
-	sub->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY)));
-	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE)));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
-	sub->AddSeparatorItem();
 	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 	menu->AddItem(sub);
 	
@@ -1078,22 +1070,6 @@ void MainWindow::MessageReceived(BMessage *message)
 		Pool.DeSelectAll();
 		break;
 
-	case B_COPY:
-		ClipBoard.Copy();
-		break;
-	
-	case COPY_SILENCE:
-		ClipBoard.Cut(false);		// silence cut
-		break;
-	
-	case B_CUT:
-		ClipBoard.Cut(true);		// delete cut
-		break;
-	
-	case B_PASTE:
-		ClipBoard.Paste();
-		break;
-
 	case DROP_PASTE:
 	{
 		BPoint p;
@@ -1367,12 +1343,17 @@ void MainWindow::MessageReceived(BMessage *message)
 		break;
 	}
 
+	case B_CUT:					// «Вырезать» = разрезать клип по курсору (исходный файл не трогаем)
 	case CLIP_SPLIT:
 		if (Tracks_SplitAtCursor()) Pool.changed = true;
 		break;
+	case B_COPY:				// «Копировать» = клип под курсором в буфер клипов
 	case CLIP_COPY:
 		Tracks_CopyClip();
+		Pool.UpdateToolBar();
+		Pool.UpdateMenu();
 		break;
+	case B_PASTE:				// «Вставить» = один раз в позицию курсора
 	case CLIP_PASTE:
 	case MSG_CLIP_COUNT:
 	{
@@ -1386,6 +1367,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		}
 		const double at = (Pool.sample_type != NONE && Pool.frequency > 1.0f) ? (double)Pool.pointer / Pool.frequency : 0.0;
 		if (Tracks_PasteClip(at, count)) Pool.changed = true;
+		Pool.UpdateToolBar();
 		break;
 	}
 	case CLIP_PASTE_N:

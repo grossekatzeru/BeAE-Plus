@@ -39,7 +39,7 @@
 extern cookie_record play_cookie;
 
 BigView::BigView(BRect r) : 
-	BView(r, "Big view", B_FOLLOW_ALL_SIDES | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED)
+	BView(r, "Big view", B_FOLLOW_ALL_SIDES | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED | B_FRAME_EVENTS)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 	

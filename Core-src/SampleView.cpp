@@ -456,20 +456,10 @@ void SampleView::MouseDown(BPoint p)
 					menuItem->SetMarked(true);
 				menu->AddItem(new BMenuItem(Language.get("TRANSPORT_STOP"), new BMessage(TRANSPORT_STOP), KeyBind.GetKey("TRANSPORT_STOP"), KeyBind.GetMod("TRANSPORT_STOP")));
 				menu->AddSeparatorItem();
-				menu->AddItem(menuItem = new BMenuItem(Language.get("COPY"), new BMessage(B_COPY), KeyBind.GetKey("COPY"), KeyBind.GetMod("COPY")));
-				menuItem->SetEnabled(Pool.selection != NONE);
-				menu->AddItem(menuItem = new BMenuItem(Language.get("COPY_SILENCE"), new BMessage(COPY_SILENCE), KeyBind.GetKey("COPY_SILENCE"), KeyBind.GetMod("COPY_SILENCE")));
-				menuItem->SetEnabled(Pool.selection != NONE);
-				menu->AddItem(menuItem = new BMenuItem(Language.get("CUT"), new BMessage(B_CUT), KeyBind.GetKey("CUT"), KeyBind.GetMod("CUT")));
-				menuItem->SetEnabled(Pool.selection != NONE);
-				menu->AddItem(menuItem = new BMenuItem(Language.get("PASTE"), new BMessage(B_PASTE), KeyBind.GetKey("PASTE"), KeyBind.GetMod("PASTE")));
-				menuItem->SetEnabled(ClipBoard.HasClip());
-				menu->AddItem(menuItem = new BMenuItem(Language.get("PASTE_NEW"), new BMessage(PASTE_NEW), KeyBind.GetKey("PASTE_NEW"), KeyBind.GetMod("PASTE_NEW")));
-				menuItem->SetEnabled(ClipBoard.HasClip());
-				menu->AddSeparatorItem();
-				menu->AddItem(new BMenuItem(Language.get("CLIP_SPLIT"), new BMessage(CLIP_SPLIT)));
-				menu->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY)));
-				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE)));
+				// клипы (клавиши те же, что у Вырезать / Копировать / Вставить)
+				menu->AddItem(new BMenuItem(Language.get("CLIP_SPLIT"), new BMessage(CLIP_SPLIT), KeyBind.GetKey("CUT"), KeyBind.GetMod("CUT")));
+				menu->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY), KeyBind.GetKey("COPY"), KeyBind.GetMod("COPY")));
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE), KeyBind.GetKey("PASTE"), KeyBind.GetMod("PASTE")));
 				menuItem->SetEnabled(Tracks_HasClipboard());
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
 				menuItem->SetEnabled(Tracks_HasClipboard());

@@ -42,6 +42,7 @@
 #include <unistd.h> // header with crypt in it :)
 
 #include "Globals.h"
+#include "Tracks.h"
 #include "Project.h"
 #include "CommonPool.h"
 #include "ProgressWindow.h"
@@ -451,14 +452,12 @@ void CommonPool::UpdateMenu()
 	mn_resample->SetEnabled(sample_type != NONE);		// resample
 	mn_select_all->SetEnabled(sample_type != NONE);		// select all
 	mn_unselect->SetEnabled(selection != NONE);			// DeSelect all
-	mn_cut->SetEnabled(selection != NONE);				// cut
-	mn_copy->SetEnabled(selection != NONE);				// copy
-	mn_copy_silence->SetEnabled(selection != NONE);		// copy & Silence
+	mn_cut->SetEnabled(sample_type != NONE);			// cut = разрезать клип по курсору
+	mn_copy->SetEnabled(sample_type != NONE);			// copy = копировать клип
 	mn_clear->SetEnabled(selection != NONE);			// clear
 	mn_undo_enable->SetMarked(Prefs.save_undo);			// undo enabled
 	mn_undo->SetEnabled(Hist.HasUndo());				// need history class for this
-	mn_paste->SetEnabled(ClipBoard.HasClip());
-	mn_paste_new->SetEnabled(ClipBoard.HasClip());
+	mn_paste->SetEnabled(Tracks_HasClipboard());		// paste = вставить клип
 #ifdef __SAMPLE_STUDIO_LE
 	mn_paste_mix->SetEnabled(ClipBoard.HasClip());
 	mn_redo->SetEnabled(Hist.HasRedo());				// need history class for this
