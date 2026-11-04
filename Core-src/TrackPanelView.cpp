@@ -219,8 +219,23 @@ void TrackPanelView::Draw(BRect update)
 		BRect s = StripRect(i);
 		if (s.bottom < HEADER_H || s.top > b.bottom) continue;
 
-		SetHighColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
-		FillRect(s);
+		{	// объёмная «растяжка» фона, как у панели большого таймера: светлая кромка сверху, плоская середина, затемнение книзу
+			const rgb_color c0 = (i == active) ? sel : tint_color(base, B_LIGHTEN_1_TINT);
+			const float h = s.Height();
+			for (float y = s.top; y <= s.bottom; y += 1.0f){
+				const float k = (y - s.top) / h;				// 0 сверху .. 1 снизу
+				rgb_color c = c0;
+				if (k < 0.08f){									// блик у верхнего края
+					const float w = 0.55f * (1.0f - k / 0.08f);
+					c.red += (uint8)((255 - c.red) * w); c.green += (uint8)((255 - c.green) * w); c.blue += (uint8)((255 - c.blue) * w);
+				}else if (k > 0.45f){							// плавное затемнение книзу
+					const float w = 0.16f * (k - 0.45f) / 0.55f;
+					c.red = (uint8)(c.red * (1 - w)); c.green = (uint8)(c.green * (1 - w)); c.blue = (uint8)(c.blue * (1 - w));
+				}
+				SetHighColor(c);
+				StrokeLine(BPoint(s.left, y), BPoint(s.right, y));
+			}
+		}
 		SetHighColor(tint_color(base, B_DARKEN_2_TINT));
 		StrokeLine(BPoint(s.left, s.bottom), BPoint(s.right, s.bottom));
 
@@ -270,10 +285,6 @@ void TrackPanelView::Draw(BRect update)
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
 				SetPenSize(1);
 			}
-		}
-
-			SetHighColor(make_color(255, 255, 255));
-			DrawString("Grid", BPoint(box.right + 4, box.bottom - 1));
 		}
 
 		// индикатор уровня: вертикальный, у левого края, фон «мокрый асфальт»

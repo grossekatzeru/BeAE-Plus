@@ -320,12 +320,6 @@ void SampleView::Draw(BRect rect)
 		LanesDrawGrid(this, Mix.Active(), BRect(0, POINTER_BAR_HEIGHT, Bounds().right, Bounds().bottom), tl, (tr - tl) / W, W);
 		ConstrainClippingRegion(NULL);
 	}
-	{
-		BRegion clip(rect);
-		ConstrainClippingRegion(&clip);
-		LanesDrawDepth(this, BRect(0, POINTER_BAR_HEIGHT, Bounds().right, Bounds().bottom));
-		ConstrainClippingRegion(NULL);
-	}
 
 	// перетаскиваемый звук: рамка на новом месте
 	if (move_drag && Pool.r_pointer > Pool.l_pointer){
