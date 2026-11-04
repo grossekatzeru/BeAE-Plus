@@ -124,7 +124,8 @@ BRect TrackPanelView::ButtonRect(int index, int which) const
 BRect TrackPanelView::GridRect(int index) const
 {
 	BRect s = StripRect(index);
-	return BRect(s.left + CONTENT_X, s.top + 80, s.left + CONTENT_X + 50, s.top + 93);	// следующие чекбоксы - строками ниже
+	// строка на всю ширину регуляторов: подпись у левого края, чекбокс у правого; следующие чекбоксы - строками ниже
+	return BRect(s.left + CONTENT_X, s.top + 80, PanRect(index).right + KNOB_W / 2, s.top + 93);
 }
 
 BRect TrackPanelView::VolRect(int index) const
@@ -272,7 +273,7 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
 		{	// под регулировкой баланса: подпись «Grid», затем чекбокс. Только у дорожки с галочкой работает липкая сетка.
 			BRect g = GridRect(i);
-			BRect box(g.left + 34, g.top + 1, g.left + 45, g.top + 12);
+			BRect box(g.right - 11, g.top + 1, g.right, g.top + 12);
 			SetHighColor(text);
 			DrawString("Grid", BPoint(g.left, g.bottom - 3));
 			SetHighColor(make_color(255, 255, 255));
@@ -285,6 +286,11 @@ void TrackPanelView::Draw(BRect update)
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
 				SetPenSize(1);
 			}
+			// вдавленная черта под строкой: от начала подписи до конца чекбокса
+			SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+			StrokeLine(BPoint(g.left, g.bottom + 1), BPoint(g.right, g.bottom + 1));
+			SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+			StrokeLine(BPoint(g.left, g.bottom + 2), BPoint(g.right, g.bottom + 2));
 		}
 
 		// индикатор уровня: вертикальный, у левого края, фон «мокрый асфальт»
