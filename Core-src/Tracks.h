@@ -11,16 +11,19 @@
 #define TRACKS_H
 
 #include <SupportDefs.h>
+#include <vector>
+#include "Mixer.h"
 
 #define DEFAULT_TRACKS	4
 #define TIMELINE_MARGIN	10.0		// секунд запаса после самой дальней дорожки
 
 void	Tracks_Init();							// создать DEFAULT_TRACKS пустых дорожек (один раз при старте)
-bool	Tracks_Activate(int index, double cursorTime = -1.0);	// сделать дорожку активной (курсор - на ленте, сек; <0 - как был); false - нельзя
+bool	Tracks_Activate(int lane, double cursorTime = -1.0, int clip = -1);	// сделать активным клип дорожки (clip<0 - тот, что под курсором); курсор - на ленте, сек; false - нельзя
 void	Tracks_Stash();							// сохранить содержимое Pool в активную дорожку (без тишины по краям)
 void	Tracks_PlaceActive(double offsetSeconds);	// Pool содержит свежий звук (файл, запись): положить на ленту
-bool	Tracks_SetOffset(int index, double seconds);	// сдвинуть дорожку на ленте
-double	Tracks_Offset(int index);				// положение начала звука дорожки на ленте, сек
+bool	Tracks_SetOffset(int index, double seconds);	// сдвинуть клип: активный (если дорожка активна) или первый клип дорожки
+bool	Tracks_MoveClip(int lane, int clip, double seconds);	// сдвинуть клип из микшера (не активный)
+double	Tracks_Offset(int index);				// положение начала клипа на ленте, сек
 bool	Tracks_ActiveRange(int64 &first, int64 &last);	// где в окне волны лежит звук активной дорожки (без тишины по краям)
 int		Tracks_Add();							// добавить пустую дорожку, вернуть индекс или -1
 void	Tracks_RemoveActive();					// удалить активную дорожку (последнюю оставшуюся удалить нельзя)
@@ -28,7 +31,15 @@ void	Tracks_SaveRange(int64 &start, int64 &end);	// диапазон кадро�
 
 bool	Tracks_SetName(int index, const char *name);	// переименовать (UTF-8, обрезается по границе символа)
 // Для сохранения проекта: звук дорожки без тишины по краям, ничего не меняя. false - дорожка пуста.
-bool	Tracks_Snapshot(int index, const float *&data, int64 &frames, int &channels, float &rate, double &offset);
+std::vector<MixClip> Tracks_LaneClips(int lane);	// все клипы дорожки, включая активный (ничего не меняет)
+bool	Tracks_ActiveClipSpan(double &start, double &end);	// где на ленте лежит звук активного клипа, сек
+
+// Клипы: разрезать по курсору, копировать в буфер, вставить count копий подряд с позиции timePos, удалить
+bool	Tracks_SplitAtCursor();
+bool	Tracks_CopyClip();
+bool	Tracks_HasClipboard();
+bool	Tracks_PasteClip(double timePos, int count);
+bool	Tracks_DeleteClip();
 void	Tracks_BeginProject();					// очистить всё перед открытием проекта
 void	Tracks_FinishProject();					// после заполнения микшера: показать дорожку 0
 

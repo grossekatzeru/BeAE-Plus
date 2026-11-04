@@ -6,27 +6,31 @@
 
 Mixer Mix;
 
+SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate)
+{
+	if (frames <= 0 || (channels != 1 && channels != 2) || rate <= 0) return SourceRef();
+	MixSource *s = new MixSource();
+	s->data = (float*)malloc((size_t)frames * channels * sizeof(float));
+	if (!s->data) { delete s; return SourceRef(); }
+	if (data) memcpy(s->data, data, (size_t)frames * channels * sizeof(float));
+	else memset(s->data, 0, (size_t)frames * channels * sizeof(float));
+	s->frames = frames;
+	s->channels = channels;
+	s->rate = rate;
+	return SourceRef(s);
+}
+
 Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0)
 {
 	fLock.clear();
-	memset(fTracks, 0, sizeof(fTracks));
+	memset(fTmp, 0, sizeof(fTmp));
 	memset(fPeakL, 0, sizeof(fPeakL));
 	memset(fPeakR, 0, sizeof(fPeakR));
-	MixTrack &t = fTracks[0];
-	t.used = true;
-	t.owns_data = true;
-	t.channels = 2;
-	t.rate = 44100.0f;
-	t.gain = 1.0f;
-	strcpy(t.name, "Track 1");
+	fTracks[0].used = true;
+	strcpy(fTracks[0].name, "Track 1");
 }
 
-Mixer::~Mixer()
-{
-	for (int i=0; i<MIX_MAX_TRACKS; i++)
-		if (fTracks[i].used && fTracks[i].owns_data)
-			free(fTracks[i].data);
-}
+Mixer::~Mixer() {}
 
 void Mixer::Lock()	{ while (fLock.test_and_set(std::memory_order_acquire)) {} }
 void Mixer::Unlock()	{ fLock.clear(std::memory_order_release); }
@@ -37,34 +41,33 @@ int Mixer::AddEmptyTrack(const char *name, int channels)
 	return AddTrack(name, NULL, 0, channels);
 }
 
-int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int channels)
+int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int channels, float rate)
 {
 	if (channels != 1 && channels != 2) return -1;
 	if (frames < 0) frames = 0;
-	float *copy = NULL;
+	SourceRef src;
 	if (frames > 0) {
-		copy = (float*)malloc((size_t)frames*channels*sizeof(float));
-		if (!copy) return -1;
-		if (data) memcpy(copy, data, (size_t)frames*channels*sizeof(float));
-		else memset(copy, 0, (size_t)frames*channels*sizeof(float));
+		src = MakeSource(data, frames, channels, rate);
+		if (!src) return -1;
 	}
 	Lock();
 	int idx = -1;
 	for (int i=1; i<MIX_MAX_TRACKS; i++) {
 		if (!fTracks[i].used) { idx = i; break; }
 	}
-	if (idx < 0) { Unlock(); free(copy); return -1; }
+	if (idx < 0) { Unlock(); return -1; }
 	MixTrack &t = fTracks[idx];
-	memset(&t, 0, sizeof(t));
+	t.Reset();
 	t.used = true;
-	t.owns_data = true;
-	t.data = copy;
-	t.frames = frames;
 	t.channels = channels;
-	t.rate = 44100.0f;
-	t.gain = 1.0f;
+	t.rate = rate;
 	if (name) { strncpy(t.name, name, sizeof(t.name)-1); t.name[sizeof(t.name)-1] = 0; }
 	else snprintf(t.name, sizeof(t.name), "Track %d", idx+1);
+	if (src) {
+		MixClip c;
+		c.src = src; c.start = 0; c.len = frames; c.pos = 0;
+		t.clips.push_back(c);
+	}
 	if (idx >= fCount) fCount = idx+1;
 	Unlock();
 	return idx;
@@ -72,85 +75,124 @@ int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int cha
 
 void Mixer::ResetAll()
 {
-	float *old[MIX_MAX_TRACKS];
+	std::vector<MixClip> old[MIX_MAX_TRACKS];		// освободятся после выхода из замка
 	Lock();
 	for (int i=0; i<MIX_MAX_TRACKS; i++) {
-		old[i] = fTracks[i].used ? fTracks[i].data : NULL;
-		memset(&fTracks[i], 0, sizeof(MixTrack));
+		old[i].swap(fTracks[i].clips);
+		fTracks[i].Reset();
 	}
-	MixTrack &t = fTracks[0];
-	t.used = true;
-	t.owns_data = true;
-	t.channels = 2;
-	t.rate = 44100.0f;
-	t.gain = 1.0f;
-	strcpy(t.name, "Track 1");
+	fTracks[0].used = true;
+	strcpy(fTracks[0].name, "Track 1");
 	fCount = 1;
 	fActive = 0;
 	Unlock();
-	for (int i=0; i<MIX_MAX_TRACKS; i++) { free(old[i]); fFx[i].Clear(); }
+	for (int i=0; i<MIX_MAX_TRACKS; i++) fFx[i].Clear();
 	fRevision++;
 }
 
 void Mixer::RemoveTrack(int i)
 {
 	if (i < 1 || i >= MIX_MAX_TRACKS) return;
+	std::vector<MixClip> old;
 	Lock();
-	if (fTracks[i].used) {
-		float *old = fTracks[i].data;
-		if (fActive == i) fActive = 0;
-		fTracks[i].used = false;
-		fTracks[i].armed = false;
-		fTracks[i].data = NULL;
-		fTracks[i].frames = 0;
-		while (fCount > 1 && !fTracks[fCount-1].used) fCount--;
-		Unlock();
-		free(old);
-		fFx[i].Clear();
-		return;
-	}
+	if (!fTracks[i].used) { Unlock(); return; }
+	if (fActive == i) fActive = 0;
+	old.swap(fTracks[i].clips);
+	fTracks[i].Reset();
+	while (fCount > 1 && !fTracks[fCount-1].used) fCount--;
 	Unlock();
+	fFx[i].Clear();
+	fRevision++;
 }
 
-bool Mixer::SetTrackData(int i, const float *data, int64_t frames, int channels, float rate)
+// ---- клипы ----
+const MixClip *Mixer::Clip(int lane, int idx) const
 {
-	if (i < 0 || i >= MIX_MAX_TRACKS || frames < 0 || !fTracks[i].used) return false;
-	if (channels != 1 && channels != 2) return false;
-	float *copy = NULL;
-	if (frames > 0) {
-		copy = (float*)malloc((size_t)frames*channels*sizeof(float));
-		if (!copy) return false;
-		memcpy(copy, data, (size_t)frames*channels*sizeof(float));
-	}
+	if (lane < 0 || lane >= MIX_MAX_TRACKS || !fTracks[lane].used) return NULL;
+	if (idx < 0 || idx >= (int)fTracks[lane].clips.size()) return NULL;
+	return &fTracks[lane].clips[idx];
+}
+
+int Mixer::AddClip(int lane, const SourceRef &src, int64_t start, int64_t len, double pos)
+{
+	if (!Track(lane) || !src || start < 0 || len <= 0 || start + len > src->frames) return -1;
+	MixClip c;
+	c.src = src; c.start = start; c.len = len; c.pos = pos < 0 ? 0 : pos;
 	Lock();
-	float *old = fTracks[i].data;
-	fTracks[i].data = copy;
-	fTracks[i].frames = frames;
-	fTracks[i].channels = channels;
-	if (rate > 0) fTracks[i].rate = rate;
+	fTracks[lane].clips.push_back(c);
+	int idx = (int)fTracks[lane].clips.size() - 1;
 	Unlock();
-	free(old);
+	fRevision++;
+	return idx;
+}
+
+bool Mixer::RemoveClip(int lane, int idx)
+{
+	MixClip dead;
+	return TakeClip(lane, idx, dead);
+}
+
+bool Mixer::TakeClip(int lane, int idx, MixClip &out)
+{
+	if (!Clip(lane, idx)) return false;
+	Lock();
+	out = fTracks[lane].clips[idx];
+	fTracks[lane].clips.erase(fTracks[lane].clips.begin() + idx);
+	Unlock();
+	fRevision++;
 	return true;
 }
 
-bool Mixer::AppendTrackData(int i, const float *data, int64_t frames)
+bool Mixer::SetClipPos(int lane, int idx, double pos)
 {
-	if (i < 1 || i >= MIX_MAX_TRACKS || frames <= 0 || !fTracks[i].used) return false;
-	int ch = fTracks[i].channels;
-	int64_t nf = fTracks[i].frames + frames;
-	// новый буфер, чтобы callback не читал освобождённую память
-	float *copy = (float*)malloc((size_t)nf*ch*sizeof(float));
-	if (!copy) return false;
-	if (fTracks[i].frames > 0)
-		memcpy(copy, fTracks[i].data, (size_t)fTracks[i].frames*ch*sizeof(float));
-	memcpy(copy + (size_t)fTracks[i].frames*ch, data, (size_t)frames*ch*sizeof(float));
+	if (!Clip(lane, idx)) return false;
 	Lock();
-	float *old = fTracks[i].data;
-	fTracks[i].data = copy;
-	fTracks[i].frames = nf;
+	fTracks[lane].clips[idx].pos = pos < 0 ? 0 : pos;
 	Unlock();
-	free(old);
+	fRevision++;
 	return true;
+}
+
+bool Mixer::SetClipRange(int lane, int idx, int64_t start, int64_t len)
+{
+	const MixClip *c = Clip(lane, idx);
+	if (!c || start < 0 || len <= 0 || start + len > c->src->frames) return false;
+	Lock();
+	fTracks[lane].clips[idx].start = start;
+	fTracks[lane].clips[idx].len = len;
+	Unlock();
+	fRevision++;
+	return true;
+}
+
+void Mixer::ClearClips(int lane)
+{
+	if (!Track(lane)) return;
+	std::vector<MixClip> old;
+	Lock();
+	old.swap(fTracks[lane].clips);
+	Unlock();
+	fRevision++;
+}
+
+int Mixer::LaneChannels(int lane) const
+{
+	if (lane < 0 || lane >= MIX_MAX_TRACKS || !fTracks[lane].used) return 2;
+	const std::vector<MixClip> &cl = fTracks[lane].clips;
+	if (cl.empty()) return fTracks[lane].channels;
+	for (size_t i=0; i<cl.size(); i++)
+		if (cl[i].src && cl[i].src->channels == 2) return 2;
+	return 1;
+}
+
+int Mixer::ClipAt(int lane, double time) const
+{
+	if (lane < 0 || lane >= MIX_MAX_TRACKS || !fTracks[lane].used) return -1;
+	int r = -1;
+	const std::vector<MixClip> &cl = fTracks[lane].clips;
+	for (int i=0; i<(int)cl.size(); i++)
+		if (time >= cl[i].pos && time < cl[i].End()) r = i;
+	return r;
 }
 
 void Mixer::SetGain(int i, float g)	{ if (Track(i)) { fTracks[i].gain = g<0?0:(g>2?2:g); fRevision++; } }
@@ -164,21 +206,15 @@ void Mixer::SetArmed(int i, bool a)
 	fTracks[i].armed = a;
 }
 
-void Mixer::SetOffset(int i, double seconds)
-{
-	if (!Track(i)) return;
-	fTracks[i].offset = seconds < 0 ? 0 : seconds;
-	fRevision++;
-}
-
 double Mixer::EndTimeExtras() const
 {
 	double end = 0;
 	for (int i=0; i<MIX_MAX_TRACKS; i++) {
-		const MixTrack &t = fTracks[i];
-		if (!t.used || i == fActive || !t.data || t.frames <= 0 || t.rate <= 0) continue;
-		double e = t.offset + (double)t.frames / t.rate;
-		if (e > end) end = e;
+		if (!fTracks[i].used) continue;
+		for (size_t k=0; k<fTracks[i].clips.size(); k++) {
+			double e = fTracks[i].clips[k].End();
+			if (e > end) end = e;
+		}
 	}
 	return end;
 }
@@ -199,6 +235,37 @@ void Mixer::Gains(const MixTrack &t, bool anySolo, float &gl, float &gr)
 	gr = t.gain * (p < 0 ? 1.0f + p : 1.0f);
 }
 
+// Добавляет звук всех клипов дорожки в стерео-буфер dst (n кадров). t0 - время первого кадра (сек),
+// tstep - шаг времени на кадр (отрицательный при обратном проигрывании). Линейная интерполяция.
+static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double tstep)
+{
+	for (size_t ci = 0; ci < t.clips.size(); ci++) {
+		const MixClip &c = t.clips[ci];
+		if (!c.src || c.len <= 0) continue;
+		const double rate = c.src->rate;
+		double p = (t0 - c.pos) * rate;
+		const double pstep = tstep * rate;
+		const double pEnd = p + pstep * n;
+		const double lo = p < pEnd ? p : pEnd, hi = p < pEnd ? pEnd : p;
+		if (hi < 0 || lo >= (double)c.len) continue;
+		const float *d = c.src->data + c.start * c.src->channels;
+		const int ch = c.src->channels;
+		for (int k=0; k<n; k++, p += pstep) {
+			if (p < 0 || p >= (double)c.len) continue;
+			int64_t i0 = (int64_t)p;
+			int64_t i1 = (i0 + 1 < c.len) ? i0 + 1 : i0;
+			float fr = (float)(p - (double)i0);
+			if (ch == 1) {
+				float v = d[i0] + (d[i1] - d[i0]) * fr;
+				dst[2*k] += v; dst[2*k+1] += v;
+			} else {
+				dst[2*k]   += d[2*i0]   + (d[2*i1]   - d[2*i0])   * fr;
+				dst[2*k+1] += d[2*i0+1] + (d[2*i1+1] - d[2*i0+1]) * fr;
+			}
+		}
+	}
+}
+
 void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	double sysRate, bool mixExtras)
 {
@@ -206,14 +273,22 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	for (int i=0; i<fCount; i++)
 		if (fTracks[i].used && fTracks[i].solo) { anySolo = true; break; }
 
-	// активная дорожка: она уже в буфере, применяем её канал
 	const int act = fActive;
+	const double aRate = fabs(activeRate) > 1.0 ? fabs(activeRate) : 44100.0;
+	const double dir = (activeRate < 0) ? -1.0 : 1.0;
+	const double tstep = dir / sysRate;
+	const double now = activePos / aRate;		// время на ленте: Pool лежит на ней целиком
+	const bool extras = mixExtras && TryLock();
+
+	// активная дорожка: активный клип уже в буфере; остальные её клипы добавляем, затем эффекты и канал
 	{
 		const MixTrack &t = fTracks[act];
+		if (extras && !t.clips.empty())
+			RenderClips(t, buf, frames, now, tstep);
+		fFx[act].Process(buf, frames, (float)sysRate);
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
-		fFx[act].Process(buf, frames, (float)sysRate);
 		if (gl != 1.0f || gr != 1.0f) {
 			for (int k=0; k<frames; k++) { buf[2*k] *= gl; buf[2*k+1] *= gr; }
 		}
@@ -225,7 +300,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		fPeakL[act] = pl; fPeakR[act] = pr;
 	}
 
-	if (!mixExtras || fCount < 2 || !TryLock()) {
+	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;
 		return;
 	}
@@ -233,42 +308,27 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		if (i == act) continue;
 		MixTrack &t = fTracks[i];
 		fPeakL[i] = fPeakR[i] = 0;
-		if (!t.used || !t.data || t.frames <= 0) continue;
+		if (!t.used || t.clips.empty()) continue;
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
-		// позиция в кадрах этой дорожки: то же время, что у активной
-		const double aRate = fabs(activeRate) > 1.0 ? fabs(activeRate) : 44100.0;
-		const double dir = (activeRate < 0) ? -1.0 : 1.0;
-		const double step = dir * (double)t.rate / sysRate;
-		// время на общей шкале в начале буфера -> позиция в этой дорожке
-		const double now = activePos / aRate + fTracks[act].offset;
-		double p = (now - t.offset) * (double)t.rate;
 		FxChain &fx = fFx[i];
 		const bool useFx = fx.HasEffects();
-		// после конца дорожки эффекты (реверберация, эхо) ещё звучат - даём им хвост
-		const double tailFrames = useFx ? 4.0 * (double)t.rate : 0.0;
+		// границы звука дорожки на ленте; после конца эффекты (реверберация, эхо) ещё звучат - даём хвост
+		double laneStart = 1e30, laneEnd = 0;
+		for (size_t k=0; k<t.clips.size(); k++) {
+			if (t.clips[k].pos < laneStart) laneStart = t.clips[k].pos;
+			double e = t.clips[k].End();
+			if (e > laneEnd) laneEnd = e;
+		}
+		if (useFx) laneEnd += 4.0;
 		for (int from = 0; from < frames; from += 4096) {
 			const int n = (frames - from < 4096) ? frames - from : 4096;
-			const double pEnd = p + step * n;
-			const double lo = p < pEnd ? p : pEnd, hi = p < pEnd ? pEnd : p;
-			if (hi < 0 || lo >= (double)t.frames + tailFrames) { p = pEnd; continue; }
-			for (int k=0; k<n; k++) {
-				const double q = p + step * k;
-				float l = 0, r = 0;
-				if (q >= 0 && q < (double)t.frames) {
-					int64_t i0 = (int64_t)q;
-					int64_t i1 = (i0 + 1 < t.frames) ? i0 + 1 : i0;
-					float fr = (float)(q - (double)i0);
-					if (t.channels == 1) {
-						l = r = t.data[i0] + (t.data[i1] - t.data[i0]) * fr;
-					} else {
-						l = t.data[2*i0]   + (t.data[2*i1]   - t.data[2*i0])   * fr;
-						r = t.data[2*i0+1] + (t.data[2*i1+1] - t.data[2*i0+1]) * fr;
-					}
-				}
-				fTmp[2*k] = l; fTmp[2*k+1] = r;
-			}
+			const double ta = now + tstep * from, tb = ta + tstep * n;
+			const double lo = ta < tb ? ta : tb, hi = ta < tb ? tb : ta;
+			if (hi < laneStart || lo >= laneEnd) continue;
+			memset(fTmp, 0, sizeof(float) * 2 * n);
+			RenderClips(t, fTmp, n, ta, tstep);
 			if (useFx) fx.Process(fTmp, n, (float)sysRate);
 			for (int k=0; k<n; k++) {
 				float l = fTmp[2*k] * gl, r = fTmp[2*k+1] * gr;
@@ -276,7 +336,6 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 				if (fabsf(l) > pl) pl = fabsf(l);
 				if (fabsf(r) > pr) pr = fabsf(r);
 			}
-			p = pEnd;
 		}
 		fPeakL[i] = pl; fPeakR[i] = pr;
 	}

@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <set>
+#include <map>
 
 #include "CommonPool.h"
 #include "Globals.h"
@@ -77,68 +79,92 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		return false;
 	}
 
-	BString json;
-	json << "{\n  \"format\": \"BeMIX\",\n  \"version\": 1,\n  \"name\": \"" << JsonEscape(name).c_str() << "\",\n";
-	json << "  \"active\": " << Mix.Active() << ",\n  \"tracks\": [\n";
-
-	bool first = true;
+	// источники (WAV-файлы) и дорожки с клипами
+	struct SrcFile { const MixSource *p; int id; };
+	std::vector<SrcFile> srcs;
+	std::set<std::string> usedNames;
+	BString srcJson, trk;
+	bool firstTrack = true;
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
 		MixTrack *t = Mix.Track(i);
 		if (!t) continue;
 
-		const float *data = NULL; int64 frames = 0; int ch = 2; float rate = 44100; double offset = 0;
-		BString file;
-		if (Tracks_Snapshot(i, data, frames, ch, rate, offset)){
-			char prefix[16];
-			snprintf(prefix, sizeof(prefix), "%02d_", i + 1);
-			file = prefix;
-			file << Sanitize(t->name) << ".wav";
-			BPath wav(folder.Path(), file.String());
-			if (!WavWriteFloat(wav.Path(), data, frames, ch, rate)){
-				err = "Cannot write "; err << wav.Path();
-				return false;
+		std::vector<MixClip> clips = Tracks_LaneClips(i);
+		BString clipsJson;
+		for (size_t k = 0; k < clips.size(); k++){
+			const MixClip &c = clips[k];
+			int id = 0;
+			for (size_t q = 0; q < srcs.size(); q++)
+				if (srcs[q].p == c.src.get()) id = srcs[q].id;
+			if (id == 0){
+				id = (int)srcs.size() + 1;
+				char prefix[16];
+				snprintf(prefix, sizeof(prefix), "%02d_", i + 1);
+				BString base(prefix);
+				base << Sanitize(t->name);
+				BString file(base);
+				for (int n = 2; usedNames.count(std::string(file.String()) + ".wav") > 0; n++){
+					file = base;
+					file << "_" << n;
+				}
+				file << ".wav";
+				usedNames.insert(file.String());
+				BPath wav(folder.Path(), file.String());
+				if (!WavWriteFloat(wav.Path(), c.src->data, c.src->frames, c.src->channels, c.src->rate)){
+					err = "Cannot write "; err << wav.Path();
+					return false;
+				}
+				SrcFile sf; sf.p = c.src.get(); sf.id = id;
+				srcs.push_back(sf);
+				if (srcJson.Length() > 0) srcJson << ",\n";
+				srcJson << "    {\"id\": " << id << ", \"file\": \"" << JsonEscape(file.String()).c_str()
+					<< "\", \"channels\": " << c.src->channels << ", \"rate\": " << Num(c.src->rate)
+					<< ", \"frames\": " << (int)c.src->frames << "}";
 			}
-		}else{
-			ch = t->channels; rate = t->rate;
+			clipsJson << (k ? ",\n" : "\n") << "        {\"source\": " << id << ", \"start\": " << (int)c.start
+				<< ", \"length\": " << (int)c.len << ", \"pos\": " << Num(c.pos) << "}";
 		}
 
-		if (!first) json << ",\n";
-		first = false;
-		json << "    {\n";
-		json << "      \"name\": \"" << JsonEscape(t->name).c_str() << "\",\n";
-		if (file.Length() > 0) json << "      \"file\": \"" << JsonEscape(file.String()).c_str() << "\",\n";
-		else json << "      \"file\": null,\n";
-		json << "      \"offset\": " << Num(offset) << ",\n";
-		json << "      \"gain\": " << Num(t->gain) << ",\n";
-		json << "      \"pan\": " << Num(t->pan) << ",\n";
-		json << "      \"mute\": " << (t->mute ? "true" : "false") << ",\n";
-		json << "      \"solo\": " << (t->solo ? "true" : "false") << ",\n";
-		json << "      \"channels\": " << ch << ",\n";
-		json << "      \"rate\": " << Num(rate) << ",\n";
-		json << "      \"color\": null,\n";
-		json << "      \"effects\": [";
+		if (!firstTrack) trk << ",\n";
+		firstTrack = false;
+		trk << "    {\n";
+		trk << "      \"name\": \"" << JsonEscape(t->name).c_str() << "\",\n";
+		trk << "      \"gain\": " << Num(t->gain) << ",\n";
+		trk << "      \"pan\": " << Num(t->pan) << ",\n";
+		trk << "      \"mute\": " << (t->mute ? "true" : "false") << ",\n";
+		trk << "      \"solo\": " << (t->solo ? "true" : "false") << ",\n";
+		trk << "      \"color\": null,\n";
+		trk << "      \"clips\": [" << clipsJson;
+		if (clips.size() > 0) trk << "\n      ";
+		trk << "],\n";
+		trk << "      \"effects\": [";
 		{
 			FxChain &fx = Mix.Fx(i);
 			for (int e = 0; e < fx.Count(); e++){
 				const FxChain::Slot *s = fx.At(e);
-				json << (e ? ",\n" : "\n") << "        {\"type\": \"" << (s->kind == FxChain::KIND_VST2 ? "vst2" : "ladspa") << "\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
+				trk << (e ? ",\n" : "\n") << "        {\"type\": \"" << (s->kind == FxChain::KIND_VST2 ? "vst2" : "ladspa") << "\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
 					<< "\", \"file\": \"" << JsonEscape(s->plugin.file).c_str()
 					<< "\", \"label\": \"" << JsonEscape(s->plugin.label).c_str()
 					<< "\", \"enabled\": " << (s->enabled ? "true" : "false") << ", \"values\": {";
 				bool fv = true;
 				for (Ladspa::Values::const_iterator it = s->values.begin(); it != s->values.end(); ++it){
-					if (!fv) json << ", ";
+					if (!fv) trk << ", ";
 					fv = false;
-					json << "\"" << it->first << "\": " << Num(it->second);
+					trk << "\"" << it->first << "\": " << Num(it->second);
 				}
-				json << "}}";
+				trk << "}}";
 			}
-			if (fx.Count() > 0) json << "\n      ";
+			if (fx.Count() > 0) trk << "\n      ";
 		}
-		json << "]\n";
-		json << "    }";
+		trk << "]\n";
+		trk << "    }";
 	}
-	json << "\n  ]\n}\n";
+
+	BString json;
+	json << "{\n  \"format\": \"BeMIX\",\n  \"version\": 2,\n  \"name\": \"" << JsonEscape(name).c_str() << "\",\n";
+	json << "  \"active\": " << Mix.Active() << ",\n";
+	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
+	json << "  \"tracks\": [\n" << trk << "\n  ]\n}\n";
 
 	BString descName(proj);
 	descName << ".bemix";
@@ -189,6 +215,22 @@ bool Project_Open(const char *bemixPath, BString &err)
 
 	Tracks_BeginProject();
 	BString warnings;
+	std::map<int, SourceRef> sources;			// id -> источник (версия 2)
+	const JValue *jsrc = doc.Get("sources");
+	if (jsrc && jsrc->type == JValue::Arr){
+		for (size_t q = 0; q < jsrc->a.size(); q++){
+			const JValue &sj = jsrc->a[q];
+			std::string file = sj.String("file");
+			if (file.empty()) continue;
+			BPath wav(folder.Path(), file.c_str());
+			std::vector<float> samples; long long frames = 0; int ch = 2; float rate = 44100; std::string werr;
+			if (WavRead(wav.Path(), samples, frames, ch, rate, werr) && frames > 0){
+				sources[(int)sj.Number("id", -1)] = MakeSource(&samples[0], frames, ch, rate);
+			}else{
+				warnings << file.c_str() << ": " << werr.c_str() << "\n";
+			}
+		}
+	}
 	int slot = 0;
 	for (size_t k = 0; k < tracks->a.size() && k < MIX_MAX_TRACKS; k++){
 		const JValue &jt = tracks->a[k];
@@ -204,15 +246,30 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetMute(slot, jt.Boolean("mute", false));
 		Mix.SetSolo(slot, jt.Boolean("solo", false));
 
-		const JValue *jf = jt.Get("file");
-		if (jf && jf->type == JValue::Str && !jf->s.empty()){
-			BPath wav(folder.Path(), jf->s.c_str());
-			std::vector<float> samples; long long frames = 0; int ch = 2; float rate = 44100; std::string werr;
-			if (WavRead(wav.Path(), samples, frames, ch, rate, werr) && frames > 0){
-				Mix.SetTrackData(slot, &samples[0], frames, ch, rate);
-				Mix.SetOffset(slot, jt.Number("offset", 0.0));
-			}else{
-				warnings << jf->s.c_str() << ": " << werr.c_str() << "\n";
+		// клипы: версия 2 - список клипов со ссылками на источники; версия 1 - один файл и смещение
+		const JValue *jc = jt.Get("clips");
+		if (jc && jc->type == JValue::Arr){
+			for (size_t q = 0; q < jc->a.size(); q++){
+				const JValue &cj = jc->a[q];
+				std::map<int, SourceRef>::iterator it = sources.find((int)cj.Number("source", -1));
+				if (it == sources.end() || !it->second) continue;
+				const int64 start = (int64)cj.Number("start", 0);
+				int64 len = (int64)cj.Number("length", (double)it->second->frames);
+				if (start < 0 || start >= it->second->frames) continue;
+				if (start + len > it->second->frames) len = it->second->frames - start;
+				Mix.AddClip(slot, it->second, start, len, cj.Number("pos", 0.0));
+			}
+		}else{
+			const JValue *jf = jt.Get("file");
+			if (jf && jf->type == JValue::Str && !jf->s.empty()){
+				BPath wav(folder.Path(), jf->s.c_str());
+				std::vector<float> samples; long long frames = 0; int ch = 2; float rate = 44100; std::string werr;
+				if (WavRead(wav.Path(), samples, frames, ch, rate, werr) && frames > 0){
+					SourceRef src = MakeSource(&samples[0], frames, ch, rate);
+					if (src) Mix.AddClip(slot, src, 0, frames, jt.Number("offset", 0.0));
+				}else{
+					warnings << jf->s.c_str() << ": " << werr.c_str() << "\n";
+				}
 			}
 		}
 		// эффекты дорожки
@@ -271,10 +328,39 @@ bool Project_MixdownDefault(BPath &out)
 	return out.SetTo(gFolder.String(), n.String()) == B_OK;
 }
 
+// Добавляет звук клипа в стерео-буфер dst (total кадров на частоте outRate) с множителями gl, gr.
+static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float outRate, float gl, float gr)
+{
+	if (!c.src || c.len <= 0) return;
+	const double rate = c.src->rate;
+	const int ch = c.src->channels;
+	const float *d = c.src->data + c.start * ch;
+	const int64 n0 = (int64)(c.pos * outRate + 0.5);
+	const int64 n1 = n0 + (int64)((double)c.len * outRate / rate);
+	const double step = rate / outRate;
+	for (int64 n = n0; n < n1 && n < total; n++){
+		double pos = (n - c.pos * outRate) * step;
+		if (pos < 0) pos = 0;
+		int64 i0 = (int64)pos;
+		if (i0 >= c.len) break;
+		int64 i1 = (i0 + 1 < c.len) ? i0 + 1 : i0;
+		float f = (float)(pos - (double)i0);
+		float l, r;
+		if (ch == 2){
+			l = d[i0*2]   + (d[i1*2]   - d[i0*2])   * f;
+			r = d[i0*2+1] + (d[i1*2+1] - d[i0*2+1]) * f;
+		}else{
+			l = r = d[i0] + (d[i1] - d[i0]) * f;
+		}
+		dst[(size_t)n*2]   += l * gl;
+		dst[(size_t)n*2+1] += r * gr;
+	}
+}
+
 bool Project_Mixdown(const char *path, BString &err)
 {
-	struct Src { const float *d; int64 n; int ch; float rate; double off; float gl, gr; int idx; bool fx; };
-	std::vector<Src> src;
+	struct Lane { int idx; std::vector<MixClip> clips; float gl, gr; bool fx; };
+	std::vector<Lane> lanes;
 	bool anySolo = false;
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
 		MixTrack *t = Mix.Track(i);
@@ -285,19 +371,22 @@ bool Project_Mixdown(const char *path, BString &err)
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
 		MixTrack *t = Mix.Track(i);
 		if (!t) continue;
-		Src s;
-		if (!Tracks_Snapshot(i, s.d, s.n, s.ch, s.rate, s.off)) continue;
 		if (t->mute || (anySolo && !t->solo)) continue;
-		s.gl = t->gain * (t->pan > 0 ? 1.0f - t->pan : 1.0f);
-		s.gr = t->gain * (t->pan < 0 ? 1.0f + t->pan : 1.0f);
-		s.idx = i;
-		s.fx = Mix.Fx(i).HasEffects();
-		src.push_back(s);
-		if (s.rate > outRate) outRate = s.rate;
-		double e = s.off + (double)s.n / s.rate + (s.fx ? 4.0 : 0.0);	// хвост эффектов
-		if (e > endTime) endTime = e;
+		Lane l;
+		l.idx = i;
+		l.clips = Tracks_LaneClips(i);
+		if (l.clips.empty()) continue;
+		l.gl = t->gain * (t->pan > 0 ? 1.0f - t->pan : 1.0f);
+		l.gr = t->gain * (t->pan < 0 ? 1.0f + t->pan : 1.0f);
+		l.fx = Mix.Fx(i).HasEffects();
+		for (size_t k = 0; k < l.clips.size(); k++){
+			if (l.clips[k].Rate() > outRate) outRate = l.clips[k].Rate();
+			double e = l.clips[k].End() + (l.fx ? 4.0 : 0.0);	// хвост эффектов
+			if (e > endTime) endTime = e;
+		}
+		lanes.push_back(l);
 	}
-	if (src.empty() || outRate <= 0){ err = Language.get("MIXDOWN_EMPTY"); return false; }
+	if (lanes.empty() || outRate <= 0){ err = Language.get("MIXDOWN_EMPTY"); return false; }
 
 	const int64 total = (int64)(endTime * outRate + 0.5) + 1;
 	if (total * 8 > 0xFFFFFF00LL){ err = "The mixdown is too long for a WAV file"; return false; }
@@ -305,55 +394,35 @@ bool Project_Mixdown(const char *path, BString &err)
 	try { out.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
 
 	std::vector<float> tmp;
-	for (size_t k = 0; k < src.size(); k++){
-		const Src &s = src[k];
-		float *dst = &out[0];
-		float gl = s.gl, gr = s.gr;
-		if (s.fx){
-			try { tmp.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
-			dst = &tmp[0]; gl = gr = 1.0f;
+	for (size_t k = 0; k < lanes.size(); k++){
+		const Lane &l = lanes[k];
+		if (!l.fx){
+			for (size_t q = 0; q < l.clips.size(); q++)
+				RenderClipOffline(l.clips[q], &out[0], total, outRate, l.gl, l.gr);
+			continue;
 		}
-		const int64 n0 = (int64)(s.off * outRate + 0.5);
-		const int64 n1 = n0 + (int64)((double)s.n * outRate / s.rate);
-		const double step = (double)s.rate / outRate;
-		for (int64 n = n0; n < n1 && n < total; n++){
-			double pos = (n - s.off * outRate) * step;
-			if (pos < 0) pos = 0;
-			int64 i0 = (int64)pos;
-			if (i0 >= s.n) break;
-			int64 i1 = (i0 + 1 < s.n) ? i0 + 1 : i0;
-			float f = (float)(pos - (double)i0);
-			float l, r;
-			if (s.ch == 2){
-				l = s.d[i0*2]   + (s.d[i1*2]   - s.d[i0*2])   * f;
-				r = s.d[i0*2+1] + (s.d[i1*2+1] - s.d[i0*2+1]) * f;
-			}else{
-				l = r = s.d[i0] + (s.d[i1] - s.d[i0]) * f;
+		try { tmp.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
+		for (size_t q = 0; q < l.clips.size(); q++)
+			RenderClipOffline(l.clips[q], &tmp[0], total, outRate, 1.0f, 1.0f);
+		// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
+		FxChain local;
+		FxChain &live = Mix.Fx(l.idx);
+		for (int e = 0; e < live.Count(); e++){
+			const FxChain::Slot *sl = live.At(e);
+			std::string ferr;
+			if (!sl->enabled) continue;
+			if (!local.AddCopyOf(*sl, outRate, &ferr)){
+				err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
+				return false;
 			}
-			dst[(size_t)n*2]   += l * gl;
-			dst[(size_t)n*2+1] += r * gr;
 		}
-		if (s.fx){
-			// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
-			FxChain local;
-			FxChain &live = Mix.Fx(s.idx);
-			for (int e = 0; e < live.Count(); e++){
-				const FxChain::Slot *sl = live.At(e);
-				std::string ferr;
-				if (!sl->enabled) continue;
-				if (!local.AddCopyOf(*sl, outRate, &ferr)){
-					err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
-					return false;
-				}
-			}
-			for (int64 from = 0; from < total; from += 4096){
-				int nfr = (int)((total - from < 4096) ? total - from : 4096);
-				local.Process(&tmp[(size_t)from * 2], nfr, outRate);
-			}
-			for (int64 n = 0; n < total; n++){
-				out[(size_t)n*2]   += tmp[(size_t)n*2]   * s.gl;
-				out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * s.gr;
-			}
+		for (int64 from = 0; from < total; from += 4096){
+			int nfr = (int)((total - from < 4096) ? total - from : 4096);
+			local.Process(&tmp[(size_t)from * 2], nfr, outRate);
+		}
+		for (int64 n = 0; n < total; n++){
+			out[(size_t)n*2]   += tmp[(size_t)n*2]   * l.gl;
+			out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * l.gr;
 		}
 	}
 	if (!WavWriteFloat(path, &out[0], total, 2, outRate)){
@@ -365,15 +434,16 @@ bool Project_Mixdown(const char *path, BString &err)
 
 // --------------------------------------------------------------- окно имени
 
-ProjectNameWindow::ProjectNameWindow(BWindow *target, uint32 msgWhat, const char *defaultName)
-	: BWindow(BRect(0, 0, 299, 89), Language.get("PROJECT_NAME_TITLE"), B_TITLED_WINDOW_LOOK,
+ProjectNameWindow::ProjectNameWindow(BWindow *target, uint32 msgWhat, const char *defaultName,
+	const char *title, const char *label)
+	: BWindow(BRect(0, 0, 299, 89), title ? title : Language.get("PROJECT_NAME_TITLE"), B_TITLED_WINDOW_LOOK,
 		B_MODAL_APP_WINDOW_FEEL, B_NOT_RESIZABLE | B_NOT_ZOOMABLE | B_ASYNCHRONOUS_CONTROLS),
 	  fTarget(target), fWhat(msgWhat)
 {
 	BView *bg = new BView(Bounds(), "bg", B_FOLLOW_ALL, B_WILL_DRAW);
 	bg->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	AddChild(bg);
-	fText = new BTextControl(BRect(12, 12, 287, 32), "name", Language.get("PROJECT_NAME"), defaultName, NULL);
+	fText = new BTextControl(BRect(12, 12, 287, 32), "name", label ? label : Language.get("PROJECT_NAME"), defaultName, NULL);
 	fText->SetDivider(100);
 	bg->AddChild(fText);
 	BButton *ok = new BButton(BRect(210, 52, 287, 76), "ok", Language.get("OK"), new BMessage('pnok'));

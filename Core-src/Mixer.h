@@ -1,35 +1,72 @@
 /*
- * Mixer.h - многодорожечный микшер (без зависимостей от Haiku, чтобы тестировать на Linux).
+ * Mixer.h - многодорожечный микшер с клипами (без зависимостей от Haiku, чтобы тестировать на Linux).
  *
- * Активная дорожка - это тот самый буфер Pool.sample_memory, с которым работают
- * правка, фильтры, undo и буфер обмена; её сэмплы микшер в этот момент не читает
- * (их воспроизводит BufferPlayer), он только применяет параметры её канала (громкость,
- * баланс, mute, solo). Остальные дорожки хранят сэмплы сами (interleaved float, 1 или 2
- * канала, частота дискретизации = Pool.frequency). При смене активной дорожки данные
- * копируются между Pool и микшером (см. Tracks.cpp).
+ * Звук хранится в неизменяемых источниках (MixSource), на которые ссылаются клипы (MixClip):
+ * «источник, с какого кадра, сколько кадров, где лежит на шкале времени». Один источник может
+ * лежать в нескольких клипах (копии) - память не дублируется. Дорожка = параметры канала
+ * (громкость, баланс, mute, solo, эффекты) + список клипов.
+ *
+ * Одна дорожка активна, и один её клип («активный клип») лежит не в микшере, а в Pool.sample_memory
+ * (правка, фильтры, undo): буфер Pool покрывает всю ленту времени, поэтому номер кадра в нём и есть
+ * время. Остальные клипы этой дорожки и все клипы других дорожек микшер воспроизводит сам.
+ * Переключение между клипами - см. Tracks.cpp.
  */
 #ifndef MIXER_H
 #define MIXER_H
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <atomic>
+#include <memory>
+#include <vector>
 #include "FxChain.h"
 
 #define MIX_MAX_TRACKS	16
 
+// Неизменяемый кусок звука (interleaved float, 1 или 2 канала).
+struct MixSource {
+	float	*data;
+	int64_t	frames;
+	int		channels;
+	float	rate;
+	MixSource() : data(NULL), frames(0), channels(2), rate(44100.0f) {}
+	~MixSource() { free(data); }
+private:
+	MixSource(const MixSource &);
+	MixSource &operator=(const MixSource &);
+};
+typedef std::shared_ptr<const MixSource> SourceRef;
+
+// Источник из копии данных (nullptr, если нет памяти или аргументы неверны).
+SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate);
+
+struct MixClip {
+	SourceRef	src;
+	int64_t		start;		// первый кадр в источнике
+	int64_t		len;		// число кадров
+	double		pos;		// начало на ленте времени, секунды (>= 0)
+	MixClip() : start(0), len(0), pos(0) {}
+	float	Rate() const { return src ? src->rate : 44100.0f; }
+	double	Length() const { return src ? (double)len / src->rate : 0.0; }	// секунды
+	double	End() const { return pos + Length(); }
+};
+
 struct MixTrack {
 	bool	used;
-	bool	owns_data;		// данные принадлежат микшеру (у активной дорожки актуальные сэмплы лежат в Pool)
-	float	*data;			// interleaved
-	int64_t	frames;
-	int		channels;		// 1 или 2
-	float	rate;			// частота дискретизации дорожки, Гц
-	double	offset;			// смещение начала дорожки на общей шкале времени, секунды (>= 0)
+	int		channels;		// формат по умолчанию для пустой дорожки (1 или 2)
+	float	rate;
 	float	gain;			// 0..2 (линейно)
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
 	char	name[64];
+	std::vector<MixClip>	clips;
+	MixTrack() { Reset(); }
+	void	Reset()
+	{
+		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
+		mute = solo = armed = false; name[0] = 0; clips.clear();
+	}
 };
 
 class Mixer {
@@ -40,28 +77,35 @@ public:
 	int		TrackCount() const { return fCount; }
 	MixTrack *Track(int i)		{ return (i>=0 && i<MIX_MAX_TRACKS && fTracks[i].used) ? &fTracks[i] : NULL; }
 
-	// Добавить дорожку: данные копируются. channels 1/2. Возвращает индекс или -1.
-	int		AddTrack(const char *name, const float *data, int64_t frames, int channels);
-	int		AddEmptyTrack(const char *name, int channels);	// пустая, для записи
+	// Дорожки. AddTrack: данные копируются, получается дорожка с одним клипом на 0 с (если frames > 0).
+	int		AddTrack(const char *name, const float *data, int64_t frames, int channels, float rate = 44100.0f);
+	int		AddEmptyTrack(const char *name, int channels);
 	void	RemoveTrack(int i);								// основную (0) удалить нельзя
-	// Заменить содержимое: данные копируются (i может быть 0, channels 1/2).
-	bool	SetTrackData(int i, const float *data, int64_t frames, int channels, float rate);
-	void	ResetAll();								// новый проект: одна пустая дорожка 0, остальные удалены
+	void	ResetAll();										// новый проект: одна пустая дорожка 0
 	int		Active() const { return fActive; }
 	void	SetActive(int i) { if (Track(i)) fActive = i; }
 	int		ArmedTrack() const;							// -1, если нет
-	// Дописывать при записи (вызывается не из аудио-потока воспроизведения)
-	bool	AppendTrackData(int i, const float *data, int64_t frames);
 
-	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
+	// Клипы дорожки (правит только поток интерфейса; воспроизведение читает под замком).
+	int		ClipCount(int lane) const { return (lane>=0 && lane<MIX_MAX_TRACKS && fTracks[lane].used) ? (int)fTracks[lane].clips.size() : 0; }
+	const MixClip *Clip(int lane, int idx) const;
+	int		AddClip(int lane, const SourceRef &src, int64_t start, int64_t len, double pos);	// индекс или -1
+	bool	RemoveClip(int lane, int idx);
+	bool	TakeClip(int lane, int idx, MixClip &out);	// убрать и вернуть (клип уходит в Pool)
+	bool	SetClipPos(int lane, int idx, double pos);
+	bool	SetClipRange(int lane, int idx, int64_t start, int64_t len);
+	void	ClearClips(int lane);
+	int		LaneChannels(int lane) const;				// 1, если все клипы моно, иначе 2
+	int		ClipAt(int lane, double time) const;		// клип, накрывающий время (последний из подходящих), или -1
 
 	void	SetGain(int i, float g);
 	void	SetPan(int i, float p);
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
-	void	SetOffset(int i, double seconds);
-	// Конец самой «длинной» неактивной дорожки на шкале времени (сек); 0, если данных нет
+	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
+
+	// Конец самого дальнего клипа, лежащего в микшере (сек); 0, если клипов нет
 	double	EndTimeExtras() const;
 	// Счётчик изменений параметров - интерфейс перерисовывается, когда он меняется
 	int		Revision() const { return fRevision.load(); }
@@ -71,11 +115,10 @@ public:
 	void	SetRecordOffset(int64_t frames) { fRecordOffset = frames; }
 	int64_t	RecordOffset() const { return fRecordOffset; }
 
-	// Вызывается из аудио-callback. buf - уже заполненный активной дорожкой стерео-буфер
-	// (interleaved L,R), frames - число кадров. activePos - позиция активной дорожки (в её
-	// кадрах) на начало буфера, activeRate - её частота (отрицательная = реверс), sysRate -
-	// частота выхода. Применяет канал активной дорожки и подмешивает остальные дорожки
-	// с учётом их собственной частоты (линейная интерполяция).
+	// Вызывается из аудио-callback. buf - уже заполненный активным клипом стерео-буфер
+	// (interleaved L,R), frames - число кадров. activePos - позиция в буфере Pool (в его кадрах,
+	// он же время на ленте) на начало буфера, activeRate - частота Pool (отрицательная = реверс),
+	// sysRate - частота выхода. Подмешивает остальные клипы, применяет эффекты и канал дорожки.
 	void	Process(float *buf, int frames, double activePos, double activeRate,
 				double sysRate, bool mixExtras);
 

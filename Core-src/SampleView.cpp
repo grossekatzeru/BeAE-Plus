@@ -40,6 +40,9 @@
 #include "VMSystem.h"
 #include "Mixer.h"
 #include "Tracks.h"
+#include "LanesView.h"
+#include "AudioRecorder.h"
+#include <Region.h>
 
 extern cookie_record play_cookie;
 
@@ -297,6 +300,18 @@ void SampleView::Draw(BRect rect)
 		SetDrawingMode(B_OP_COPY);
 	}
 
+	// остальные клипы той же дорожки (сам активный клип - это волна выше)
+	if (Mix.ClipCount(Mix.Active()) > 0 && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
+		const double tl = (double)Pool.l_pointer / Pool.frequency;
+		const double tr = (double)Pool.r_pointer / Pool.frequency;
+		const float W = Bounds().Width() + 1;
+		BRegion clip(rect);
+		ConstrainClippingRegion(&clip);
+		LanesDrawClips(this, Mix.Active(), BRect(0, POINTER_BAR_HEIGHT, Bounds().right, Bounds().bottom),
+			tl, (tr - tl) / W, W);
+		ConstrainClippingRegion(NULL);
+	}
+
 	// перетаскиваемый звук: рамка на новом месте
 	if (move_drag && Pool.r_pointer > Pool.l_pointer){
 		const double span = (double)(Pool.r_pointer - Pool.l_pointer);
@@ -376,6 +391,20 @@ void SampleView::MouseDown(BPoint p)
 		return;
 	}
 
+	// клик по другому клипу этой же дорожки делает его активным (правая кнопка - меню как обычно)
+	if (button != B_SECONDARY_MOUSE_BUTTON && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f
+		&& Mix.ClipCount(Mix.Active()) > 0){
+		const double t = ((double)Pool.l_pointer + p.x * (double)(Pool.r_pointer - Pool.l_pointer) / (Bounds().Width() + 1)) / Pool.frequency;
+		double cs = 0, ce = 0;
+		const bool inActive = Tracks_ActiveClipSpan(cs, ce) && t >= cs && t < ce;
+		const int other = Mix.ClipAt(Mix.Active(), t);
+		if (!inActive && other >= 0 && !Recorder.IsRecording()){
+			Tracks_Activate(Mix.Active(), t, other);
+			if (Pool.tool_mode != MOVE_TOOL)
+				return;
+		}
+	}
+
 	if (Pool.tool_mode == MOVE_TOOL){			// тянем звук дорожки по ленте времени
 		if (Pool.frequency > 1.0f && Tracks_ActiveRange(move_first, move_last)){
 			move_drag = true;
@@ -428,6 +457,14 @@ void SampleView::MouseDown(BPoint p)
 				menuItem->SetEnabled(ClipBoard.HasClip());
 				menu->AddItem(menuItem = new BMenuItem(Language.get("PASTE_NEW"), new BMessage(PASTE_NEW), KeyBind.GetKey("PASTE_NEW"), KeyBind.GetMod("PASTE_NEW")));
 				menuItem->SetEnabled(ClipBoard.HasClip());
+				menu->AddSeparatorItem();
+				menu->AddItem(new BMenuItem(Language.get("CLIP_SPLIT"), new BMessage(CLIP_SPLIT)));
+				menu->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY)));
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE)));
+				menuItem->SetEnabled(Tracks_HasClipboard());
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
+				menuItem->SetEnabled(Tracks_HasClipboard());
+				menu->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 				#ifdef __SAMPLE_STUDIO_LE
 					menu->AddItem(menuItem = new BMenuItem(Language.get("EDIT_PASTE_MIX"), new BMessage(PASTE_MIXED), KeyBind.GetKey("EDIT_PASTE_MIX"), KeyBind.GetMod("EDIT_PASTE_MIX")));
 					menuItem->SetEnabled(ClipBoard.HasClip());

@@ -24,7 +24,8 @@ bool	Project_MixdownDefault(BPath &out);	// <папка проекта>/<Имя>
 // Окно запроса имени проекта; результат уходит окну target сообщением msgWhat с полем "name".
 class ProjectNameWindow : public BWindow {
 public:
-	ProjectNameWindow(BWindow *target, uint32 msgWhat, const char *defaultName);
+	ProjectNameWindow(BWindow *target, uint32 msgWhat, const char *defaultName,
+		const char *title = NULL, const char *label = NULL);
 	virtual void MessageReceived(BMessage *msg);
 private:
 	BWindow	*fTarget;

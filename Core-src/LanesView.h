@@ -9,6 +9,10 @@
 
 #include <View.h>
 
+// Рисует клипы дорожки slot в области body (волна, границы). tl - время левого края (сек), dt - секунд на
+// пиксель, W - ширина в пикселях. skipFill: не заливать фон клипа (используется поверх уже нарисованной волны).
+void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W);
+
 class LanesView : public BView {
 public:
 	LanesView(BRect r);
@@ -34,9 +38,10 @@ private:
 	long long	fKeyL, fKeyR, fKeyPointer;
 	int			fKeySelection;
 	float		fOldPlayX;
-	int			fDragSlot;			// инструмент «Перемещение»: какую дорожку тянем (или -1)
+	int			fDragSlot;			// инструмент «Перемещение»: в какой дорожке тянем клип (или -1)
+	int			fDragClip;
 	float		fDragX0;
-	double		fDragOffset0;
+	double		fDragPos0;
 };
 
 #endif

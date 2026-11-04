@@ -15,6 +15,14 @@
 extern cookie_record play_cookie;
 static float gScroll = 0;
 
+// Активный клип лежит в Pool. Если он не менялся, при переключении возвращаем в микшер тот же
+// клип (общий источник), а не копию: копии одного звука не раздуваются в памяти.
+static bool		gHasOrigin = false;
+static MixClip	gOrigin;
+
+// Буфер обмена клипов: ссылка на источник, остальное - как в клипе
+static MixClip	gClipboard;
+
 void Tracks_Init()
 {
 	for (int i=Mix.TrackCount(); i<DEFAULT_TRACKS; i++)
@@ -50,56 +58,87 @@ static bool ContentRange(const float *m, int64 frames, int ch, int64 &first, int
 	return true;
 }
 
-// Pool -> микшер: сэмплы активной дорожки без тишины по краям + смещение
-void Tracks_Stash()
+static bool PoolHasSound()
 {
-	int a = Mix.Active();
+	return Pool.sample_type != NONE && Pool.sample_memory != NULL && Pool.size > 0;
+}
+
+// Pool не отличается от клипа, из которого был загружен (звук тот же, вокруг - тишина)?
+static bool PoolMatchesOrigin()
+{
+	if (!gHasOrigin || !gOrigin.src || !PoolHasSound())
+		return false;
+	const int ch = Pool.sample_type;
+	if (ch != gOrigin.src->channels || Pool.frequency != gOrigin.src->rate)
+		return false;
+	const int64 lead = (int64)floor(gOrigin.pos * Pool.frequency + 0.5);
+	if (lead < 0 || lead + gOrigin.len > Pool.size)
+		return false;
+	const float *m = Pool.sample_memory;
+	if (memcmp(m + lead * ch, gOrigin.src->data + gOrigin.start * ch, (size_t)gOrigin.len * ch * sizeof(float)) != 0)
+		return false;
+	for (int64 i = 0; i < lead * ch; i++)
+		if (m[i] != 0.0f) return false;
+	for (int64 i = (lead + gOrigin.len) * ch; i < Pool.size * ch; i++)
+		if (m[i] != 0.0f) return false;
+	return true;
+}
+
+// Pool -> клип дорожки (без тишины по краям). Возвращает индекс добавленного клипа или -1.
+// Новый клип всегда добавляется в конец списка, индексы остальных клипов не меняются.
+static int StashActive()
+{
+	const int a = Mix.Active();
 	MixTrack *t = Mix.Track(a);
 	if (t == NULL)
-		return;
-	const float rate = (Pool.frequency > 1.0f) ? Pool.frequency : t->rate;
-	int64 first = 0, last = 0;
-	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0
-		|| !ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last)){
-		Mix.SetTrackData(a, NULL, 0, t->channels, rate);
-		Mix.SetOffset(a, 0);
-		return;
+		return -1;
+	int idx = -1;
+	if (PoolMatchesOrigin()){
+		idx = Mix.AddClip(a, gOrigin.src, gOrigin.start, gOrigin.len, gOrigin.pos);
+	}else if (PoolHasSound()){
+		const float rate = (Pool.frequency > 1.0f) ? Pool.frequency : t->rate;
+		int64 first = 0, last = 0;
+		if (ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last)){
+			SourceRef src = MakeSource(Pool.sample_memory + first * Pool.sample_type, last - first + 1,
+				Pool.sample_type, rate);
+			if (src)
+				idx = Mix.AddClip(a, src, 0, last - first + 1, (double)first / rate);
+		}
 	}
-	Mix.SetTrackData(a, Pool.sample_memory + first * Pool.sample_type, last - first + 1,
-		Pool.sample_type, rate);
-	Mix.SetOffset(a, (double)first / rate);
+	gHasOrigin = false;
+	return idx;
 }
 
-// конец самой дальней дорожки на ленте, секунды
+void Tracks_Stash()
+{
+	StashActive();
+}
+
+// конец самого дальнего клипа на ленте, секунды (все клипы лежат в микшере)
 static double ExtentSeconds()
 {
-	double e = 0;
-	for (int i=0; i<MIX_MAX_TRACKS; i++){
-		MixTrack *t = Mix.Track(i);
-		if (!t || !t->data || t->frames <= 0 || t->rate <= 0)
-			continue;
-		double end = t->offset + (double)t->frames / t->rate;
-		if (end > e) e = end;
-	}
-	return e;
+	return Mix.EndTimeExtras();
 }
 
-// микшер -> Pool: дорожка index с тишиной по краям до конца ленты. Делает дорожку активной.
-static bool Load(int index)
+// микшер -> Pool: клип clipIdx дорожки lane (или пустая дорожка, если -1) с тишиной по краям до конца
+// ленты. Делает дорожку активной. Активный клип в этот момент должен быть уже убран из Pool в микшер.
+static bool Load(int lane, int clipIdx)
 {
-	MixTrack *t = Mix.Track(index);
+	MixTrack *t = Mix.Track(lane);
 	if (t == NULL)
 		return false;
 	const double ext = ExtentSeconds();
-	const int ch = t->channels;
-	const float rate = t->rate;
+	const MixClip *pc = (clipIdx >= 0) ? Mix.Clip(lane, clipIdx) : NULL;
+	int ch = pc ? pc->src->channels : t->channels;
+	float rate = pc ? pc->src->rate : ((Pool.frequency > 1.0f && PoolHasSound()) ? Pool.frequency : t->rate);
 
 	if (ext <= 0.0){
 		// проект пуст: Pool пустой, как при запуске
-		Mix.SetActive(index);
+		Mix.SetActive(lane);
 		Pool.size = 0;
 		Pool.sample_type = NONE;
 		Pool.pad_lead = Pool.pad_tail = 0;
+		gHasOrigin = false;
 		return true;
 	}
 
@@ -109,12 +148,17 @@ static bool Load(int index)
 		return false;
 
 	int64 lead = 0, len = 0;
-	if (t->data != NULL && t->frames > 0){
-		lead = (int64)floor(t->offset * rate + 0.5);
-		len = t->frames;
+	MixClip clip;
+	if (pc != NULL && Mix.TakeClip(lane, clipIdx, clip)){
+		lead = (int64)floor(clip.pos * rate + 0.5);
+		len = clip.len;
 		if (lead + len > F) len = F - lead;
 		if (len < 0) len = 0;
-		memcpy(mem + lead * ch, t->data, (size_t)len * ch * sizeof(float));
+		memcpy(mem + lead * ch, clip.src->data + clip.start * ch, (size_t)len * ch * sizeof(float));
+		gOrigin = clip;
+		gHasOrigin = (len == clip.len);
+	}else{
+		gHasOrigin = false;
 	}
 
 	free(Pool.sample_memory);
@@ -136,10 +180,7 @@ static bool Load(int index)
 	Pool.m_format.u.raw_audio.channel_count = Pool.sample_type;
 	Pool.m_format.u.raw_audio.frame_rate = rate;
 
-	// данные теперь живут в Pool, копию в микшере освобождаем
-	Mix.SetTrackData(index, NULL, 0, ch, rate);
-	Mix.SetOffset(index, 0);
-	Mix.SetActive(index);
+	Mix.SetActive(lane);
 	return true;
 }
 
@@ -209,11 +250,46 @@ static void StopAll()
 		Pool.player->Stop();
 }
 
-bool Tracks_Activate(int index, double cursorTime)
+// Общая часть всех правок структуры: убрать активный клип в микшер, выполнить правку (op получает
+// индекс убранного клипа или -1), собрать Pool заново вокруг клипа, который вернёт op (-1 - никакого).
+// Окно волны и курсор сохраняются (по времени).
+template <class Op>
+static bool Restructure(Op op, bool resetUndo = true)
 {
-	MixTrack *t = Mix.Track(index);
-	if (t == NULL || index == Mix.Active())
-		return t != NULL;
+	if (Recorder.IsRecording())
+		return false;
+	ViewState view = CaptureView();
+	StopAll();
+	int stashed = StashActive();
+	int lane = Mix.Active();
+	int toLoad = op(lane, stashed, view);
+	if (toLoad < -1)
+		toLoad = -1;
+	if (!Load(lane, toLoad)){
+		Load(lane, stashed);				// вернуть, как было
+		return false;
+	}
+	if (resetUndo)
+		Hist.Reset();
+	RefreshUI(view);
+	return true;
+}
+
+// Клип дорожки lane по умолчанию: тот, что накрывает время, иначе первый, иначе -1
+static int ChooseClip(int lane, double time)
+{
+	int c = (time >= 0.0) ? Mix.ClipAt(lane, time) : -1;
+	if (c < 0 && Mix.ClipCount(lane) > 0) c = 0;
+	return c;
+}
+
+bool Tracks_Activate(int lane, double cursorTime, int clip)
+{
+	MixTrack *t = Mix.Track(lane);
+	if (t == NULL)
+		return false;
+	if (lane == Mix.Active() && clip < 0)
+		return true;
 	if (Recorder.IsRecording())
 		return false;
 
@@ -221,26 +297,42 @@ bool Tracks_Activate(int index, double cursorTime)
 	if (cursorTime >= 0.0)
 		view.tp = cursorTime;
 	StopAll();
-	Tracks_Stash();
-	if (!Load(index)){
-		Load(Mix.Active());			// вернуть прежнюю
+	int stashed = StashActive();
+	const int old = Mix.Active();
+	int pick = clip;
+	if (pick < 0 || pick >= Mix.ClipCount(lane))
+		pick = ChooseClip(lane, view.tp);
+	if (!Load(lane, pick)){
+		Load(old, stashed);			// вернуть прежнюю
 		return false;
 	}
-	Hist.Reset();					// undo относится к одной дорожке
+	Hist.Reset();					// undo относится к одному клипу
 	RefreshUI(view);
 	return true;
 }
 
 void Tracks_PlaceActive(double offsetSeconds)
 {
-	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0)
+	if (!PoolHasSound())
 		return;
 	int a = Mix.Active();
 	if (!Mix.Track(a))
 		return;
-	Mix.SetTrackData(a, Pool.sample_memory, Pool.size, Pool.sample_type, Pool.frequency);
-	Mix.SetOffset(a, offsetSeconds < 0 ? 0 : offsetSeconds);
-	Load(a);
+	gHasOrigin = false;				// в Pool свежий звук, прежний активный клип заменён
+	SourceRef src = MakeSource(Pool.sample_memory, Pool.size, Pool.sample_type, Pool.frequency);
+	if (!src)
+		return;
+	int idx = Mix.AddClip(a, src, 0, Pool.size, offsetSeconds < 0 ? 0 : offsetSeconds);
+	Load(a, idx);
+}
+
+// Положение активного клипа на ленте (по первому ненулевому кадру), сек
+static double ActiveClipStart()
+{
+	int64 first = 0, last = 0;
+	if (PoolHasSound() && ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
+		return (double)first / Pool.frequency;
+	return 0;
 }
 
 double Tracks_Offset(int index)
@@ -248,24 +340,16 @@ double Tracks_Offset(int index)
 	MixTrack *t = Mix.Track(index);
 	if (t == NULL)
 		return 0;
-	if (index != Mix.Active())
-		return t->offset;
-	int64 first = 0, last = 0;
-	if (Pool.sample_type != NONE && ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
-		return (double)first / Pool.frequency;
-	return 0;
+	if (index == Mix.Active())
+		return ActiveClipStart();
+	const MixClip *c = Mix.Clip(index, 0);
+	return c ? c->pos : 0;
 }
 
 // пересобрать активную дорожку под текущую ленту (например, после удаления дорожки)
 static void Reload()
 {
-	ViewState view = CaptureView();
-	StopAll();
-	Tracks_Stash();
-	if (Load(Mix.Active())){
-		Hist.Reset();
-		RefreshUI(view);
-	}
+	Restructure([](int, int stashed, const ViewState&){ return stashed; });
 }
 
 bool Tracks_SetOffset(int index, double seconds)
@@ -273,80 +357,31 @@ bool Tracks_SetOffset(int index, double seconds)
 	if (!Mix.Track(index) || Recorder.IsRecording())
 		return false;
 	if (seconds < 0) seconds = 0;
-	ViewState view = CaptureView();
-	StopAll();
-	Tracks_Stash();					// активная дорожка без полей, лента пересчитывается ниже
-	Mix.SetOffset(index, seconds);
-	if (!Load(Mix.Active()))
+	const bool isActive = (index == Mix.Active());
+	return Restructure([&](int lane, int stashed, const ViewState&){
+		if (isActive){
+			if (stashed >= 0) Mix.SetClipPos(lane, stashed, seconds);
+			return stashed;
+		}
+		Mix.SetClipPos(index, 0, seconds);		// неактивная дорожка: её первый клип
+		return stashed;
+	});
+}
+
+bool Tracks_MoveClip(int lane, int clip, double seconds)
+{
+	if (!Mix.Clip(lane, clip) || Recorder.IsRecording())
 		return false;
-	Hist.Reset();
-	RefreshUI(view);
-	return true;
-}
-
-bool Tracks_SetName(int index, const char *name)
-{
-	MixTrack *t = Mix.Track(index);
-	if (!t || !name) return false;
-	size_t n = strlen(name);
-	if (n > sizeof(t->name) - 1) {
-		n = sizeof(t->name) - 1;
-		while (n > 0 && ((unsigned char)name[n] & 0xC0) == 0x80) n--;	// не рвать UTF-8 символ
-	}
-	memcpy(t->name, name, n);
-	t->name[n] = 0;
-	Mix.Touch();
-	return true;
-}
-
-bool Tracks_Snapshot(int index, const float *&data, int64 &frames, int &channels, float &rate, double &offset)
-{
-	MixTrack *t = Mix.Track(index);
-	if (!t) return false;
-	if (index == Mix.Active()){
-		int64 first = 0, last = 0;
-		if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0
-			|| !ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
-			return false;
-		channels = Pool.sample_type;
-		data = Pool.sample_memory + first * channels;
-		frames = last - first + 1;
-		rate = Pool.frequency;
-		offset = (double)first / rate;
-		return true;
-	}
-	if (!t->data || t->frames <= 0) return false;
-	data = t->data; frames = t->frames; channels = t->channels; rate = t->rate; offset = t->offset;
-	return true;
-}
-
-void Tracks_BeginProject()
-{
-	StopAll();
-	Hist.Reset();
-	Mix.ResetAll();
-	free(Pool.sample_memory);
-	Pool.sample_memory = NULL;
-	Pool.size = 0;
-	Pool.sample_type = NONE;
-	Pool.pad_lead = Pool.pad_tail = 0;
-	Pool.m_format = media_format();				// формат определится при загрузке
-	gScroll = 0;
-}
-
-void Tracks_FinishProject()
-{
-	ViewState none;
-	none.had = false; none.tl = none.tr = none.tp = 0;
-	Load(0);
-	Hist.Reset();
-	Pool.changed = false;
-	RefreshUI(none);
+	if (seconds < 0) seconds = 0;
+	return Restructure([&](int, int stashed, const ViewState&){
+		Mix.SetClipPos(lane, clip, seconds);
+		return stashed;
+	});
 }
 
 bool Tracks_ActiveRange(int64 &first, int64 &last)
 {
-	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 0)
+	if (!PoolHasSound())
 		return false;
 	return ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last);
 }
@@ -374,16 +409,14 @@ void Tracks_RemoveActive()
 	if (a >= 1){
 		Mix.RemoveTrack(a);
 	}else{
-		// дорожка 0 не удаляется физически - очищаем её
-		Mix.SetTrackData(0, NULL, 0, 2, Pool.frequency);
-		Mix.SetOffset(0, 0);
+		Mix.ClearClips(0);					// дорожка 0 не удаляется физически - очищаем её
 	}
 	Reload();						// лента могла укоротиться: пересобрать активную
 }
 
 void Tracks_SaveRange(int64 &start, int64 &end)
 {
-	if (Pool.sample_type == NONE || Pool.sample_memory == NULL || Pool.size <= 1)
+	if (!PoolHasSound() || Pool.size <= 1)
 		return;
 	int64 first = 0, last = 0;
 	if (!ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
@@ -398,6 +431,135 @@ void Tracks_SaveRange(int64 &start, int64 &end)
 		return;
 	start = s;
 	end = e;
+}
+
+std::vector<MixClip> Tracks_LaneClips(int lane)
+{
+	std::vector<MixClip> out;
+	if (!Mix.Track(lane))
+		return out;
+	for (int i=0; i<Mix.ClipCount(lane); i++)
+		out.push_back(*Mix.Clip(lane, i));
+	if (lane == Mix.Active() && PoolHasSound()){
+		if (PoolMatchesOrigin()){
+			out.push_back(gOrigin);
+		}else{
+			int64 first = 0, last = 0;
+			if (ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last)){
+				SourceRef src = MakeSource(Pool.sample_memory + first * Pool.sample_type, last - first + 1,
+					Pool.sample_type, Pool.frequency);
+				if (src){
+					MixClip c;
+					c.src = src; c.start = 0; c.len = last - first + 1; c.pos = (double)first / Pool.frequency;
+					out.push_back(c);
+				}
+			}
+		}
+	}
+	return out;
+}
+
+bool Tracks_ActiveClipSpan(double &start, double &end)
+{
+	int64 first = 0, last = 0;
+	if (!PoolHasSound() || !ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last))
+		return false;
+	start = (double)first / Pool.frequency;
+	end = (double)(last + 1) / Pool.frequency;
+	return true;
+}
+
+void Tracks_BeginProject()
+{
+	StopAll();
+	Hist.Reset();
+	Mix.ResetAll();
+	free(Pool.sample_memory);
+	Pool.sample_memory = NULL;
+	Pool.size = 0;
+	Pool.sample_type = NONE;
+	Pool.pad_lead = Pool.pad_tail = 0;
+	Pool.m_format = media_format();				// формат определится при загрузке
+	gHasOrigin = false;
+	gClipboard = MixClip();
+	gScroll = 0;
+}
+
+void Tracks_FinishProject()
+{
+	ViewState none;
+	none.had = false; none.tl = none.tr = none.tp = 0;
+	Load(0, ChooseClip(0, 0.0));
+	Hist.Reset();
+	Pool.changed = false;
+	RefreshUI(none);
+}
+
+// ======================================================================== клипы
+
+bool Tracks_SplitAtCursor()
+{
+	if (!PoolHasSound() || Recorder.IsRecording())
+		return false;
+	const double t = (double)Pool.pointer / Pool.frequency;
+	bool done = false;
+	Restructure([&](int lane, int stashed, const ViewState&){
+		const MixClip *c = Mix.Clip(lane, stashed);
+		if (!c) return stashed;
+		const int64 k = (int64)floor((t - c->pos) * c->Rate() + 0.5);
+		if (k <= 0 || k >= c->len) return stashed;		// курсор не внутри клипа
+		const SourceRef src = c->src;
+		const int64 start = c->start, len = c->len;
+		const double pos = c->pos;
+		Mix.SetClipRange(lane, stashed, start, k);		// левая часть остаётся
+		int right = Mix.AddClip(lane, src, start + k, len - k, pos + (double)k / src->rate);
+		done = (right >= 0);
+		return right >= 0 ? right : stashed;			// правая часть становится активной
+	});
+	return done;
+}
+
+bool Tracks_CopyClip()
+{
+	if (!PoolHasSound())
+		return false;
+	gClipboard = MixClip();
+	bool ok = false;
+	Restructure([&](int lane, int stashed, const ViewState&){
+		const MixClip *c = Mix.Clip(lane, stashed);
+		if (c){ gClipboard = *c; ok = true; }
+		return stashed;
+	}, false);
+	return ok;
+}
+
+bool Tracks_HasClipboard()
+{
+	return gClipboard.src && gClipboard.len > 0;
+}
+
+bool Tracks_PasteClip(double timePos, int count)
+{
+	if (!Tracks_HasClipboard() || count < 1 || count > 1000 || Recorder.IsRecording())
+		return false;
+	if (timePos < 0) timePos = 0;
+	const MixClip clip = gClipboard;
+	const double step = clip.Length();
+	return Restructure([&](int lane, int stashed, const ViewState&){
+		for (int i = 0; i < count; i++)
+			Mix.AddClip(lane, clip.src, clip.start, clip.len, timePos + i * step);
+		return stashed;
+	});
+}
+
+bool Tracks_DeleteClip()
+{
+	if (!PoolHasSound() || Recorder.IsRecording())
+		return false;
+	return Restructure([&](int lane, int stashed, const ViewState&){
+		if (stashed >= 0) Mix.RemoveClip(lane, stashed);
+		return ChooseClip(lane, (double)Pool.pointer / Pool.frequency);
+	});
 }
 
 // ---- раскладка по вертикали ----

@@ -23,10 +23,64 @@
 
 extern cookie_record play_cookie;
 
+// Клипы дорожки: у каждого светлая подложка, центральные линии, огибающая волны и белые границы.
+void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W)
+{
+	const int ncl = Mix.ClipCount(slot);
+	const bool stereo = (Mix.LaneChannels(slot) == 2);
+	const float halfH = stereo ? body.Height() / 2.0f : body.Height();
+	for (int ci = 0; ci < ncl; ci++){
+		const MixClip *c = Mix.Clip(slot, ci);
+		if (!c || !c->src || c->len <= 0)
+			continue;
+		const double rate = c->src->rate;
+		const double xs = (c->pos - tl) / dt, xe = (c->End() - tl) / dt;
+		if (xe < 0 || xs > W)
+			continue;
+		const float x0 = (float)MAX(xs, 0.0), x1 = (float)MIN(xe, (double)W - 1);
+		v->SetHighColor(Prefs.back_color);
+		v->FillRect(BRect(body.left + x0, body.top, body.left + x1, body.bottom));
+		const int sch = c->src->channels;
+		for (int ch = 0; ch < (stereo ? 2 : 1); ch++){
+			const float top = body.top + ch * halfH;
+			const float mid = top + halfH / 2.0f;
+			const float amp = halfH / 2.0f - 1;
+			v->SetHighColor(ch == 0 ? Prefs.left_color2 : Prefs.right_color2);
+			v->StrokeLine(BPoint(body.left + x0, mid), BPoint(body.left + x1, mid));
+			for (int x = (int)x0; x <= (int)x1; x++){
+				double t0 = tl + x * dt - c->pos;
+				double t1 = t0 + dt;
+				if (t1 < 0 || t0 * rate >= (double)c->len)
+					continue;
+				int64 f0 = (int64)floor(t0 * rate);
+				int64 f1 = (int64)floor(t1 * rate);
+				if (f0 < 0) f0 = 0;
+				if (f1 >= c->len) f1 = c->len - 1;
+				if (f1 < f0) f1 = f0;
+				float mn = 0, mx = 0;
+				// при очень крупном шаге берём каждый k-й кадр, чтобы рисовать быстро
+				int64 step = (f1 - f0) / 2048 + 1;
+				const float *d = c->src->data + c->start * sch;
+				for (int64 f = f0; f <= f1; f += step){
+					float s = d[f * sch + ((stereo && sch == 2) ? ch : 0)];
+					if (s < mn) mn = s;
+					if (s > mx) mx = s;
+				}
+				if (mx > 1) mx = 1;
+				if (mn < -1) mn = -1;
+				v->StrokeLine(BPoint(body.left + x, mid - mx * amp), BPoint(body.left + x, mid - mn * amp));
+			}
+		}
+		v->SetHighColor(make_color(255, 255, 255));
+		if (xs >= 0 && xs < W) v->StrokeLine(BPoint(body.left + (float)xs, body.top), BPoint(body.left + (float)xs, body.bottom));
+		if (xe >= 0 && xe < W) v->StrokeLine(BPoint(body.left + (float)xe, body.top), BPoint(body.left + (float)xe, body.bottom));
+	}
+}
+
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragX0(0), fDragOffset0(0)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -170,16 +224,6 @@ void LanesView::MouseDown(BPoint p)
 		int slot = Tracks_SlotAt(rank);
 		if (slot < 0 || slot == Mix.Active())
 			return;
-		if (Pool.tool_mode == MOVE_TOOL){			// тянем дорожку по ленте, не делая её активной
-			MixTrack *mt = Mix.Track(slot);
-			if (mt && mt->data && Pool.sample_type != NONE){
-				fDragSlot = slot;
-				fDragX0 = p.x;
-				fDragOffset0 = mt->offset;
-				SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
-			}
-			return;
-		}
 		// время под курсором мыши
 		double t = -1.0;
 		if (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
@@ -187,7 +231,19 @@ void LanesView::MouseDown(BPoint p)
 			t = frame / Pool.frequency;
 			if (t < 0) t = 0;
 		}
-		Tracks_Activate(slot, t);
+		const int clip = (t >= 0) ? Mix.ClipAt(slot, t) : -1;
+		if (Pool.tool_mode == MOVE_TOOL){			// тянем клип по ленте, не делая его активным
+			const MixClip *mc = Mix.Clip(slot, clip);
+			if (mc && Pool.sample_type != NONE){
+				fDragSlot = slot;
+				fDragClip = clip;
+				fDragX0 = p.x;
+				fDragPos0 = mc->pos;
+				SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+			}
+			return;
+		}
+		Tracks_Activate(slot, t, clip);
 		Relayout();
 		Invalidate();
 		return;
@@ -201,11 +257,11 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 	else
 		SetViewCursor(B_CURSOR_SYSTEM_DEFAULT);
 
-	if (fDragSlot >= 0 && Mix.Track(fDragSlot) && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
+	if (fDragSlot >= 0 && Mix.Clip(fDragSlot, fDragClip) && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
 		const double dt = ((double)(Pool.r_pointer - Pool.l_pointer) / Pool.frequency) / Bounds().Width();
-		double off = fDragOffset0 + (p.x - fDragX0) * dt;
-		if (off < 0) off = 0;
-		Mix.SetOffset(fDragSlot, off);			// живой сдвиг: звук неактивной дорожки не копируется
+		double pos = fDragPos0 + (p.x - fDragX0) * dt;
+		if (pos < 0) pos = 0;
+		Mix.SetClipPos(fDragSlot, fDragClip, pos);	// живой сдвиг: звук клипа не копируется
 		Invalidate();
 	}
 }
@@ -213,11 +269,12 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 void LanesView::MouseUp(BPoint)
 {
 	if (fDragSlot >= 0){
-		int slot = fDragSlot;
+		const int slot = fDragSlot, clip = fDragClip;
 		fDragSlot = -1;
-		MixTrack *mt = Mix.Track(slot);
-		if (mt)
-			Tracks_SetOffset(slot, mt->offset);	// лента могла удлиниться: пересобрать активную дорожку
+		fDragClip = -1;
+		const MixClip *mc = Mix.Clip(slot, clip);
+		if (mc)
+			Tracks_MoveClip(slot, clip, mc->pos);	// лента могла удлиниться: пересобрать активный клип
 		Relayout();
 		Invalidate();
 	}
@@ -280,69 +337,13 @@ void LanesView::DrawLane(int slot, BRect lane)
 	const double tr = (double)Pool.r_pointer / Pool.frequency;
 	const double dt = (tr - tl) / W;				// секунд на пиксель
 
-	// центральные линии
-	const bool stereo = (t->channels == 2);
-	const float halfH = stereo ? body.Height() / 2.0f : body.Height();
-	SetHighColor(Prefs.left_color2);
-	// волна
-	if (t->data != NULL && t->frames > 0 && t->rate > 0){
-		for (int ch=0; ch<(stereo ? 2 : 1); ch++){
-			const float top = body.top + ch * halfH;
-			const float mid = top + halfH / 2.0f;
-			const float amp = halfH / 2.0f - 1;
-			SetHighColor(ch == 0 ? Prefs.left_color2 : Prefs.right_color2);
-			StrokeLine(BPoint(body.left, mid), BPoint(body.right, mid));
-			for (int x=0; x<(int)W; x++){
-				double t0 = tl + x * dt - t->offset;
-				double t1 = t0 + dt;
-				if (t1 < 0 || t0 >= (double)t->frames / t->rate)
-					continue;
-				int64 f0 = (int64)floor(t0 * t->rate);
-				int64 f1 = (int64)floor(t1 * t->rate);
-				if (f0 < 0) f0 = 0;
-				if (f1 >= t->frames) f1 = t->frames - 1;
-				if (f1 < f0) f1 = f0;
-				float mn = 0, mx = 0;
-				// при очень крупном шаге берём каждый k-й кадр, чтобы рисовать быстро
-				int64 step = (f1 - f0) / 2048 + 1;
-				const int cc = t->channels;
-				for (int64 f=f0; f<=f1; f+=step){
-					float v = t->data[f * cc + (stereo ? ch : 0)];
-					if (v < mn) mn = v;
-					if (v > mx) mx = v;
-				}
-				if (mx > 1) mx = 1;
-				if (mn < -1) mn = -1;
-				StrokeLine(BPoint(x, mid - mx * amp), BPoint(x, mid - mn * amp));
-			}
-		}
-	}
-
-	// как в Audacity: до начала звука и после его конца - затемнённая «пустая» лента
-	{
-		const double clipStart = t->offset;
-		const double clipEnd = (t->data && t->frames > 0 && t->rate > 0) ? t->offset + (double)t->frames / t->rate : t->offset;
-		float xs = (float)((clipStart - tl) / dt);
-		float xe = (float)((clipEnd - tl) / dt);
-		SetDrawingMode(B_OP_ALPHA);
-		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
-		SetHighColor(0, 0, 0, 110);
-		if (t->data == NULL || t->frames <= 0){
-			FillRect(body);
-		}else{
-			if (xs > 0)
-				FillRect(BRect(body.left, body.top, MIN(xs, body.right), body.bottom));
-			if (xe < W)
-				FillRect(BRect(MAX(xe, body.left), body.top, body.right, body.bottom));
-		}
-		SetDrawingMode(B_OP_COPY);
-		// границы звука
-		if (t->data && t->frames > 0){
-			SetHighColor(make_color(255,255,255));
-			if (xs >= 0 && xs < W) StrokeLine(BPoint(xs, body.top), BPoint(xs, body.bottom));
-			if (xe >= 0 && xe < W) StrokeLine(BPoint(xe, body.top), BPoint(xe, body.bottom));
-		}
-	}
+	// пустая лента затемнена, клипы светлые (как в Audacity)
+	SetDrawingMode(B_OP_ALPHA);
+	SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	SetHighColor(0, 0, 0, 110);
+	FillRect(body);
+	SetDrawingMode(B_OP_COPY);
+	LanesDrawClips(this, slot, body, tl, dt, W);
 
 	// курсор (положение на ленте)
 	if (Pool.selection == NONE && !Pool.IsPlaying()){
@@ -356,7 +357,8 @@ void LanesView::DrawLane(int slot, BRect lane)
 
 	// имя дорожки на верхней полоске, у начала звука (если оно видно) или у левого края
 	SetHighColor(make_color(0,0,0));
-	float nx = (t->data && t->frames > 0) ? (float)((t->offset - tl) / dt) + 4 : 4;
+	const MixClip *first = Mix.Clip(slot, 0);
+	float nx = first ? (float)((first->pos - tl) / dt) + 4 : 4;
 	if (nx < 4) nx = 4;
 	DrawString(t->name, BPoint(nx, lane.top + POINTER_BAR_HEIGHT - 3));
 }

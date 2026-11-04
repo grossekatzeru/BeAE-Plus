@@ -70,6 +70,7 @@
 #define MSG_PROJECT_FOLDER	'prjF'
 #define MSG_PROJECT_NAME	'prjN'
 #define MSG_PROJECT_FILE	'prjP'
+#define MSG_CLIP_COUNT		'cCnt'
 
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
@@ -379,7 +380,7 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 		const bool whole = (Pool.selection == NONE) || cookie->end;
 		const double aRate = (fabs(Pool.frequency) > 1.0) ? fabs(Pool.frequency) : 44100.0;
 		double next = mix_start + (double)(float_size/2) * mix_step;
-		double t_next = next / aRate + (Mix.Track(Mix.Active()) ? Mix.Track(Mix.Active())->offset : 0);
+		double t_next = next / aRate;			// Pool лежит на ленте целиком, смещения нет
 		if (Pool.play_mode == RECORD){
 			// идёт запись: остальные дорожки играют, остановка - только по кнопке «Стоп»
 			cookie->tailing = true;
@@ -648,6 +649,16 @@ void MainWindow::AddMenu()
 	sub->AddItem(new BMenuItem(Language.get("ZERO_RL"), new BMessage(ZERO_RL), KeyBind.GetKey("ZERO_RL"), KeyBind.GetMod("ZERO_RL")));
 	sub->AddItem(new BMenuItem(Language.get("ZERO_RR"), new BMessage(ZERO_RR), KeyBind.GetKey("ZERO_RR"), KeyBind.GetMod("ZERO_RR")));
 	menu->AddItem(sub);
+
+	// клипы активной дорожки
+	sub = new BMenu(Language.get("CLIP_MENU"));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_SPLIT"), new BMessage(CLIP_SPLIT)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
+	sub->AddSeparatorItem();
+	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
+	menu->AddItem(sub);
 	
 	menu->AddSeparatorItem();
 	menu->AddItem(menuItem = new BMenuItem(Language.get("CLEAR"), new BMessage(CLEAR), KeyBind.GetKey("CLEAR"), KeyBind.GetMod("CLEAR")));
@@ -760,8 +771,7 @@ void MainWindow::StartRecording()
 
 	// старт записи на общей шкале времени: позиция курсора в активной дорожке + её смещение
 	{
-		MixTrack *at = Mix.Track(Mix.Active());
-		rec_old_offset = at ? at->offset : 0;
+		rec_old_offset = 0;						// Pool лежит на ленте целиком
 		double rate = (fabs(Pool.frequency) > 1.0) ? fabs(Pool.frequency) : 44100.0;
 		rec_tail_start = (Pool.sample_type != NONE) ? (double)Pool.pointer : 0.0;
 		rec_start_time = rec_old_offset + rec_tail_start / rate;
@@ -1356,6 +1366,35 @@ void MainWindow::MessageReceived(BMessage *message)
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
 		break;
 	}
+
+	case CLIP_SPLIT:
+		if (Tracks_SplitAtCursor()) Pool.changed = true;
+		break;
+	case CLIP_COPY:
+		Tracks_CopyClip();
+		break;
+	case CLIP_PASTE:
+	case MSG_CLIP_COUNT:
+	{
+		int count = 1;
+		if (message->what == MSG_CLIP_COUNT){
+			const char *s = NULL;
+			if (message->FindString("name", &s) != B_OK) break;
+			count = atoi(s);
+			if (count < 1) count = 1;
+			if (count > 200) count = 200;
+		}
+		const double at = (Pool.sample_type != NONE && Pool.frequency > 1.0f) ? (double)Pool.pointer / Pool.frequency : 0.0;
+		if (Tracks_PasteClip(at, count)) Pool.changed = true;
+		break;
+	}
+	case CLIP_PASTE_N:
+		if (Tracks_HasClipboard() && !Recorder.IsRecording())
+			(new ProjectNameWindow(this, MSG_CLIP_COUNT, "2", Language.get("CLIP_COUNT_TITLE"), Language.get("CLIP_COUNT_LABEL")))->Show();
+		break;
+	case CLIP_DELETE:
+		if (Tracks_DeleteClip()) Pool.changed = true;
+		break;
 
 	case PROJECT_NEW:
 		if (Recorder.IsRecording() || Pool.IsChanged()) break;

@@ -339,8 +339,6 @@ bool History::Restore(){
 		break;
 	}
 	
-	if ((action == H_FULL || action == H_EMPTY) && fOffsetTrack >= 0 && fOffsetTrack == Mix.Active())
-		Mix.SetOffset(fOffsetTrack, fOffsetValue);		// undo записи возвращает и смещение дорожки
 	fOffsetTrack = -1;
 
 	m_undo = false;

@@ -81,7 +81,7 @@ void ValuesView::Draw(BRect rect)
 		top += areaTop;
 		bottom += areaTop;
 		if (bottom < areaTop || top > areaTop + area) continue;
-		int type = (slot == Mix.Active()) ? Pool.sample_type : (t->channels == 1 ? MONO : STEREO);
+		int type = (slot == Mix.Active()) ? Pool.sample_type : (Mix.LaneChannels(slot) == 1 ? MONO : STEREO);
 		DrawAxis(BRect(0, top, r.right, bottom), type);
 	}
 	ConstrainClippingRegion(NULL);

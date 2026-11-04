@@ -42,9 +42,10 @@ int main(int argc,char**argv){
 	// запись: Append/Remove
 	int r=m.AddEmptyTrack("rec",2); CHECK(r==2);
 	float a2[4]={.1f,.2f,.3f,.4f};
-	CHECK(m.AppendTrackData(r,a2,2)); CHECK(m.Track(r)->frames==2);
-	CHECK(m.AppendTrackData(r,a2,2)); CHECK(m.Track(r)->frames==4);
-	m.RemoveTrack(r); CHECK(m.Track(r)==NULL);
+	SourceRef sr2=MakeSource(a2,2,2,44100);
+	CHECK(m.AddClip(r,sr2,0,2,0)==0 && m.ClipCount(r)==1);
+	CHECK(m.AddClip(r,sr2,0,2,1.0)==1 && m.ClipCount(r)==2 && sr2.use_count()==3);	// два клипа - один источник
+	m.RemoveTrack(r); CHECK(m.Track(r)==NULL); CHECK(sr2.use_count()==1);
 	m.RemoveTrack(0); CHECK(m.Track(0)!=NULL);
 	// предел числа дорожек
 	int n=0; while(m.AddEmptyTrack("x",1)>=0) n++;
@@ -54,7 +55,7 @@ int main(int argc,char**argv){
 	int a=q.AddEmptyTrack("a",2), b2=q.AddEmptyTrack("b",1);
 	CHECK(a==1 && b2==2);
 	float st[4]={.1f,.2f,.3f,.4f};
-	CHECK(q.SetTrackData(0,st,2,2,44100) && q.Track(0)->frames==2);
+	CHECK(q.AddClip(0,MakeSource(st,2,2,44100),0,2,0)==0 && q.ClipCount(0)==1);
 	q.SetActive(1); CHECK(q.Active()==1);
 	// неактивная дорожка 0 играет, активная (1) - только баланс
 	float o[4]={0}; q.Process(o,2,0,44100,44100,true);
@@ -64,21 +65,54 @@ int main(int argc,char**argv){
 	q.RemoveTrack(1); CHECK(q.Active()==0);
 	// другая частота: дорожка 22050 Гц на выходе 44100 -> каждый кадр дважды (линейная интерполяция)
 	Mixer w; float ramp[4]={0,1,2,3};
-	int rt=w.AddTrack("r",ramp,4,1); w.Track(rt)->rate=22050;
+	int rt=w.AddTrack("r",ramp,4,1,22050);
 	float ob[16]={0}; w.Process(ob,8,0,44100,44100,true);
 	CHECK(fabsf(ob[0]-0)<1e-6 && fabsf(ob[2]-0.5f)<1e-6 && fabsf(ob[4]-1)<1e-6);
 	// смещения: дорожка с offset 1 с, активная без смещения
 	Mixer mo; float one[4]={1,1,1,1};
-	int ot=mo.AddTrack("o",one,4,1); mo.Track(ot)->rate=4;	// 4 кадра при 4 Гц = 1 с
-	mo.SetOffset(ot,1.0);
+	int ot=mo.AddTrack("o",one,4,1,4);	// 4 кадра при 4 Гц = 1 с
+	CHECK(mo.SetClipPos(ot,0,1.0));
 	CHECK(fabsf((float)mo.EndTimeExtras()-2.0f)<1e-6);
 	float s1[8]={0}; mo.Process(s1,4,0,4,4,true);		// t=0..1 с -> тишина
 	CHECK(s1[0]==0 && s1[6]==0);
 	float s2[8]={0}; mo.Process(s2,4,4,4,4,true);		// t=1..2 с -> звук
 	CHECK(fabsf(s2[0]-1)<1e-6 && fabsf(s2[6]-1)<1e-6);
-	mo.SetActive(0); mo.SetOffset(0,1.0);				// у активной смещение 1 с: t=1..2 при activePos 0
-	float s3[8]={0}; mo.Process(s3,4,0,4,4,true);
-	CHECK(fabsf(s3[0]-1)<1e-6);
+	// клипы: разрезание - два клипа одного источника играют без шва
+	{
+		Mixer cm; float ramp8[8]={0,1,2,3,4,5,6,7};
+		SourceRef rs=MakeSource(ramp8,8,1,8);					// 8 кадров при 8 Гц = 1 с
+		int la=cm.AddEmptyTrack("c",1);
+		CHECK(cm.AddClip(la,rs,0,4,0)==0 && cm.AddClip(la,rs,4,4,0.5)==1);	// левая и правая половины
+		cm.SetActive(0);
+		float whole[16]={0}; cm.Process(whole,8,0,8,8,true);
+		// на активной дорожке 0 ничего нет, а дорожка la играет обе половины подряд
+		float chk[16]={0}; cm.SetActive(la); cm.Process(chk,8,0,8,8,true);
+		for(int i=0;i<8;i++) CHECK(fabsf(chk[2*i]-(float)i)<1e-5);
+		CHECK(cm.ClipAt(la,0.25)==0 && cm.ClipAt(la,0.75)==1 && cm.ClipAt(la,1.5)==-1);
+		// копии: три раза подряд один и тот же кусок
+		Mixer km; float blip[4]={1,1,1,1};
+		SourceRef bs=MakeSource(blip,4,1,4);						// 1 с при 4 Гц
+		int kl=km.AddEmptyTrack("k",1);
+		for(int i=0;i<3;i++) CHECK(km.AddClip(kl,bs,0,4,2.0*i)>=0);	// в 0, 2 и 4 с
+		CHECK(bs.use_count()==4 && fabsf((float)km.EndTimeExtras()-5.0f)<1e-6);
+		float k1[8]={0}; km.Process(k1,4,8,4,4,true);				// t=2..3 с: вторая копия
+		CHECK(fabsf(k1[0]-1)<1e-6 && fabsf(k1[6]-1)<1e-6);
+		float k2[8]={0}; km.Process(k2,4,4,4,4,true);				// t=1..2 с: пауза между копиями
+		CHECK(k2[0]==0 && k2[6]==0);
+		// клип уходит в Pool: TakeClip убирает его из микшера, ссылка на источник остаётся у забравшего
+		MixClip took; CHECK(km.TakeClip(kl,1,took) && km.ClipCount(kl)==2 && took.src==bs);
+		// диапазон клипа
+		CHECK(km.SetClipRange(kl,0,1,2) && km.Clip(kl,0)->start==1 && km.Clip(kl,0)->len==2);
+		CHECK(!km.SetClipRange(kl,0,3,2));						// за пределами источника
+		// другой клип на активной дорожке складывается с буфером активного клипа
+		Mixer am; float one4[4]={.25f,.25f,.25f,.25f};
+		am.AddClip(0,MakeSource(one4,4,1,4),0,4,0);
+		float ab[8]={1,1,1,1,1,1,1,1}; am.Process(ab,4,0,4,4,true);
+		CHECK(fabsf(ab[0]-1.25f)<1e-6);
+		// ResetAll освобождает клипы
+		SourceRef rr=MakeSource(one4,4,1,4); am.AddClip(0,rr,0,4,1.0); CHECK(rr.use_count()==2);
+		am.ResetAll(); CHECK(rr.use_count()==1 && am.ClipCount(0)==0);
+	}
 	// эффекты: плагин amp (из tests/ladspa) на неактивной и на активной дорожке
 	if(argc>1){
 		std::vector<std::string> dirs(1,argv[1]);

@@ -228,9 +228,11 @@ void TrackPanelView::Draw(BRect update)
 			SetHighColor(0, 0, 0);
 			SetLowColor(255, 255, 255);
 			float room = nb.Width() - 8;
-			if (t->offset > 0.0005){
+			const double laneOff = (i == active) ? (Pool.frequency > 1.0f ? (double)Pool.pad_lead / Pool.frequency : 0.0)
+				: (Mix.Clip(i, 0) ? Mix.Clip(i, 0)->pos : 0.0);
+			if (laneOff > 0.0005){
 				char off[24];
-				snprintf(off, sizeof(off), "+%.3f s", t->offset);
+				snprintf(off, sizeof(off), "+%.3f s", laneOff);
 				SetHighColor(110, 110, 110);
 				DrawString(off, BPoint(nb.right - 4 - StringWidth(off), nb.bottom - 4));
 				room -= StringWidth(off) + 6;
