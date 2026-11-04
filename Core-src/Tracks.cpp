@@ -10,6 +10,7 @@
 #include "History.h"
 #include "Mixer.h"
 #include "Tracks.h"
+#include "ProjectIO.h"
 #include "AudioRecorder.h"
 
 extern cookie_record play_cookie;
@@ -250,11 +251,52 @@ static void StopAll()
 		Pool.player->Stop();
 }
 
+// ---- отмена операций с клипами: стек снимков раскладки (клипы всех дорожек) ----
+struct LayoutSnap {
+	std::vector<MixClip> lane[MIX_MAX_TRACKS];
+};
+static std::vector<LayoutSnap> gUndo;
+#define CLIP_UNDO_DEPTH	100
+
+static void CaptureLayout(LayoutSnap &s)
+{
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		s.lane[i].clear();
+		if (!Mix.Track(i)) continue;
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			s.lane[i].push_back(*Mix.Clip(i, k));
+	}
+}
+
+// одинаковый набор клипов (порядок не важен: переключение дорожки переставляет клипы)
+static bool SameLayout(const LayoutSnap &a, const LayoutSnap &b)
+{
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		if (a.lane[i].size() != b.lane[i].size()) return false;
+		std::vector<bool> used(b.lane[i].size(), false);
+		for (size_t x = 0; x < a.lane[i].size(); x++){
+			bool found = false;
+			for (size_t y = 0; y < b.lane[i].size() && !found; y++){
+				if (used[y]) continue;
+				const MixClip &p = a.lane[i][x], &q = b.lane[i][y];
+				if (p.src.get() == q.src.get() && p.start == q.start && p.len == q.len && fabs(p.pos - q.pos) < 1e-9){
+					used[y] = true; found = true;
+				}
+			}
+			if (!found) return false;
+		}
+	}
+	return true;
+}
+
+bool Tracks_CanUndo() { return !gUndo.empty(); }
+void Tracks_ClearUndo() { gUndo.clear(); }
+
 // Общая часть всех правок структуры: убрать активный клип в микшер, выполнить правку (op получает
 // индекс убранного клипа или -1), собрать Pool заново вокруг клипа, который вернёт op (-1 - никакого).
 // Окно волны и курсор сохраняются (по времени).
 template <class Op>
-static bool Restructure(Op op, bool resetUndo = true)
+static bool Restructure(Op op, bool resetUndo = true, bool record = true)
 {
 	if (Recorder.IsRecording())
 		return false;
@@ -262,7 +304,17 @@ static bool Restructure(Op op, bool resetUndo = true)
 	StopAll();
 	int stashed = StashActive();
 	int lane = Mix.Active();
+	LayoutSnap before;
+	if (record) CaptureLayout(before);
 	int toLoad = op(lane, stashed, view);
+	if (record){
+		LayoutSnap after;
+		CaptureLayout(after);
+		if (!SameLayout(before, after)){
+			gUndo.push_back(before);
+			if (gUndo.size() > CLIP_UNDO_DEPTH) gUndo.erase(gUndo.begin());
+		}
+	}
 	if (toLoad < -1)
 		toLoad = -1;
 	if (!Load(lane, toLoad)){
@@ -364,7 +416,8 @@ double Tracks_Offset(int index)
 // пересобрать активную дорожку под текущую ленту (например, после удаления дорожки)
 static void Reload()
 {
-	Restructure([](int, int stashed, const ViewState&){ return stashed; });
+	gUndo.clear();							// число дорожек изменилось - прежние снимки не годятся
+	Restructure([](int, int stashed, const ViewState&){ return stashed; }, true, false);
 }
 
 bool Tracks_SetOffset(int index, double seconds)
@@ -403,6 +456,7 @@ bool Tracks_ActiveRange(int64 &first, int64 &last)
 
 int Tracks_Add()
 {
+	gUndo.clear();
 	char name[32];
 	snprintf(name, sizeof(name), "Track %d", Mix.TrackCount()+1);
 	return Mix.AddEmptyTrack(name, 2);
@@ -421,6 +475,7 @@ void Tracks_RemoveActive()
 		if (i != a && Mix.Track(i)) other = i;
 	if (other < 0 || !Tracks_Activate(other))
 		return;
+	gUndo.clear();
 	if (a >= 1){
 		Mix.RemoveTrack(a);
 	}else{
@@ -486,6 +541,7 @@ bool Tracks_ActiveClipSpan(double &start, double &end)
 
 void Tracks_BeginProject()
 {
+	gUndo.clear();
 	StopAll();
 	Hist.Reset();
 	Mix.ResetAll();
@@ -534,6 +590,40 @@ bool Tracks_SplitAtCursor()
 	return done;
 }
 
+bool Tracks_Undo()
+{
+	if (gUndo.empty() || Recorder.IsRecording())
+		return false;
+	const LayoutSnap s = gUndo.back();
+	gUndo.pop_back();
+	return Restructure([&](int lane, int, const ViewState &view){
+		for (int i = 0; i < MIX_MAX_TRACKS; i++){
+			if (!Mix.Track(i)) continue;
+			Mix.ClearClips(i);
+			for (size_t k = 0; k < s.lane[i].size(); k++){
+				const MixClip &c = s.lane[i][k];
+				Mix.AddClip(i, c.src, c.start, c.len, c.pos);
+			}
+		}
+		return ChooseClip(lane, view.tp);
+	}, true, false);
+}
+
+// Активный клип - в файл WAV (32-бит float), оригинал не трогаем
+bool Tracks_SaveActiveClip(const char *path, BString &err)
+{
+	if (!PoolHasSound()){ err = "No clip"; return false; }
+	std::vector<MixClip> v = Tracks_LaneClips(Mix.Active());
+	if (v.empty() || !v.back().src){ err = "No clip"; return false; }
+	const MixClip &c = v.back();
+	const int ch = c.src->channels;
+	if (!WavWriteFloat(path, c.src->data + c.start * ch, c.len, ch, c.src->rate)){
+		err = "Cannot write "; err << path;
+		return false;
+	}
+	return true;
+}
+
 bool Tracks_CopyClip()
 {
 	if (!PoolHasSound())
@@ -544,7 +634,7 @@ bool Tracks_CopyClip()
 		const MixClip *c = Mix.Clip(lane, stashed);
 		if (c){ gClipboard = *c; ok = true; }
 		return stashed;
-	}, false);
+	}, false, false);
 	return ok;
 }
 

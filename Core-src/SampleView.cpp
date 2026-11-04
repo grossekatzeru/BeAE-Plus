@@ -461,9 +461,10 @@ void SampleView::MouseDown(BPoint p)
 				menu->AddItem(new BMenuItem(Language.get("CLIP_COPY"), new BMessage(CLIP_COPY), KeyBind.GetKey("COPY"), KeyBind.GetMod("COPY")));
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE"), new BMessage(CLIP_PASTE), KeyBind.GetKey("PASTE"), KeyBind.GetMod("PASTE")));
 				menuItem->SetEnabled(Tracks_HasClipboard());
-				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N), KeyBind.GetKey("CLIP_PASTE_N"), KeyBind.GetMod("CLIP_PASTE_N")));
 				menuItem->SetEnabled(Tracks_HasClipboard());
 				menu->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
+				menu->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
 				#ifdef __SAMPLE_STUDIO_LE
 					menu->AddItem(menuItem = new BMenuItem(Language.get("EDIT_PASTE_MIX"), new BMessage(PASTE_MIXED), KeyBind.GetKey("EDIT_PASTE_MIX"), KeyBind.GetMod("EDIT_PASTE_MIX")));
 					menuItem->SetEnabled(ClipBoard.HasClip());

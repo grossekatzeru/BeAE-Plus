@@ -135,7 +135,7 @@ void ToolBarView::Update()
 	tool[10]->SetEnabled(Pool.sample_type != NONE);					// cut = разрезать клип
 	tool[11]->SetEnabled(Pool.sample_type != NONE);					// copy = копировать клип
 
-	tool[8]->SetEnabled(Hist.HasUndo());							// need history class for this
+	tool[8]->SetEnabled(Hist.HasUndo() || Tracks_CanUndo());							// need history class for this
 
 #ifdef __SAMPLE_STUDIO_LE
 	tool[9]->SetEnabled(Hist.HasRedo());							// need history class for this

@@ -12,6 +12,7 @@
 
 #include <SupportDefs.h>
 #include <vector>
+#include <String.h>
 #include "Mixer.h"
 
 #define DEFAULT_TRACKS	4
@@ -40,6 +41,10 @@ bool	Tracks_CopyClip();
 bool	Tracks_HasClipboard();
 bool	Tracks_PasteClip(double timePos, int count);
 bool	Tracks_DeleteClip();
+bool	Tracks_CanUndo();						// есть что отменить (операции с клипами)
+bool	Tracks_Undo();							// отменить последнюю операцию с клипами
+void	Tracks_ClearUndo();
+bool	Tracks_SaveActiveClip(const char *path, BString &err);	// активный клип в WAV-файл
 void	Tracks_BeginProject();					// очистить всё перед открытием проекта
 void	Tracks_FinishProject();					// после заполнения микшера: показать дорожку 0
 

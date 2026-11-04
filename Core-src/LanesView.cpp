@@ -299,8 +299,12 @@ void LanesView::MouseUp(BPoint)
 		fDragSlot = -1;
 		fDragClip = -1;
 		const MixClip *mc = Mix.Clip(slot, clip);
-		if (mc)
-			Tracks_MoveClip(slot, clip, mc->pos);	// лента могла удлиниться: пересобрать активный клип
+		if (mc){
+			const double np = mc->pos;
+			if (np != fDragPos0) Mix.SetClipPos(slot, clip, fDragPos0);	// вернуть старое: так в отмену попадёт исходная раскладка
+			Tracks_MoveClip(slot, clip, np);		// лента могла удлиниться: пересобрать активный клип
+			Pool.changed = true;
+		}
 		Relayout();
 		Invalidate();
 	}

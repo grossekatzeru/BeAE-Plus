@@ -107,6 +107,16 @@ void Shortcut::Init(){
 			i++;
 		}
 	}
+
+	// Сохранённые настройки клавиш старше клипов: перенести клавиши на работу с клипами
+	key_bind *kb = FindKB("CLEAR");
+	if (kb && kb->keyAlt == B_DELETE){ kb->keyAlt = 0; kb->modAlt = 0; }		// Delete - удаление клипа
+	kb = FindKB("PASTE_NEW");
+	if (kb && kb->key == 'V' && kb->mod == (B_COMMAND_KEY | B_SHIFT_KEY)){ kb->key = 0; kb->mod = 0; }	// Shift+V - вставить клип N раз
+	kb = FindKB("CLIP_PASTE_N");
+	if (kb && kb->key == 0 && kb->keyAlt == 0){ kb->key = 'V'; kb->mod = B_COMMAND_KEY | B_SHIFT_KEY; }
+	kb = FindKB("CLIP_DELETE");
+	if (kb && kb->key == 0 && kb->keyAlt == 0){ kb->keyAlt = B_DELETE; kb->modAlt = 0; }
 }
 
 /*******************************************************
@@ -322,11 +332,14 @@ void Shortcut::InstallDefaults(){
 	Install(1,"COPY_SILENCE",		'X', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							COPY_SILENCE	);
 	Install(1,"CUT",				'X', B_COMMAND_KEY,					  0, 0,							B_CUT			);
 	Install(1,"PASTE",			  	'V', B_COMMAND_KEY,					  0, 0,							B_PASTE			);
-	Install(1,"PASTE_NEW",			'V', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							PASTE_NEW		);
+	Install(1,"PASTE_NEW",			  0, 0,								  0, 0,							PASTE_NEW		);	// старая вставка «как новый» больше не нужна
+	Install(1,"CLIP_PASTE_N",		'V', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							CLIP_PASTE_N	);
+	Install(1,"CLIP_DELETE",		  0, 0,						   B_DELETE, 0,							CLIP_DELETE		);
+	Install(1,"CLIP_SAVE",			  0, 0,								  0, 0,							CLIP_SAVE		);
 #ifdef __SAMPLE_STUDIO_LE
 	Install(1,"EDIT_PASTE_MIX",		'V', B_COMMAND_KEY | B_CONTROL_KEY,	  0, 0,							PASTE_MIXED		);
 #endif
-	Install(1,"CLEAR",				'B', B_COMMAND_KEY,			   B_DELETE, 0,							CLEAR			);
+	Install(1,"CLEAR",				'B', B_COMMAND_KEY,					  0, 0,							CLEAR			);	// Delete теперь удаляет клип
 #ifdef __SAMPLE_STUDIO_LE
 	Install(1,"COPY_TO_STACK",		'C', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							TO_STACK		);
 #endif

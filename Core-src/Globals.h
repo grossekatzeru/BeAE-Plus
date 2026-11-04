@@ -110,6 +110,7 @@ enum {MONO=1, STEREO=2};
 #define CLIP_PASTE			'cPas'
 #define CLIP_PASTE_N		'cPsN'
 #define CLIP_DELETE			'cDel'
+#define CLIP_SAVE			'cSav'
 #define OPEN_MIX			'opnM'
 #define HELP				'help'
 #define ABOUT				'bout'

@@ -71,10 +71,12 @@
 #define MSG_PROJECT_NAME	'prjN'
 #define MSG_PROJECT_FILE	'prjP'
 #define MSG_CLIP_COUNT		'cCnt'
+#define MSG_CLIP_FILE		'cFil'
 
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
 static BFilePanel *gMixdownPanel = NULL;
+static BFilePanel *gClipSavePanel = NULL;
 static BPath	   gProjParent;
 
 cookie_record play_cookie;
@@ -648,8 +650,10 @@ void MainWindow::AddMenu()
 
 	// клипы активной дорожки
 	sub = new BMenu(Language.get("CLIP_MENU"));
-	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N), KeyBind.GetKey("CLIP_PASTE_N"), KeyBind.GetMod("CLIP_PASTE_N")));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
+	sub->AddSeparatorItem();
+	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
 	menu->AddItem(sub);
 	
 	menu->AddSeparatorItem();
@@ -1370,6 +1374,33 @@ void MainWindow::MessageReceived(BMessage *message)
 		Pool.UpdateToolBar();
 		break;
 	}
+	case CLIP_SAVE:
+		if (Pool.sample_type == NONE || Recorder.IsRecording()) break;
+		if (gClipSavePanel == NULL){
+			gClipSavePanel = new BFilePanel(B_SAVE_PANEL, new BMessenger(this), NULL, 0, false, new BMessage(MSG_CLIP_FILE));
+			gClipSavePanel->Window()->SetTitle(Language.get("SAVE_CLIP_TITLE"));
+		}
+		{
+			BString n(Mix.Track(Mix.Active()) ? Mix.Track(Mix.Active())->name : "clip");
+			n << "_clip.wav";
+			gClipSavePanel->SetSaveText(n.String());
+		}
+		gClipSavePanel->Show();
+		break;
+
+	case MSG_CLIP_FILE:
+	{
+		entry_ref dir;
+		const char *name = NULL;
+		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
+		BPath p(&dir);
+		p.Append(name);
+		BString err;
+		if (!Tracks_SaveActiveClip(p.Path(), err))
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		break;
+	}
+
 	case CLIP_PASTE_N:
 		if (Tracks_HasClipboard() && !Recorder.IsRecording())
 			(new ProjectNameWindow(this, MSG_CLIP_COUNT, "2", Language.get("CLIP_COUNT_TITLE"), Language.get("CLIP_COUNT_LABEL")))->Show();

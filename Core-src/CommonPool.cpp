@@ -456,7 +456,7 @@ void CommonPool::UpdateMenu()
 	mn_copy->SetEnabled(sample_type != NONE);			// copy = копировать клип
 	mn_clear->SetEnabled(selection != NONE);			// clear
 	mn_undo_enable->SetMarked(Prefs.save_undo);			// undo enabled
-	mn_undo->SetEnabled(Hist.HasUndo());				// need history class for this
+	mn_undo->SetEnabled(Hist.HasUndo() || Tracks_CanUndo());				// need history class for this
 	mn_paste->SetEnabled(Tracks_HasClipboard());		// paste = вставить клип
 #ifdef __SAMPLE_STUDIO_LE
 	mn_paste_mix->SetEnabled(ClipBoard.HasClip());
@@ -545,6 +545,11 @@ void CommonPool::SaveUndo()
 
 void CommonPool::Undo()
 {
+	if (!Hist.HasUndo() && Tracks_CanUndo()){		// правки звука отменены - дальше отменяем операции с клипами
+		if (Tracks_Undo()) changed = true;
+		UpdateToolBar();
+		return;
+	}
 	int32 type = sample_type;
 	Hist.Restore();
 	if (type != sample_type) {
