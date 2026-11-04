@@ -324,9 +324,7 @@ void Shortcut::InstallDefaults(){
 	// edit menu
 	Install(0,"EDIT_MENU2",	  		  0, 0,								  0, 0,							SPLITTER		);
 	Install(1,"UNDO",				'Z', B_COMMAND_KEY,					  0, 0,							UNDO			);
-#ifdef __SAMPLE_STUDIO_LE
 	Install(1,"REDO",				'Z', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							REDO			);
-#endif
 	Install(1,"UNDO_ENABLE",		'Z', B_COMMAND_KEY | B_CONTROL_KEY,	  0, 0,							UNDO_ENABLE		);
 	Install(1,"COPY",				'C', B_COMMAND_KEY,					  0, 0,							B_COPY			);
 	Install(1,"COPY_SILENCE",		'X', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							COPY_SILENCE	);

@@ -137,8 +137,8 @@ void ToolBarView::Update()
 
 	tool[8]->SetEnabled(Hist.HasUndo() || Tracks_CanUndo());							// need history class for this
 
+	tool[9]->SetEnabled(Tracks_CanRedo());							// вернуть отменённую операцию с клипами
 #ifdef __SAMPLE_STUDIO_LE
-	tool[9]->SetEnabled(Hist.HasRedo());							// need history class for this
 	tool[14]->SetEnabled(Pool.selection != NONE);					// copy to stack
 	tool[13]->SetEnabled(ClipBoard.HasClip());
 #endif
@@ -202,10 +202,8 @@ void ToolBarView::AttachedToWindow()
 	r.OffsetBy(25+8,0);
 	AddChild( tool[8] = ToolBarButton( r, 8, Language.get("UNDO"), new BMessage(UNDO), B_ONE_STATE_BUTTON, this));
 	r.OffsetBy(25,0);
-#ifdef __SAMPLE_STUDIO_LE
 	AddChild( tool[9] = ToolBarButton( r, 9, Language.get("REDO"), new BMessage(REDO), B_ONE_STATE_BUTTON, this));
 	r.OffsetBy(25,0);
-#endif
 	AddChild( tool[10] = ToolBarButton( r, 10, Language.get("CUT"), new BMessage(B_CUT), B_ONE_STATE_BUTTON, this));
 	r.OffsetBy(25,0);
 	AddChild( tool[11] = ToolBarButton( r, 11, Language.get("COPY"), new BMessage(B_COPY), B_ONE_STATE_BUTTON, this));

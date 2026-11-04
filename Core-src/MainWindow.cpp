@@ -611,10 +611,8 @@ void MainWindow::AddMenu()
 	mainMenuBar->AddItem(menu);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("UNDO"), new BMessage(UNDO), KeyBind.GetKey("UNDO"), KeyBind.GetMod("UNDO")));
 	Pool.mn_undo = menuItem;
-#ifdef __SAMPLE_STUDIO_LE
 	menu->AddItem(menuItem = new BMenuItem(Language.get("REDO"), new BMessage(REDO), KeyBind.GetKey("REDO"), KeyBind.GetMod("REDO")));
 	Pool.mn_redo = menuItem;
-#endif
 	menu->AddItem(menuItem = new BMenuItem(Language.get("UNDO_ENABLE"), new BMessage(UNDO_ENABLE), KeyBind.GetKey("UNDO_ENABLE"), KeyBind.GetMod("UNDO_ENABLE")));
 	Pool.mn_undo_enable = menuItem;
 	menuItem->SetMarked(Prefs.save_undo);
@@ -1062,6 +1060,11 @@ void MainWindow::MessageReceived(BMessage *message)
 	
 	case UNDO:
 		Pool.Undo();
+		break;
+
+	case REDO:
+		if (Tracks_Redo()) Pool.changed = true;
+		Pool.UpdateToolBar();
 		break;
 		
 	case B_SELECT_ALL:

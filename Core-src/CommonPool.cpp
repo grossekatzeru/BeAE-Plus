@@ -458,9 +458,9 @@ void CommonPool::UpdateMenu()
 	mn_undo_enable->SetMarked(Prefs.save_undo);			// undo enabled
 	mn_undo->SetEnabled(Hist.HasUndo() || Tracks_CanUndo());				// need history class for this
 	mn_paste->SetEnabled(Tracks_HasClipboard());		// paste = вставить клип
+	mn_redo->SetEnabled(Tracks_CanRedo());
 #ifdef __SAMPLE_STUDIO_LE
 	mn_paste_mix->SetEnabled(ClipBoard.HasClip());
-	mn_redo->SetEnabled(Hist.HasRedo());				// need history class for this
 	mn_copy_to_stack->SetEnabled(selection != NONE);	// copy to stack
 #endif
 

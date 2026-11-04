@@ -42,6 +42,8 @@ bool	Tracks_HasClipboard();
 bool	Tracks_PasteClip(double timePos, int count);
 bool	Tracks_DeleteClip();
 bool	Tracks_CanUndo();						// есть что отменить (операции с клипами)
+bool	Tracks_CanRedo();
+bool	Tracks_Redo();							// вернуть отменённую операцию с клипами
 bool	Tracks_Undo();							// отменить последнюю операцию с клипами
 void	Tracks_ClearUndo();
 bool	Tracks_SaveActiveClip(const char *path, BString &err);	// активный клип в WAV-файл

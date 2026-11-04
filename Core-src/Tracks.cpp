@@ -255,7 +255,7 @@ static void StopAll()
 struct LayoutSnap {
 	std::vector<MixClip> lane[MIX_MAX_TRACKS];
 };
-static std::vector<LayoutSnap> gUndo;
+static std::vector<LayoutSnap> gUndo, gRedo;
 #define CLIP_UNDO_DEPTH	100
 
 static void CaptureLayout(LayoutSnap &s)
@@ -290,7 +290,8 @@ static bool SameLayout(const LayoutSnap &a, const LayoutSnap &b)
 }
 
 bool Tracks_CanUndo() { return !gUndo.empty(); }
-void Tracks_ClearUndo() { gUndo.clear(); }
+bool Tracks_CanRedo() { return !gRedo.empty(); }
+void Tracks_ClearUndo() { gUndo.clear(); gRedo.clear(); }
 
 // Общая часть всех правок структуры: убрать активный клип в микшер, выполнить правку (op получает
 // индекс убранного клипа или -1), собрать Pool заново вокруг клипа, который вернёт op (-1 - никакого).
@@ -312,6 +313,7 @@ static bool Restructure(Op op, bool resetUndo = true, bool record = true)
 		CaptureLayout(after);
 		if (!SameLayout(before, after)){
 			gUndo.push_back(before);
+			gRedo.clear();							// новая правка обрывает цепочку «вернуть»
 			if (gUndo.size() > CLIP_UNDO_DEPTH) gUndo.erase(gUndo.begin());
 		}
 	}
@@ -416,7 +418,7 @@ double Tracks_Offset(int index)
 // пересобрать активную дорожку под текущую ленту (например, после удаления дорожки)
 static void Reload()
 {
-	gUndo.clear();							// число дорожек изменилось - прежние снимки не годятся
+	gUndo.clear(); gRedo.clear();							// число дорожек изменилось - прежние снимки не годятся
 	Restructure([](int, int stashed, const ViewState&){ return stashed; }, true, false);
 }
 
@@ -456,7 +458,7 @@ bool Tracks_ActiveRange(int64 &first, int64 &last)
 
 int Tracks_Add()
 {
-	gUndo.clear();
+	gUndo.clear(); gRedo.clear();
 	char name[32];
 	snprintf(name, sizeof(name), "Track %d", Mix.TrackCount()+1);
 	return Mix.AddEmptyTrack(name, 2);
@@ -475,7 +477,7 @@ void Tracks_RemoveActive()
 		if (i != a && Mix.Track(i)) other = i;
 	if (other < 0 || !Tracks_Activate(other))
 		return;
-	gUndo.clear();
+	gUndo.clear(); gRedo.clear();
 	if (a >= 1){
 		Mix.RemoveTrack(a);
 	}else{
@@ -541,7 +543,7 @@ bool Tracks_ActiveClipSpan(double &start, double &end)
 
 void Tracks_BeginProject()
 {
-	gUndo.clear();
+	gUndo.clear(); gRedo.clear();
 	StopAll();
 	Hist.Reset();
 	Mix.ResetAll();
@@ -590,13 +592,13 @@ bool Tracks_SplitAtCursor()
 	return done;
 }
 
-bool Tracks_Undo()
+// Заменить раскладку клипов на снимок; текущую - положить в стек to
+static bool ApplyLayout(const LayoutSnap &s, std::vector<LayoutSnap> &to)
 {
-	if (gUndo.empty() || Recorder.IsRecording())
-		return false;
-	const LayoutSnap s = gUndo.back();
-	gUndo.pop_back();
 	return Restructure([&](int lane, int, const ViewState &view){
+		LayoutSnap cur;
+		CaptureLayout(cur);
+		to.push_back(cur);
 		for (int i = 0; i < MIX_MAX_TRACKS; i++){
 			if (!Mix.Track(i)) continue;
 			Mix.ClearClips(i);
@@ -607,6 +609,24 @@ bool Tracks_Undo()
 		}
 		return ChooseClip(lane, view.tp);
 	}, true, false);
+}
+
+bool Tracks_Undo()
+{
+	if (gUndo.empty() || Recorder.IsRecording())
+		return false;
+	const LayoutSnap s = gUndo.back();
+	gUndo.pop_back();
+	return ApplyLayout(s, gRedo);
+}
+
+bool Tracks_Redo()
+{
+	if (gRedo.empty() || Recorder.IsRecording())
+		return false;
+	const LayoutSnap s = gRedo.back();
+	gRedo.pop_back();
+	return ApplyLayout(s, gUndo);
 }
 
 // Активный клип - в файл WAV (32-бит float), оригинал не трогаем
