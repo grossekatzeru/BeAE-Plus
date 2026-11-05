@@ -2,19 +2,41 @@
 #include <math.h>
 #include <stdint.h>
 
-#define UNITS	32			// долей в такте (32-е ноты)
-
 Metronome::Metronome() : fRate(0) {}
 
-Metronome::Kind Metronome::KindAt(int pos)
+const char *Metronome::MeterName(int meter)
 {
-	pos &= UNITS - 1;
+	static const char *n[METER_COUNT] = { "4/4", "3/4", "6/8", "2/4" };
+	return (meter >= 0 && meter < METER_COUNT) ? n[meter] : n[0];
+}
+
+int Metronome::BarUnits(int meter)
+{
+	static const int u[METER_COUNT] = { 32, 24, 24, 16 };
+	return (meter >= 0 && meter < METER_COUNT) ? u[meter] : 32;
+}
+
+int Metronome::StepUnits(int div)
+{
+	switch (div) {
+	case 1: case 2: case 4: case 8: case 16: case 32:	return 32 / div;
+	}
+	return 0;
+}
+
+Metronome::Kind Metronome::KindAt(int meter, int pos)
+{
+	const int bar = BarUnits(meter);
+	pos %= bar;
 	if (pos == 0) return KICK;
-	if (pos == UNITS / 2) return SNARE;
-	if (pos % 8 == 0) return HAT_QUARTER;
-	if (pos % 4 == 0) return HAT_EIGHTH;
-	if (pos % 2 == 0) return HAT_SIXTEENTH;
-	return HAT_THIRTYSECOND;
+	if (meter == M44 && pos == 16) return SNARE;
+	if (meter == M68 && pos == 12) return SNARE;
+	if (meter == M24 && pos == 8) return SNARE;
+	if (meter == M34 && (pos == 8 || pos == 16)) return SNARE;
+	const int base = (meter == M68) ? 4 : 8;						// главная доля хай-хета: восьмая в 6/8, иначе четверть
+	int level = 0;
+	for (int u = base; u > 1 && pos % u != 0; u /= 2) level++;
+	return (Kind)(HAT_QUARTER + (level > 3 ? 3 : level));
 }
 
 void Metronome::Prepare(double rate)
@@ -65,15 +87,15 @@ void Metronome::Prepare(double rate)
 	}
 }
 
-void Metronome::Render(float *buf, int frames, double t0, double sysRate, double bpm, int div)
+void Metronome::Render(float *buf, int frames, double t0, double sysRate, double bpm, int meter, int div, float gain)
 {
-	if (frames <= 0 || sysRate <= 1.0 || bpm <= 0) return;
-	if (div < 1) div = 1;
-	if (div > UNITS) div = UNITS;
+	if (frames <= 0 || sysRate <= 1.0 || bpm <= 0 || gain <= 0) return;
+	int stepUnits = StepUnits(div);
+	if (stepUnits <= 0) return;
+	const int bar = BarUnits(meter);
 	Prepare(sysRate);
 
-	const double unit = (4.0 * 60.0 / bpm) / UNITS;		// секунд в одной 32-й доле
-	const int stepUnits = UNITS / div;
+	const double unit = (60.0 / bpm) / 8.0;				// секунд в одной 32-й доле
 	const double step = unit * stepUnits;
 	const double tEnd = t0 + frames / sysRate;
 	const double maxLen = 0.25;							// дольше любой звук не звучит
@@ -81,15 +103,15 @@ void Metronome::Render(float *buf, int frames, double t0, double sysRate, double
 	if (n0 < 0) n0 = 0;
 	for (long long n = n0; n * step < tEnd; n++) {
 		const double th = n * step;
-		const int pos = (int)((n * stepUnits) % UNITS);
-		const std::vector<float> &s = fSound[KindAt(pos)];
+		const int pos = (int)((n * stepUnits) % bar);
+		const std::vector<float> &s = fSound[KindAt(meter, pos)];
 		const long long off = (long long)floor((th - t0) * sysRate + 0.5);
 		long long j0 = off < 0 ? -off : 0;
 		for (long long j = j0; j < (long long)s.size(); j++) {
 			const long long fr = off + j;
 			if (fr >= frames) break;
-			buf[2 * fr] += s[j];
-			buf[2 * fr + 1] += s[j];
+			buf[2 * fr] += s[j] * gain;
+			buf[2 * fr + 1] += s[j] * gain;
 		}
 	}
 }

@@ -164,7 +164,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	BString json;
 	json << "{\n  \"format\": \"BeMIX\",\n  \"version\": 2,\n  \"name\": \"" << JsonEscape(name).c_str() << "\",\n";
 	json << "  \"active\": " << Mix.Active() << ",\n";
-	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"grid_div\": " << Mix.GridDiv() << ",\n";
+	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"meter\": \"" << Metronome::MeterName(Mix.Meter()) << "\",\n  \"grid_div\": " << Mix.GridDiv() << ",\n  \"metro_volume\": " << Num(Mix.MetroVolume()) << ",\n";
 	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
 	json << "  \"tracks\": [\n" << trk << "\n  ]\n}\n";
 
@@ -217,7 +217,13 @@ bool Project_Open(const char *bemixPath, BString &err)
 
 	Tracks_BeginProject();
 	Mix.SetBpm(doc.Number("bpm", 120.0));
+	{	// размер раньше глубины: допустимые глубины зависят от размера
+		const std::string m = doc.String("meter", "4/4");
+		for (int k = 0; k < Metronome::METER_COUNT; k++)
+			if (m == Metronome::MeterName(k)) Mix.SetMeter(k);
+	}
 	Mix.SetGridDiv((int)doc.Number("grid_div", 4));
+	Mix.SetMetroVolume((float)doc.Number("metro_volume", 0.7));
 	BString warnings;
 	std::map<int, SourceRef> sources;			// id -> источник (версия 2)
 	const JValue *jsrc = doc.Get("sources");

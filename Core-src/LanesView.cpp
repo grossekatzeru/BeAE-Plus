@@ -33,6 +33,7 @@ void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W
 	while (step / dt < 6.0)					// слишком густо: прореживаем вдвое
 		step *= 2.0;
 	const double beat = 60.0 / Mix.Bpm();
+	const double bar = Mix.BarLength();
 	v->SetDrawingMode(B_OP_ALPHA);
 	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
 	for (long long k = (long long)floor(tl / step); k * step <= tl + W * dt + step; k++){
@@ -44,6 +45,19 @@ void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W
 		const bool onBeat = fabs(r - floor(r + 0.5)) < 1e-6;
 		v->SetHighColor(255, 255, 255, onBeat ? 90 : 40);
 		v->StrokeLine(BPoint(body.left + x, body.top), BPoint(body.left + x, body.bottom));
+	}
+	// начало каждого такта: чуть толще и тёплым цветом, чтобы было видно, но не кричало
+	if (bar / dt >= 8.0){
+		v->SetPenSize(2);
+		v->SetHighColor(255, 200, 90, 120);
+		for (long long k = (long long)floor(tl / bar); k * bar <= tl + W * dt + bar; k++){
+			const double t0 = k * bar;
+			if (t0 < 0) continue;
+			const float x = (float)((t0 - tl) / dt);
+			if (x < 0 || x > W) continue;
+			v->StrokeLine(BPoint(body.left + x, body.top), BPoint(body.left + x, body.bottom));
+		}
+		v->SetPenSize(1);
 	}
 	v->SetDrawingMode(B_OP_COPY);
 }

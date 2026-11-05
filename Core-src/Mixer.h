@@ -112,13 +112,18 @@ public:
 	double	Bpm() const { return fBpm; }
 	void	SetBpm(double bpm);
 	int		GridDiv() const { return fGridDiv; }
-	void	SetGridDiv(int div);
-	double	GridStep() const { return 60.0 / fBpm * 4.0 / fGridDiv; }	// секунд между линиями
+	void	SetGridDiv(int div);						// длительность ноты сетки: 1, 2, 4, 8, 16, 32
+	int		Meter() const { return fMeter; }
+	void	SetMeter(int meter);						// музыкальный размер: Metronome::M44 .. M24 (метроном и линии тактов в сетке)
+	double	GridStep() const { return 60.0 / fBpm / 8.0 * Metronome::StepUnits(fGridDiv); }	// секунд между линиями
+	double	BarLength() const { return 60.0 / fBpm / 8.0 * Metronome::BarUnits(fMeter); }
 	double	Snap(int lane, double t) const;
 
 	// Метроном-барабанщик: звучит при воспроизведении, в Mixdown не попадает
 	void	SetMetronome(bool on) { fMetroOn = on; }
-	bool	MetronomeOn() const { return fMetroOn; }			// t притянуто к сетке, если у дорожки она включена
+	bool	MetronomeOn() const { return fMetroOn; }
+	void	SetMetroVolume(float v) { fMetroVol = v < 0 ? 0 : (v > 1 ? 1 : v); fRevision++; }
+	float	MetroVolume() const { return fMetroVol; }			// t притянуто к сетке, если у дорожки она включена
 
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
 	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
@@ -161,6 +166,8 @@ private:
 	std::atomic<int> fRevision;
 	double		fBpm;
 	int			fGridDiv;
+	int			fMeter;
+	float		fMetroVol;			// 0..1, по умолчанию 0.7
 	std::atomic<bool> fMetroOn;
 	Metronome	fMetro;
 };

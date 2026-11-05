@@ -20,7 +20,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 	return SourceRef(s);
 }
 
-Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMetroOn(false)
+Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
 	fLock.clear();
 	memset(fTmp, 0, sizeof(fTmp));
@@ -86,7 +86,7 @@ void Mixer::ResetAll()
 	strcpy(fTracks[0].name, "Track 1");
 	fCount = 1;
 	fActive = 0;
-	fBpm = 120.0; fGridDiv = 4;
+	fBpm = 120.0; fGridDiv = 4; fMeter = Metronome::M44; fMetroVol = 0.7f;
 	Unlock();
 	for (int i=0; i<MIX_MAX_TRACKS; i++) fFx[i].Clear();
 	fRevision++;
@@ -209,9 +209,13 @@ void Mixer::SetBpm(double bpm)
 }
 void Mixer::SetGridDiv(int div)
 {
-	static const int ok[] = { 1, 2, 4, 8, 16, 32 };
-	for (size_t k = 0; k < sizeof(ok) / sizeof(ok[0]); k++)
-		if (ok[k] == div) { fGridDiv = div; fRevision++; return; }
+	if (Metronome::StepUnits(div) > 0) { fGridDiv = div; fRevision++; }
+}
+void Mixer::SetMeter(int meter)
+{
+	if (meter < 0 || meter >= Metronome::METER_COUNT) return;
+	fMeter = meter;
+	fRevision++;
 }
 double Mixer::Snap(int lane, double t) const
 {
@@ -323,7 +327,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	}
 
 	if (fMetroOn && mixExtras && dir > 0)
-		fMetro.Render(buf, frames, now, sysRate, fBpm, fGridDiv);
+		fMetro.Render(buf, frames, now, sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 
 	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;

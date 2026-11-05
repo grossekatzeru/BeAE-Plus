@@ -17,7 +17,7 @@ static const int kDivCount = 6;
 
 TempoView::TempoView(BRect r)
 	: BView(r, "Tempo view", B_FOLLOW_NONE, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fLastMetro(false), fRepeat(0)
+	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fLastMetro(false), fLastMeter(-1), fLastVol(-1), fRepeat(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 	back = BTranslationUtils::GetBitmapFile("./Bitmaps/Box.png");
@@ -51,13 +51,25 @@ BRect TempoView::DepthRect() const
 {
 	BRect l = LcdRect();
 	const float x = ButtonRect(HIT_UP).right + 6;
-	return BRect(x, l.top, x + 44, l.top + 18);
+	return BRect(x, l.top, x + 44, l.top + 16);
+}
+
+BRect TempoView::MeterRect() const
+{
+	BRect d = DepthRect();
+	return BRect(d.left, d.top + 27, d.right, d.top + 43);
 }
 
 BRect TempoView::MetroRect() const
 {
 	BRect d = DepthRect();
-	return BRect(d.right + 6, d.top, d.right + 6 + 26, d.bottom);
+	return BRect(d.right + 8, d.top, d.right + 8 + 44, d.bottom);
+}
+
+BRect TempoView::VolumeRect() const
+{
+	BRect m = MetroRect();
+	return BRect(m.left, m.top + 27, m.right, m.top + 43);
 }
 
 int TempoView::HitTest(BPoint p) const
@@ -65,7 +77,9 @@ int TempoView::HitTest(BPoint p) const
 	for (int w = HIT_UP; w <= HIT_DOWN; w++)
 		if (ButtonRect(w).Contains(p)) return w;
 	if (DepthRect().Contains(p)) return HIT_DEPTH;
+	if (MeterRect().Contains(p)) return HIT_METER;
 	if (MetroRect().Contains(p)) return HIT_METRO;
+	if (VolumeRect().Contains(p)) return HIT_VOLUME;
 	return HIT_NONE;
 }
 
@@ -117,19 +131,25 @@ void TempoView::Draw(BRect)
 	}
 	for (int w = HIT_UP; w <= HIT_DOWN; w++) DrawSmallButton(w);
 
-	// глубина сетки
-	BRect dr = DepthRect();
-	SetHighColor(make_color(20, 30, 20));
-	FillRect(dr);
-	SetHighColor(make_color(0, 0, 0));
-	StrokeRect(dr);
+	// два «окошка» одного вида: глубина сетки (длительность ноты) и музыкальный размер
 	char s[16];
-	if (Mix.GridDiv() == 1) snprintf(s, sizeof(s), "1");
-	else snprintf(s, sizeof(s), "1/%d", Mix.GridDiv());
-	SetHighColor(make_color(120, 255, 120));
-	SetLowColor(make_color(20, 30, 20));
-	DrawString(s, BPoint(dr.left + (dr.Width() - StringWidth(s)) / 2, dr.bottom - 5));
-	// кнопка метронома: силуэт метронома с маятником, включённый светится зелёным
+	for (int w = 0; w < 2; w++){
+		BRect dr = (w == 0) ? DepthRect() : MeterRect();
+		SetHighColor(make_color(20, 30, 20));
+		FillRect(dr);
+		SetHighColor(make_color(0, 0, 0));
+		StrokeRect(dr);
+		if (w == 0){
+			if (Mix.GridDiv() == 1) snprintf(s, sizeof(s), "1");
+			else snprintf(s, sizeof(s), "1/%d", Mix.GridDiv());
+		}else{
+			snprintf(s, sizeof(s), "%s", Metronome::MeterName(Mix.Meter()));
+		}
+		SetHighColor(make_color(120, 255, 120));
+		SetLowColor(make_color(20, 30, 20));
+		DrawString(s, BPoint(dr.left + (dr.Width() - StringWidth(s)) / 2, dr.bottom - 4));
+	}
+	// кнопка метронома: силуэт с маятником, включённый светится зелёным
 	{
 		BRect m = MetroRect();
 		const bool on = Mix.MetronomeOn();
@@ -139,16 +159,31 @@ void TempoView::Draw(BRect)
 		StrokeRect(m);
 		const float cx = (m.left + m.right) / 2;
 		SetHighColor(on ? make_color(0, 40, 10) : make_color(30, 30, 30));
-		FillTriangle(BPoint(cx - 6, m.bottom - 3), BPoint(cx + 6, m.bottom - 3), BPoint(cx, m.top + 3));
+		FillTriangle(BPoint(cx - 6, m.bottom - 2), BPoint(cx + 6, m.bottom - 2), BPoint(cx, m.top + 2));
 		SetHighColor(on ? make_color(220, 255, 230) : make_color(240, 240, 240));
-		StrokeLine(BPoint(cx, m.bottom - 5), BPoint(cx + 4, m.top + 4));
+		StrokeLine(BPoint(cx, m.bottom - 4), BPoint(cx + 4, m.top + 3));
+	}
+	// громкость метронома: жёлоб с бегунком
+	{
+		BRect vr = VolumeRect();
+		SetHighColor(make_color(20, 30, 20));
+		FillRect(vr);
+		SetHighColor(make_color(0, 0, 0));
+		StrokeRect(vr);
+		const float inner = vr.Width() - 8;
+		const float x = vr.left + 4 + Mix.MetroVolume() * inner;
+		SetHighColor(make_color(60, 120, 70));
+		FillRect(BRect(vr.left + 4, vr.top + 6, x, vr.bottom - 6));
+		SetHighColor(make_color(120, 255, 120));
+		FillRect(BRect(x - 2, vr.top + 3, x + 2, vr.bottom - 3));
 	}
 	SetHighColor(make_color(230, 230, 230));
 	SetLowColor(make_color(60, 60, 60));
 	SetFontSize(9);
-	DrawString("GRID", BPoint(dr.left + (dr.Width() - StringWidth("GRID")) / 2, dr.bottom + 13));
-	BRect mr = MetroRect();
-	DrawString("CLICK", BPoint(mr.left + (mr.Width() - StringWidth("CLICK")) / 2, mr.bottom + 13));
+	const char *caps[4] = { "GRID", "METER", "CLICK", "VOL" };
+	BRect cr[4] = { DepthRect(), MeterRect(), MetroRect(), VolumeRect() };
+	for (int i = 0; i < 4; i++)
+		DrawString(caps[i], BPoint(cr[i].left + (cr[i].Width() - StringWidth(caps[i])) / 2, cr[i].bottom + 10));
 	SetFontSize(be_plain_font->Size());
 }
 
@@ -169,6 +204,29 @@ void TempoView::MouseDown(BPoint p)
 	if (hit == HIT_NONE) return;
 	if (hit == HIT_METRO){
 		Mix.SetMetronome(!Mix.MetronomeOn());
+		Invalidate();
+		return;
+	}
+	if (hit == HIT_VOLUME){
+		fPressed = HIT_VOLUME;
+		SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+		SetVolumeFromMouse(p);
+		return;
+	}
+	if (hit == HIT_METER){
+		BPopUpMenu *menu = new BPopUpMenu("meter", false, false);
+		for (int i = 0; i < Metronome::METER_COUNT; i++){
+			BMenuItem *it = new BMenuItem(Metronome::MeterName(i), NULL);
+			it->SetMarked(i == Mix.Meter());
+			menu->AddItem(it);
+		}
+		BRect mr = MeterRect();
+		BMenuItem *sel = menu->Go(ConvertToScreen(BPoint(mr.left, mr.bottom + 1)), false, true);
+		if (sel){
+			Mix.SetMeter(menu->IndexOf(sel));
+			Pool.changed = true;
+		}
+		delete menu;
 		Invalidate();
 		return;
 	}
@@ -206,7 +264,19 @@ void TempoView::MouseDown(BPoint p)
 	Invalidate();
 }
 
-void TempoView::MouseMoved(BPoint, uint32, const BMessage *) {}
+void TempoView::SetVolumeFromMouse(BPoint p)
+{
+	BRect vr = VolumeRect();
+	float v = (p.x - vr.left - 4) / (vr.Width() - 8);
+	Mix.SetMetroVolume(v);
+	Pool.changed = true;
+	Invalidate();
+}
+
+void TempoView::MouseMoved(BPoint p, uint32, const BMessage *)
+{
+	if (fPressed == HIT_VOLUME) SetVolumeFromMouse(p);
+}
 
 void TempoView::MouseUp(BPoint)
 {
@@ -220,7 +290,10 @@ void TempoView::Pulse()
 	if (fPressed == HIT_UP || fPressed == HIT_DOWN){
 		if (++fRepeat > 4) Step(fPressed == HIT_UP ? +1 : -1);
 	}
-	if (fLastBpm != Mix.Bpm() || fLastDiv != Mix.GridDiv() || fLastMetro != Mix.MetronomeOn()){
+	if (fLastBpm != Mix.Bpm() || fLastDiv != Mix.GridDiv() || fLastMetro != Mix.MetronomeOn()
+		|| fLastMeter != Mix.Meter() || fLastVol != Mix.MetroVolume()){
+		fLastMeter = Mix.Meter();
+		fLastVol = Mix.MetroVolume();
 		fLastMetro = Mix.MetronomeOn();
 		fLastBpm = Mix.Bpm();
 		fLastDiv = Mix.GridDiv();

@@ -178,6 +178,41 @@ int main(int argc,char**argv){
 		mm.Process(pb.data(), 800, 800, -R, R, true);
 		ep = 0; for (float v : pb) ep += v * v; CHECK(ep == 0);
 	}
+	// размеры: 3/4 (вальс), 6/8, 2/4 (марш); BPM - в четвертях, 120 -> четверть 0.5 с
+	{
+		const double R = 8000;
+		auto energy = [&](Mixer &m, double t0, double len) {
+			const int n = (int)(len * R);
+			std::vector<float> b(2 * n, 0.0f);
+			m.Process(b.data(), n, t0 * R, R, R, true);
+			double e = 0; for (int i = 0; i < 2 * n; i++) e += b[i] * b[i];
+			return e;
+		};
+		Mixer w; w.SetMetronome(true);
+		CHECK(w.Meter() == Metronome::M44 && w.MetroVolume() > 0.69f && w.MetroVolume() < 0.71f);
+		// длительности нот не зависят от размера
+		CHECK(Metronome::StepUnits(1) == 32 && Metronome::StepUnits(4) == 8 && Metronome::StepUnits(32) == 1 && Metronome::StepUnits(3) == 0);
+		w.SetMeter(Metronome::M34); CHECK(w.GridDiv() == 4);						// глубина осталась
+		w.SetGridDiv(2); CHECK(w.GridDiv() == 2); w.SetGridDiv(4);
+		CHECK(fabs(w.BarLength() - 1.5) < 1e-9 && fabs(w.GridStep() - 0.5) < 1e-9);
+		// 3/4 с четвертями: бочка (0), малый (0.5), малый (1.0), затем снова бочка (1.5)
+		const double k0 = energy(w, 0, 0.1), s1 = energy(w, 0.5, 0.1), s2 = energy(w, 1.0, 0.1), k1 = energy(w, 1.5, 0.1);
+		CHECK(k0 > 1 && s1 > 0.5 && fabs(s1 - s2) < 1e-6 && fabs(k0 - k1) < 1e-6 && s1 < k0);
+		// 6/8: такт = 1.5 с; восьмые (0.25 с): бочка на «раз», хай-хет, хай-хет, малый на «четыре» (0.75 с)
+		Mixer e; e.SetMetronome(true); e.SetMeter(Metronome::M68); e.SetGridDiv(8);
+		CHECK(fabs(e.BarLength() - 1.5) < 1e-9);
+		CHECK(energy(e, 0, 0.1) > 1 && energy(e, 0.75, 0.1) > 0.5);
+		CHECK(energy(e, 0.25, 0.05) > 0 && energy(e, 0.25, 0.05) < energy(e, 0.75, 0.1) && energy(e, 0.5, 0.05) > 0);
+		// 2/4: такт = 1 с; четверти: бочка (0) и малый (0.5), снова бочка (1.0)
+		Mixer g; g.SetMetronome(true); g.SetMeter(Metronome::M24); g.SetGridDiv(4);
+		CHECK(energy(g, 0.5, 0.1) > 0.5 && fabs(g.BarLength() - 1.0) < 1e-9 && fabs(energy(g, 1.0, 0.1) - energy(g, 0, 0.1)) < 1e-6);
+		// громкость: 0 - тишина, 0.35 - четверть энергии (амплитуда вдвое тише)
+		const double full = energy(g, 0, 0.1);
+		g.SetMetroVolume(0.35f); CHECK(fabs(energy(g, 0, 0.1) - full * 0.25) < full * 0.01);
+		g.SetMetroVolume(0); CHECK(energy(g, 0, 0.1) == 0);
+		// сброс: размер 4/4, громкость по умолчанию
+		g.ResetAll(); CHECK(g.Meter() == Metronome::M44 && g.GridDiv() == 4 && g.MetroVolume() > 0.69f);
+	}
 	// эффекты: плагин amp (из tests/ladspa) на неактивной и на активной дорожке
 	if(argc>1){
 		std::vector<std::string> dirs(1,argv[1]);
