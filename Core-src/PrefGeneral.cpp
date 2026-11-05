@@ -42,7 +42,6 @@
 #define SPIN_CHANGED				'spnC'
 #define SET_TIME					'setT'
 #define SET_TEMP					'stTP'
-#define LATENCY_CHANGED				'recL'
 
 /*******************************************************
 *   Setup the main view. Add in all the niffty components
@@ -98,10 +97,6 @@ PrefGeneral::PrefGeneral():BView("Prefs general", 0){
 	s_free->SetRange(10, 10000);
 	s_free->SetValue(Prefs.keep_free);
 
-	s_latency = new BSpinner(NULL, Language.get("REC_LATENCY"), new BMessage(LATENCY_CHANGED));
-	s_latency->SetRange(0, 1000);
-	s_latency->SetValue(Prefs.rec_latency_ms);
-
 	BLayoutBuilder::Group<>(this)
 		.AddGroup(B_VERTICAL, B_USE_DEFAULT_SPACING)
 		.SetInsets(B_USE_WINDOW_SPACING)
@@ -115,8 +110,7 @@ PrefGeneral::PrefGeneral():BView("Prefs general", 0){
 			.Add(c_drag_drop)
 			.Add(menuTime)
 			.Add(temp_file)
-			.Add(s_free)
-			.Add(s_latency);
+			.Add(s_free);
 }
 
 /*******************************************************
@@ -173,7 +167,6 @@ void PrefGeneral::AttachedToWindow(){
 	c_follow_playing->SetTarget(this);
 	s_peak->SetTarget(this);
 	s_free->SetTarget(this);
-	s_latency->SetTarget(this);
 	c_drag_drop->SetTarget(this);
 	temp_file->SetTarget(this);
 	time->SetTargetForItems(this);
@@ -230,10 +223,6 @@ void PrefGeneral::MessageReceived(BMessage *msg){
 		Prefs.keep_free = s_free->Value();
 		break;
 	
-	case LATENCY_CHANGED:
-		Prefs.rec_latency_ms = s_latency->Value();
-		break;
-
 	case SET_TIME:
 		msg->FindInt32("time", &i);
 		Prefs.display_time = i;

@@ -39,7 +39,7 @@
 // our Global def
 Preferences Prefs;
 
-#define BUFFER_SIZE		8192*8
+#define BUFFER_SIZE		2048*8	// 2048 стерео-кадров float (~46 мс при 44.1 кГц)
 #define CACHE_SIZE		16*256	// size of the VM Cache (4Mb)
 
 /*******************************************************
@@ -112,6 +112,8 @@ void Preferences::Init(){
 
    if(prefs.FindInt32("buffer_size", &buffer_size) != B_OK)
       buffer_size = BUFFER_SIZE;
+   else if (buffer_size == 8192*8)
+      buffer_size = BUFFER_SIZE;			// прежнее значение по умолчанию (~186 мс задержки) - заменить новым
 
    if(prefs.FindInt32("rec_latency_ms", &rec_latency_ms) != B_OK)
       rec_latency_ms = 0;

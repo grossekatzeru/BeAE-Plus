@@ -38,6 +38,7 @@
 #include "Globals.h"
 #include "PrefView.h"
 #include "PrefGeneral.h"
+#include "PrefAudio.h"
 #include "PrefKeys.h"
 #include "PrefColors.h"
 
@@ -60,6 +61,7 @@ PrefView::PrefView():BView("Prefs view", B_WILL_DRAW){
 	configBox->SetLabel(" - ");
 
 	list->AddItem(new BStringItem(Language.get("GENERAL")));
+	list->AddItem(new BStringItem(Language.get("AUDIO")));
 	list->AddItem(new BStringItem(Language.get("COLORSET")));
 	list->AddItem(new BStringItem(Language.get("KEYBINDINGS")));
 
@@ -141,11 +143,15 @@ void PrefView::MessageReceived(BMessage *msg){
 			configBox->AddChild(new PrefGeneral());
 			configBox->SetLabel(Language.get("GENERAL"));
 			break;
-		case 2:		// keys
+		case 1:		// audio
+			configBox->AddChild(new PrefAudio());
+			configBox->SetLabel(Language.get("AUDIO_SETTINGS"));
+			break;
+		case 3:		// keys
 			configBox->AddChild(new PrefKeys());
 			configBox->SetLabel(Language.get("KEYBINDINGS"));
 			break;
-		case 1:		// colors
+		case 2:		// colors
 			configBox->AddChild(new PrefColors());
 			configBox->SetLabel(Language.get("COLORSET"));
 			break;
