@@ -10,6 +10,7 @@
 
 namespace SpringReverb {
 
+static const int	kMinSprings = 3;
 static const int	kMaxSprings = 5;
 static const int	kStages = 24;			// фазовых фильтров на пружину
 static const float	kRatio[kMaxSprings] = { 1.00f, 1.31f, 1.67f, 2.09f, 2.53f };	// длины пружин
@@ -113,10 +114,10 @@ static void Run(void *h, unsigned long n)
 	const float tone = Clamp(*s->port[P_TONE], -1.0f, 1.0f);
 	const float mix = Clamp(*s->port[P_MIX], 0.0f, 1.0f);
 	int springs = (int)(*s->port[P_SPRINGS] + 0.5f);
-	springs = springs < 1 ? 1 : (springs > kMaxSprings ? kMaxSprings : springs);
+	springs = springs < kMinSprings ? kMinSprings : (springs > kMaxSprings ? kMaxSprings : springs);
 	const float delayMs = Clamp(*s->port[P_DELAY], 10.0f, kMaxDelayMs);
 	const float lowCut = Clamp(*s->port[P_LOWCUT], 0.0f, 300.0f);
-	const float highCut = Clamp(*s->port[P_HIGHCUT], 4000.0f, 10000.0f);
+	const float highCut = Clamp(*s->port[P_HIGHCUT], 4000.0f, 20000.0f);
 	const float nl = Clamp(*s->port[P_NONLIN], 0.0f, 1.0f);
 	const float boing = Clamp(*s->port[P_BOING], 0.0f, 1.0f);
 
@@ -229,10 +230,10 @@ const Ladspa::Descriptor *Descriptor()
 		hints[P_DECAY]	= { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };
 		hints[P_TONE]	= { B | Ladspa::HINT_DEFAULT_0, -1.0f, 1.0f };
 		hints[P_MIX]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 1.0f };
-		hints[P_SPRINGS] = { B | Ladspa::HINT_INTEGER | Ladspa::HINT_DEFAULT_MIDDLE, 1.0f, 5.0f };
+		hints[P_SPRINGS] = { B | Ladspa::HINT_INTEGER | Ladspa::HINT_DEFAULT_MIDDLE, 3.0f, 5.0f };
 		hints[P_DELAY]	= { B | Ladspa::HINT_DEFAULT_LOW, 10.0f, kMaxDelayMs };
 		hints[P_LOWCUT]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 300.0f };
-		hints[P_HIGHCUT] = { B | Ladspa::HINT_DEFAULT_LOW, 4000.0f, 10000.0f };
+		hints[P_HIGHCUT] = { B | Ladspa::HINT_DEFAULT_LOW, 4000.0f, 20000.0f };
 		hints[P_NONLIN]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 1.0f };
 		hints[P_BOING]	= { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };
 		desc[P_IN_L] = desc[P_IN_R] = Ladspa::PORT_INPUT | Ladspa::PORT_AUDIO;

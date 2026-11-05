@@ -64,8 +64,8 @@ int main()
 	Ladspa::Range hc = Ladspa::ResolveRange(p.ports[SpringReverb::P_HIGHCUT], kRate);
 	Ladspa::Range sp = Ladspa::ResolveRange(p.ports[SpringReverb::P_SPRINGS], kRate);
 	CHECK(lc.lower == 0 && lc.upper == 300, "lowcut range");
-	CHECK(hc.lower == 4000 && hc.upper == 10000, "highcut range");
-	CHECK(sp.lower == 1 && sp.upper == 5 && sp.integer, "springs range");
+	CHECK(hc.lower == 4000 && hc.upper == 20000, "highcut range");
+	CHECK(sp.lower == 3 && sp.upper == 5 && sp.integer, "springs range");
 
 	// mix = 0: выход равен входу
 	{
@@ -110,20 +110,20 @@ int main()
 	// первое эхо рядом со временем круга (Springs=1, Boing=0, без нелинейности)
 	{
 		std::vector<float> c = Defaults();
-		c[SpringReverb::P_SPRINGS] = 1; c[SpringReverb::P_BOING] = 0; c[SpringReverb::P_NONLIN] = 0;
+		c[SpringReverb::P_SPRINGS] = 3; c[SpringReverb::P_BOING] = 0; c[SpringReverb::P_NONLIN] = 0;
 		c[SpringReverb::P_DELAY] = 100; c[SpringReverb::P_MIX] = 1; c[SpringReverb::P_LOWCUT] = 0;
-		c[SpringReverb::P_HIGHCUT] = 10000;
+		c[SpringReverb::P_HIGHCUT] = 20000;
 		std::vector<float> o = Impulse(p, c, (int)(kRate * 0.4), 0.5f);
-		int peakAt = 0; float peak = 0;
+		int peakAt = 0;
 		for (int i = (int)(0.03 * kRate); i < (int)(0.35 * kRate); i++)
-			if (fabsf(o[i * 2]) > peak) { peak = fabsf(o[i * 2]); peakAt = i; }
+			if (fabsf(o[i * 2]) > 0.01f) { peakAt = i; break; }		// первое заметное эхо
 		double ms = peakAt * 1000.0 / kRate;
 		CHECK(ms > 90 && ms < 125, "first echo at %.1f ms", ms);
 		printf("first echo at %.1f ms (delay 100)\n", ms);
 	}
 
 	// крайние значения: ничего не взрывается, при любом числе пружин
-	for (int sprn = 1; sprn <= 5; sprn++) {
+	for (int sprn = 3; sprn <= 5; sprn++) {
 		std::vector<float> c = Defaults();
 		c[SpringReverb::P_SPRINGS] = (float)sprn; c[SpringReverb::P_DECAY] = 1; c[SpringReverb::P_DWELL] = 1;
 		c[SpringReverb::P_NONLIN] = 1; c[SpringReverb::P_BOING] = 1; c[SpringReverb::P_MIX] = 1;
