@@ -11,13 +11,13 @@
 #ifndef NOISE_REDUCER_H
 #define NOISE_REDUCER_H
 
-#include "LadspaHost.h"
+#include "ladspa_abi.h"
 
 namespace NoiseReducer {
 
 enum Port {
 	P_REDUCTION = 0,	// 0..40 дБ  на сколько ослаблять шум
-	P_SENSITIVITY,		// 1..4      насколько агрессивно вычитать (больше - чище, но больше артефактов)
+	P_SENSITIVITY,		// 1..3      насколько агрессивно вычитать (больше - чище, но больше артефактов)
 	P_SMOOTH,			// 0..1      сглаживание (меньше "водяного" звука, но размывает атаку)
 	P_USEPROFILE,		// 0/1       брать шум из запомненного профиля
 	P_LEARN,			// 0/1       пока включено, запоминать шум
@@ -27,7 +27,6 @@ enum Port {
 	P_COUNT
 };
 
-extern const float kDefaults[P_COUNT];
 static const int kFrame = 1024;			// размер окна = задержка плагина
 
 const Ladspa::Descriptor *Descriptor();

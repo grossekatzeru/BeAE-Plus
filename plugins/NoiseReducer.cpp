@@ -15,16 +15,6 @@ static const int	BINS = N / 2 + 1;
 static const int	SUBS = 6;				// число подокон для минимума
 static const float	kPi = 3.14159265358979f;
 
-const float kDefaults[P_COUNT] = {
-	15.0f,		// Reduction, дБ
-	2.0f,		// Sensitivity
-	0.5f,		// Smooth
-	0.0f,		// Use profile
-	0.0f,		// Learn
-	0.0f,		// Listen
-	(float)kFrame,
-	0, 0, 0, 0
-};
 
 // ---- БПФ (по основанию 2, на месте) ----
 struct Fft {
@@ -210,7 +200,7 @@ static void Run(void *h, unsigned long n)
 	for (int i = 0; i < P_COUNT; i++)
 		if (!s->port[i]) return;
 	const float reduction = Clamp(*s->port[P_REDUCTION], 0.0f, 40.0f);
-	const float sens = Clamp(*s->port[P_SENSITIVITY], 1.0f, 4.0f);
+	const float sens = Clamp(*s->port[P_SENSITIVITY], 1.0f, 3.0f);
 	const float smooth = Clamp(*s->port[P_SMOOTH], 0.0f, 1.0f);
 	const bool useProfile = *s->port[P_USEPROFILE] > 0.5f;
 	const bool learn = *s->port[P_LEARN] > 0.5f;
@@ -259,19 +249,19 @@ const Ladspa::Descriptor *Descriptor()
 		const int ctl = Ladspa::PORT_INPUT | Ladspa::PORT_CONTROL;
 		const int B = Ladspa::HINT_BOUNDED_BELOW | Ladspa::HINT_BOUNDED_ABOVE;
 		for (int i = 0; i < P_COUNT; i++) { desc[i] = ctl; hints[i] = { 0, 0, 0 }; }
-		hints[P_REDUCTION]	 = { B, 0.0f, 40.0f };
-		hints[P_SENSITIVITY] = { B, 1.0f, 4.0f };
-		hints[P_SMOOTH]		 = { B, 0.0f, 1.0f };
-		hints[P_USEPROFILE]	 = { Ladspa::HINT_TOGGLED, 0.0f, 1.0f };
-		hints[P_LEARN]		 = { Ladspa::HINT_TOGGLED, 0.0f, 1.0f };
-		hints[P_LISTEN]		 = { Ladspa::HINT_TOGGLED, 0.0f, 1.0f };
+		hints[P_REDUCTION]	 = { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 40.0f };		// 10 дБ
+		hints[P_SENSITIVITY] = { B | Ladspa::HINT_DEFAULT_MIDDLE, 1.0f, 3.0f };	// 2
+		hints[P_SMOOTH]		 = { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };	// 0.5
+		hints[P_USEPROFILE]	 = { Ladspa::HINT_TOGGLED | Ladspa::HINT_DEFAULT_0, 0.0f, 1.0f };
+		hints[P_LEARN]		 = { Ladspa::HINT_TOGGLED | Ladspa::HINT_DEFAULT_0, 0.0f, 1.0f };
+		hints[P_LISTEN]		 = { Ladspa::HINT_TOGGLED | Ladspa::HINT_DEFAULT_0, 0.0f, 1.0f };
 		desc[P_LATENCY] = Ladspa::PORT_OUTPUT | Ladspa::PORT_CONTROL;
 		desc[P_IN_L] = desc[P_IN_R] = Ladspa::PORT_INPUT | Ladspa::PORT_AUDIO;
 		desc[P_OUT_L] = desc[P_OUT_R] = Ladspa::PORT_OUTPUT | Ladspa::PORT_AUDIO;
 		init = true;
 	}
 	static Ladspa::Descriptor d = {
-		0x42654502, "beae_noise_reducer", 0, "Шумодав", "BeAE-Plus", "BSD",
+		902, "beae_noise_reducer", 0, "Шумодав", "BeAE-Plus", "BSD",
 		P_COUNT, desc, names, hints, 0,
 		Instantiate, Connect, Activate, Run, 0, 0, 0, Cleanup
 	};
@@ -279,3 +269,9 @@ const Ladspa::Descriptor *Descriptor()
 }
 
 }	// namespace NoiseReducer
+
+// точка входа LADSPA
+extern "C" const Ladspa::Descriptor *ladspa_descriptor(unsigned long index)
+{
+	return index == 0 ? NoiseReducer::Descriptor() : 0;
+}

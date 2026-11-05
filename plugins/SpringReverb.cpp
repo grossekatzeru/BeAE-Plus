@@ -15,22 +15,9 @@ static const int	kMaxSprings = 5;
 static const int	kStages = 24;			// фазовых фильтров на пружину
 static const float	kRatio[kMaxSprings] = { 1.00f, 1.31f, 1.67f, 2.09f, 2.53f };	// длины пружин
 static const float	kStereo = 1.037f;		// правый канал чуть длиннее: шире картина
-static const float	kMaxDelayMs = 250.0f;
+static const float	kMaxDelayMs = 210.0f;
 static const float	kPi = 3.14159265f;
 
-const float kDefaults[P_COUNT] = {
-	0.50f,		// Dwell
-	0.50f,		// Decay
-	0.0f,		// Tone
-	0.35f,		// Mix
-	3.0f,		// Springs
-	45.0f,		// Delay, мс
-	100.0f,		// Low cut, Гц
-	5500.0f,	// High cut, Гц
-	0.25f,		// Nonlinearity
-	0.60f,		// Boing
-	0, 0, 0, 0
-};
 
 static inline float Flush(float x) { return (fabsf(x) < 1e-18f) ? 0.0f : x; }
 
@@ -229,11 +216,11 @@ const Ladspa::Descriptor *Descriptor()
 		hints[P_DWELL]	= { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };
 		hints[P_DECAY]	= { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };
 		hints[P_TONE]	= { B | Ladspa::HINT_DEFAULT_0, -1.0f, 1.0f };
-		hints[P_MIX]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 1.0f };
-		hints[P_SPRINGS] = { B | Ladspa::HINT_INTEGER | Ladspa::HINT_DEFAULT_MIDDLE, 3.0f, 5.0f };
-		hints[P_DELAY]	= { B | Ladspa::HINT_DEFAULT_LOW, 10.0f, kMaxDelayMs };
-		hints[P_LOWCUT]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 300.0f };
-		hints[P_HIGHCUT] = { B | Ladspa::HINT_DEFAULT_LOW, 4000.0f, 20000.0f };
+		hints[P_MIX]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 1.0f };			// 0.25
+		hints[P_SPRINGS] = { B | Ladspa::HINT_INTEGER | Ladspa::HINT_DEFAULT_MINIMUM, 3.0f, 5.0f };	// 3
+		hints[P_DELAY]	= { B | Ladspa::HINT_DEFAULT_LOW, 10.0f, kMaxDelayMs };			// 60 мс
+		hints[P_LOWCUT]	= { B | Ladspa::HINT_DEFAULT_100, 0.0f, 300.0f };
+		hints[P_HIGHCUT] = { B | Ladspa::HINT_LOGARITHMIC | Ladspa::HINT_DEFAULT_LOW, 4000.0f, 20000.0f };	// около 6 кГц
 		hints[P_NONLIN]	= { B | Ladspa::HINT_DEFAULT_LOW, 0.0f, 1.0f };
 		hints[P_BOING]	= { B | Ladspa::HINT_DEFAULT_MIDDLE, 0.0f, 1.0f };
 		desc[P_IN_L] = desc[P_IN_R] = Ladspa::PORT_INPUT | Ladspa::PORT_AUDIO;
@@ -242,7 +229,7 @@ const Ladspa::Descriptor *Descriptor()
 		init = true;
 	}
 	static Ladspa::Descriptor d = {
-		0x42654501, "beae_spring_reverb", 0, "Ламповое эхо (пружинный реверб)", "BeAE-Plus", "BSD",
+		901, "beae_spring_reverb", 0, "Ламповое эхо (пружинный реверб)", "BeAE-Plus", "BSD",
 		P_COUNT, desc, names, hints, 0,
 		Instantiate, Connect, Activate, Run, 0, 0, 0, Cleanup
 	};
@@ -250,3 +237,9 @@ const Ladspa::Descriptor *Descriptor()
 }
 
 }	// namespace SpringReverb
+
+// точка входа LADSPA
+extern "C" const Ladspa::Descriptor *ladspa_descriptor(unsigned long index)
+{
+	return index == 0 ? SpringReverb::Descriptor() : 0;
+}

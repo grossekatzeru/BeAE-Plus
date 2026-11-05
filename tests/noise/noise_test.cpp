@@ -1,5 +1,6 @@
 // Проверка шумодава на Linux: через Ladspa::Runner как встроенный плагин.
-#include "NoiseReducer.h"
+#include "LadspaHost.h"
+#include "../../plugins/NoiseReducer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -13,18 +14,19 @@ static const float kRate = 44100.0f;
 
 static Ladspa::Plugin Find()
 {
-	Ladspa::RegisterBuiltin(NoiseReducer::Descriptor(), NoiseReducer::kDefaults);
-	std::vector<Ladspa::Plugin> all = Ladspa::Scan(std::vector<std::string>());
+	std::vector<std::string> dirs; dirs.push_back("build");		// сюда скрипт кладёт noise_reducer.so
+	std::vector<Ladspa::Plugin> all = Ladspa::Scan(dirs);
 	for (size_t i = 0; i < all.size(); i++)
 		if (all[i].label == "beae_noise_reducer") return all[i];
 	printf("FAIL: plugin not found\n"); fails++;
 	return Ladspa::Plugin();
 }
 
+static Ladspa::Plugin gPlugin;
 static std::vector<float> Defaults()
 {
 	std::vector<float> c(NoiseReducer::P_COUNT, 0.0f);
-	for (int i = 0; i < NoiseReducer::P_LATENCY; i++) c[i] = NoiseReducer::kDefaults[i];
+	for (int i = 0; i < NoiseReducer::P_LATENCY; i++) c[i] = Ladspa::ResolveRange(gPlugin.ports[i], kRate).def;
 	return c;
 }
 
@@ -57,6 +59,7 @@ int main()
 {
 	srand(1);
 	Ladspa::Plugin p = Find();
+	gPlugin = p;
 	CHECK(p.mode == Ladspa::MODE_STEREO_STEREO, "mode");
 	CHECK(p.latencyPort == NoiseReducer::P_LATENCY, "latency port %d", p.latencyPort);
 	CHECK(p.ControlInputs().size() == 6, "controls %d", (int)p.ControlInputs().size());
@@ -171,7 +174,7 @@ int main()
 	// ---- Reset не ломает работу, значения конечны, громкость в разумных пределах ----
 	{
 		Ladspa::Runner r; std::string err; r.Start(p, kRate, 2, &err);
-		std::vector<float> c = Defaults(); c[NoiseReducer::P_REDUCTION] = 40; c[NoiseReducer::P_SENSITIVITY] = 4;
+		std::vector<float> c = Defaults(); c[NoiseReducer::P_REDUCTION] = 40; c[NoiseReducer::P_SENSITIVITY] = 3;
 		for (size_t i = 0; i < c.size(); i++) r.SetControl((int)i, c[i]);
 		std::vector<float> buf(8192 * 2);
 		bool ok = true; float peak = 0;

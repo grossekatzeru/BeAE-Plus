@@ -1,5 +1,6 @@
 // Проверка SpringReverb на Linux: через Ladspa::Runner как встроенный плагин.
-#include "SpringReverb.h"
+#include "LadspaHost.h"
+#include "../../plugins/SpringReverb.h"
 #include <stdio.h>
 #include <math.h>
 #include <string>
@@ -12,8 +13,8 @@ static const float kRate = 44100.0f;
 
 static Ladspa::Plugin Find()
 {
-	Ladspa::RegisterBuiltin(SpringReverb::Descriptor(), SpringReverb::kDefaults);
-	std::vector<Ladspa::Plugin> all = Ladspa::Scan(std::vector<std::string>());
+	std::vector<std::string> dirs; dirs.push_back("build");		// сюда скрипт кладёт spring_reverb.so
+	std::vector<Ladspa::Plugin> all = Ladspa::Scan(dirs);
 	for (size_t i = 0; i < all.size(); i++)
 		if (all[i].label == "beae_spring_reverb") return all[i];
 	printf("FAIL: plugin not found\n"); fails++;
@@ -37,26 +38,29 @@ static std::vector<float> Impulse(const Ladspa::Plugin &p, const std::vector<flo
 	return buf;
 }
 
+static Ladspa::Plugin gPlugin;
 static std::vector<float> Defaults()
 {
 	std::vector<float> c(SpringReverb::P_COUNT, 0.0f);
-	for (int i = 0; i < SpringReverb::P_IN_L; i++) c[i] = SpringReverb::kDefaults[i];
+	for (int i = 0; i < SpringReverb::P_IN_L; i++) c[i] = Ladspa::ResolveRange(gPlugin.ports[i], kRate).def;
 	return c;
 }
 
 int main()
 {
 	Ladspa::Plugin p = Find();
+	gPlugin = p;
 	CHECK(p.mode == Ladspa::MODE_STEREO_STEREO, "mode");
-	CHECK(Ladspa::IsBuiltin(p), "builtin");
-	CHECK(p.group == "Built-in", "group");
+	CHECK(!Ladspa::IsBuiltin(p), "not builtin");
 
-	// значения по умолчанию из ResolveRange совпадают с таблицей
-	std::vector<int> ci = p.ControlInputs();
-	CHECK((int)ci.size() == SpringReverb::P_IN_L, "control count %d", (int)ci.size());
-	for (size_t i = 0; i < ci.size(); i++) {
-		Ladspa::Range r = Ladspa::ResolveRange(p.ports[ci[i]], kRate);
-		CHECK(fabsf(r.def - SpringReverb::kDefaults[ci[i]]) < 1e-3f, "default %d: %f vs %f", ci[i], r.def, SpringReverb::kDefaults[ci[i]]);
+	// значения по умолчанию из подсказок LADSPA (их увидит любой хост)
+	{
+		const float want[SpringReverb::P_IN_L] = { 0.5f, 0.5f, 0.0f, 0.25f, 3.0f, 60.0f, 100.0f, 5981.0f, 0.25f, 0.5f };
+		for (int i = 0; i < SpringReverb::P_IN_L; i++) {
+			Ladspa::Range r = Ladspa::ResolveRange(p.ports[i], kRate);
+			CHECK(fabsf(r.def - want[i]) < want[i] * 0.01f + 0.01f, "default port %d: %f vs %f", i, r.def, want[i]);
+		}
+		CHECK(std::vector<int>(p.ControlInputs()).size() == SpringReverb::P_IN_L, "control count");
 	}
 
 	// диапазоны заданы как просил пользователь
@@ -127,7 +131,7 @@ int main()
 		std::vector<float> c = Defaults();
 		c[SpringReverb::P_SPRINGS] = (float)sprn; c[SpringReverb::P_DECAY] = 1; c[SpringReverb::P_DWELL] = 1;
 		c[SpringReverb::P_NONLIN] = 1; c[SpringReverb::P_BOING] = 1; c[SpringReverb::P_MIX] = 1;
-		c[SpringReverb::P_DELAY] = 250; c[SpringReverb::P_TONE] = 1;
+		c[SpringReverb::P_DELAY] = 210; c[SpringReverb::P_TONE] = 1;
 		std::vector<float> o = Impulse(p, c, (int)(kRate * 3), 1.0f);
 		float peak = 0; bool ok = true;
 		for (size_t i = 0; i < o.size(); i++) { if (!isfinite(o[i])) ok = false; if (fabsf(o[i]) > peak) peak = fabsf(o[i]); }

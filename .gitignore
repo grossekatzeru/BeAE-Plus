@@ -1,3 +1,4 @@
 objects*/
 BeAE/BeAE
 tests/*/build/
+plugins/*.so

@@ -10,7 +10,7 @@
 #ifndef SPRING_REVERB_H
 #define SPRING_REVERB_H
 
-#include "LadspaHost.h"
+#include "ladspa_abi.h"
 
 namespace SpringReverb {
 
@@ -20,17 +20,14 @@ enum Port {
 	P_TONE,			// -1..1    тембр хвоста: темнее ... ярче
 	P_MIX,			// 0..1     доля эффекта
 	P_SPRINGS,		// 3..5     число пружин
-	P_DELAY,		// 10..250  время круга по пружине, мс
+	P_DELAY,		// 10..210  время круга по пружине, мс
 	P_LOWCUT,		// 0..300   срез низких, Гц
-	P_HIGHCUT,		// 4000..20000  срез высоких, Гц
+	P_HIGHCUT,		// 4000..20000  срез высоких, Гц (логарифмическая шкала)
 	P_NONLIN,		// 0..1     лёгкая нелинейность (насыщение)
 	P_BOING,		// 0..1     сила "боинга" (дисперсия)
 	P_IN_L, P_IN_R, P_OUT_L, P_OUT_R,
 	P_COUNT
 };
-
-// Значения по умолчанию (используются и для кнопки "По умолчанию").
-extern const float kDefaults[P_COUNT];
 
 const Ladspa::Descriptor *Descriptor();		// для Ladspa::RegisterBuiltin
 
