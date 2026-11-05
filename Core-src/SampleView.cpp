@@ -191,6 +191,18 @@ void SampleView::Draw(BRect rect)
 {
 	Looper()->Lock();
 
+	// Размер вида мог измениться раньше, чем дошло FrameResized (Relayout делает ResizeTo, а Draw может быть вызван
+	// напрямую из Pulse): тогда внеэкранный буфер и кэши ещё прежнего размера - пересоздаём их по факту.
+	{
+		BRect want = Bounds();
+		want.InsetBy(0, -2);
+		if (OffScreen == NULL || OffScreen->Bounds() != want){
+			m_resized = true;
+			Pool.update_draw_cache = true;
+			Pool.sample_view_dirty = true;
+		}
+	}
+
 	if (Pool.update_draw_cache && !m_resized)
 		CalculateCache();
 
@@ -1240,6 +1252,13 @@ void SampleView::DrawMono(BRect rect, bool left, bool draw_selection)
 		size = size2 +1;
 	}
 
+	// защита от записи за пределы буферов, если размеры вида и кэшей не совпали
+	if (OffScreen == NULL || leftCache == NULL || size < 0 || size + 1 > leftWidth
+		|| (size2 + size + 1) > OffScreen->Bounds().IntegerHeight() + 1 - POINTER_BAR_HEIGHT - (left ? 0 : size * 2)){
+		release_sem(viewSem);
+		return;
+	}
+
 	rgb_color *inBits, *inSelectedBits, *outBits;
 	rgb_color col, colS;	// this one is used for line drawing
 	float *peak_buffer;
@@ -1324,6 +1343,11 @@ void SampleView::DrawPart( rgb_color *inBits, rgb_color *outBits,
 
 	rgb_color *src = NULL;
 	rgb_color *dest = NULL;
+
+	if (r.right > screenWidth - 1)	r.right = screenWidth - 1;		// не дальше строки внеэкранного буфера
+	if (r.right > MAX_W - 1)		r.right = MAX_W - 1;			// и не дальше буфера пиков
+	if (r.left < 0)					r.left = 0;
+	if (r.right < r.left)			return;
 
 	int32 draw_mode;
 	int32 step = (Pool.r_pointer-Pool.l_pointer)/Bounds().IntegerWidth();
