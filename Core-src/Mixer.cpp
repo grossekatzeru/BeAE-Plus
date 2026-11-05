@@ -23,6 +23,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
 	fLock.clear();
+	fNextNow = 0; fHaveNext = false;
 	memset(fTmp, 0, sizeof(fTmp));
 	memset(fPeakL, 0, sizeof(fPeakL));
 	memset(fPeakR, 0, sizeof(fPeakR));
@@ -76,6 +77,7 @@ int Mixer::AddTrack(const char *name, const float *data, int64_t frames, int cha
 
 void Mixer::ResetAll()
 {
+	fHaveNext = false;
 	std::vector<MixClip> old[MIX_MAX_TRACKS];		// освободятся после выхода из замка
 	Lock();
 	for (int i=0; i<MIX_MAX_TRACKS; i++) {
@@ -306,6 +308,18 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	const double now = activePos / aRate;		// время на ленте: Pool лежит на ней целиком
 	const bool extras = mixExtras && TryLock();
 
+	// перемотка (скачок позиции): плагинам сбрасываем состояние, иначе из буферов задержки
+	// и хвостов прозвучит то, что было до скачка
+	if (mixExtras) {
+		if (fHaveNext && fabs(now - fNextNow) > 2.0 * frames / sysRate + 0.05)
+			for (int i=0; i<fCount; i++) fFx[i].Reset();
+		fNextNow = now + tstep * frames;
+		fHaveNext = true;
+	}
+	// плагины с задержкой (например, шумодав): активная дорожка отстаёт на latAct отсчётов,
+	// остальные дорожки сдвигаем на столько же, а свою задержку каждая дорожка компенсирует чтением вперёд
+	const int latAct = fFx[act].Latency();
+
 	// активная дорожка: активный клип уже в буфере; остальные её клипы добавляем, затем эффекты и канал
 	{
 		const MixTrack &t = fTracks[act];
@@ -327,7 +341,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	}
 
 	if (fMetroOn && mixExtras && dir > 0)
-		fMetro.Render(buf, frames, now, sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
+		fMetro.Render(buf, frames, now - tstep * latAct, sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 
 	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;
@@ -351,9 +365,10 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 			if (e > laneEnd) laneEnd = e;
 		}
 		if (useFx) laneEnd += 4.0;
+		const double shift = tstep * (double)((useFx ? fx.Latency() : 0) - latAct);
 		for (int from = 0; from < frames; from += 4096) {
 			const int n = (frames - from < 4096) ? frames - from : 4096;
-			const double ta = now + tstep * from, tb = ta + tstep * n;
+			const double ta = now + tstep * from + shift, tb = ta + tstep * n;
 			const double lo = ta < tb ? ta : tb, hi = ta < tb ? tb : ta;
 			if (hi < laneStart || lo >= laneEnd) continue;
 			memset(fTmp, 0, sizeof(float) * 2 * n);

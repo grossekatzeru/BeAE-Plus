@@ -170,6 +170,8 @@ private:
 	float		fMetroVol;			// 0..1, по умолчанию 0.7
 	std::atomic<bool> fMetroOn;
 	Metronome	fMetro;
+	double		fNextNow;				// ожидаемое время на ленте для следующего буфера (поиск перемотки)
+	bool		fHaveNext;
 };
 
 extern Mixer Mix;

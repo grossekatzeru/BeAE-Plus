@@ -1,6 +1,6 @@
 #include "FxChain.h"
 
-FxChain::FxChain() : fActive(0)
+FxChain::FxChain() : fActive(0), fLatency(0)
 {
 	fLock.clear();
 }
@@ -15,10 +15,14 @@ void FxChain::Unlock()	{ fLock.clear(std::memory_order_release); }
 
 void FxChain::Recount()
 {
-	int n = 0;
-	for (size_t i = 0; i < fSlots.size(); i++)
-		if (fSlots[i].enabled && (fSlots[i].runner || fSlots[i].vst)) n++;
+	int n = 0, lat = 0;
+	for (size_t i = 0; i < fSlots.size(); i++) {
+		if (!fSlots[i].enabled || !(fSlots[i].runner || fSlots[i].vst)) continue;
+		n++;
+		if (fSlots[i].runner) lat += fSlots[i].runner->Latency();
+	}
 	fActive = n;
+	fLatency = lat;
 }
 
 bool FxChain::Add(const Ladspa::Plugin &p, float rate, std::string *err,
@@ -116,6 +120,7 @@ void FxChain::Clear()
 	Lock();
 	old.swap(fSlots);
 	fActive = 0;
+	fLatency = 0;
 	Unlock();
 	for (size_t i = 0; i < old.size(); i++) { delete old[i].runner; delete old[i].vst; }
 }
@@ -147,6 +152,16 @@ void FxChain::SetValue(int i, int port, float v)
 	fSlots[i].values[port] = v;				// читает только интерфейс
 	if (fSlots[i].runner) fSlots[i].runner->SetControl(port, v);
 	if (fSlots[i].vst) fSlots[i].vst->SetParam(port, v);
+}
+
+void FxChain::Reset()
+{
+	if (fActive.load() == 0) return;
+	if (fLock.test_and_set(std::memory_order_acquire)) return;
+	for (size_t i = 0; i < fSlots.size(); i++)
+		if (fSlots[i].enabled && fSlots[i].runner && fSlots[i].runner->IsRunning())
+			fSlots[i].runner->Reset();
+	Unlock();
 }
 
 void FxChain::Process(float *buf, int frames, float rate)

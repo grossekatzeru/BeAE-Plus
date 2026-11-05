@@ -42,6 +42,8 @@ public:
 	void		SetEnabled(int i, bool on);
 	void		SetValue(int i, int port, float v);
 	bool		HasEffects() const { return fActive.load() > 0; }	// есть включённые плагины
+	int			Latency() const { return fLatency.load(); }			// сумма задержек включённых плагинов, отсчётов
+	void		Reset();		// сбросить состояние плагинов (перемотка); из аудио-потока безопасно
 
 	// Обработка на месте: interleaved стерео, frames кадров, частота rate.
 	void		Process(float *buf, int frames, float rate);
@@ -54,6 +56,7 @@ private:
 	std::vector<Slot>	fSlots;
 	std::atomic_flag	fLock;
 	std::atomic<int>	fActive;
+	std::atomic<int>	fLatency;
 };
 
 #endif

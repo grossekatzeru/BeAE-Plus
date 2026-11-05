@@ -23,6 +23,7 @@
 #include "Globals.h"
 #include "LadspaFilter.h"
 #include "SpringReverb.h"
+#include "NoiseReducer.h"
 #include "LadspaSlider.h"
 #include "main.h"
 
@@ -257,6 +258,7 @@ void LadspaRescan()
 {
 	// встроенные плагины и папка plugins рядом с программой (с подпапками)
 	Ladspa::RegisterBuiltin(SpringReverb::Descriptor(), SpringReverb::kDefaults);
+	Ladspa::RegisterBuiltin(NoiseReducer::Descriptor(), NoiseReducer::kDefaults);
 	Ladspa::AddSearchDir(AppPluginsDir());
 	std::vector<std::string> log;
 	std::vector<Ladspa::Plugin> all = Ladspa::Scan(Ladspa::DefaultPaths(), &log);
@@ -300,7 +302,11 @@ static BMenuItem *MakeLadspaItem(const Ladspa::Plugin &p)
 BMenu *BuildLadspaMenu()
 {
 	BMenu *menu = new BMenu(Language.get("LADSPA_MENU"));
-	const std::vector<Ladspa::Plugin> &list = LadspaList();
+	// встроенные плагины с задержкой (шумодав) работают только в цепочке дорожки: здесь результат сдвинулся бы
+	std::vector<Ladspa::Plugin> list;
+	for (size_t i = 0; i < LadspaList().size(); ++i)
+		if (!(Ladspa::IsBuiltin(LadspaList()[i]) && LadspaList()[i].latencyPort >= 0))
+			list.push_back(LadspaList()[i]);
 
 	if (list.empty()) {
 		BMenuItem *none = new BMenuItem(Language.get("LADSPA_NONE"), NULL);

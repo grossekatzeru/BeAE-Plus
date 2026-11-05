@@ -94,6 +94,7 @@ struct Plugin {
 	int				audioIn, audioOut;
 	Mode			mode;
 	bool			realtimeSafe;
+	int				latencyPort;	// выходной управляющий порт "latency" (задержка в отсчётах) или -1
 
 	// индексы управляющих входов (параметры пользователя)
 	std::vector<int> ControlInputs() const;
@@ -140,6 +141,11 @@ public:
 
 	// Обработка на месте: interleaved-буфер из frames кадров (channels каналов, см. Start).
 	void Process(float *buffer, size_t frames);
+
+	// Задержка плагина в отсчётах (из порта "latency"), 0 если порта нет.
+	int Latency() const;
+	// Сбросить внутреннее состояние (перемотка): deactivate + activate.
+	void Reset();
 
 private:
 	struct Impl;

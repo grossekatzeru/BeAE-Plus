@@ -5,6 +5,62 @@
 #include <string>
 #include <vector>
 #define CHECK(c) do{ if(!(c)){ printf("FAIL line %d: %s\n",__LINE__,#c); fails++; } }while(0)
+
+// ---- плагин с задержкой: чистая задержка на D отсчётов, порт "latency" ----
+namespace {
+const int kD = 100;
+struct DelayInst { std::vector<float> line; int pos; float *in,*out,*lat; };
+void *dInst(const Ladspa::Descriptor*,unsigned long){ DelayInst *d=new DelayInst; d->line.assign(kD,0.0f); d->pos=0; d->in=d->out=d->lat=0; return d; }
+void dConn(void*h,unsigned long p,float*l){ DelayInst*d=(DelayInst*)h; if(p==0)d->in=l; else if(p==1)d->out=l; else d->lat=l; }
+void dAct(void*h){ DelayInst*d=(DelayInst*)h; std::fill(d->line.begin(),d->line.end(),0.0f); d->pos=0; if(d->lat)*d->lat=(float)kD; }
+void dRun(void*h,unsigned long n){ DelayInst*d=(DelayInst*)h; for(unsigned long i=0;i<n;i++){ float x=d->in[i]; d->out[i]=d->line[d->pos]; d->line[d->pos]=x; d->pos=(d->pos+1)%kD; } *d->lat=(float)kD; }
+void dClean(void*h){ delete (DelayInst*)h; }
+const int dDesc[3]={Ladspa::PORT_INPUT|Ladspa::PORT_AUDIO, Ladspa::PORT_OUTPUT|Ladspa::PORT_AUDIO, Ladspa::PORT_OUTPUT|Ladspa::PORT_CONTROL};
+const char *dNames[3]={"in","out","latency"};
+const Ladspa::PortRangeHint dHints[3]={{0,0,0},{0,0,0},{0,0,0}};
+Ladspa::Descriptor dd={ 0x99999901,"test_delay",0,"Test delay","t","t",3,dDesc,dNames,dHints,0,dInst,dConn,dAct,dRun,0,0,0,dClean };
+}
+
+static int PeakIndex(const std::vector<float>&v,int ch,float thr){ for(size_t i=0;i<v.size()/2;i++) if(fabsf(v[i*2+ch])>thr) return (int)i; return -1; }
+static std::vector<float> RunMixer(Mixer&m,int total,int block,int startPos=0){
+	std::vector<float> out((size_t)total*2,0.0f);
+	for(int p=0;p<total;p+=block){ int n=total-p<block?total-p:block; m.Process(&out[(size_t)p*2],n,startPos+p,44100,44100,true); }
+	return out;
+}
+static void TestLatency(int &fails){
+	Ladspa::RegisterBuiltin(&dd);
+	std::vector<Ladspa::Plugin> all=Ladspa::Scan(std::vector<std::string>());
+	const Ladspa::Plugin *dp=NULL; for(size_t i=0;i<all.size();i++) if(all[i].label=="test_delay") dp=&all[i];
+	CHECK(dp!=NULL); if(!dp) return;
+	CHECK(dp->latencyPort==2 && dp->mode==Ladspa::MODE_MONO_MONO);
+	std::vector<float> imp(1000,0.0f); imp[500]=1.0f;
+	std::string err;
+	// 1) активная дорожка без плагинов: дорожка с задержкой компенсируется чтением вперёд, импульсы совпадают
+	{
+		Mixer m; int a=m.AddTrack("fx",imp.data(),1000,1), b=m.AddTrack("plain",imp.data(),1000,1);
+		CHECK(m.Fx(a).Add(*dp,44100,&err)); CHECK(m.Fx(a).Latency()==kD);
+		std::vector<float> o=RunMixer(m,1000,300);			// блок 300: граница не совпадает с задержкой
+		CHECK(PeakIndex(o,0,0.1f)==500);
+		float v=o[500*2]; CHECK(fabsf(v-2.0f)<1e-5);			// оба импульса в одном месте
+		m.Fx(a).SetEnabled(0,false); CHECK(m.Fx(a).Latency()==0);
+	}
+	// 2) плагин на активной дорожке: остальные дорожки сдвигаются на ту же задержку
+	{
+		Mixer m; int b=m.AddTrack("plain",imp.data(),1000,1);
+		(void)b;
+		CHECK(m.Fx(0).Add(*dp,44100,&err));
+		std::vector<float> o=RunMixer(m,1000,256);
+		CHECK(PeakIndex(o,0,0.1f)==500+kD);
+	}
+	// 3) перемотка сбрасывает состояние плагина: после скачка позиции старые отсчёты не звучат
+	{
+		Mixer m; int a=m.AddTrack("fx",imp.data(),1000,1);
+		CHECK(m.Fx(a).Add(*dp,44100,&err));
+		std::vector<float> o1(256*2,0.0f); m.Process(o1.data(),256,400,44100,44100,true);	// 400..656 (импульс на 500)
+		std::vector<float> o2(256*2,0.0f); m.Process(o2.data(),256,0,44100,44100,true);		// скачок на 0
+		for(size_t i=0;i<o2.size();i++) CHECK(fabsf(o2[i])<1e-6);
+	}
+}
 int main(int argc,char**argv){
 	int fails=0;
 	Mixer m;
@@ -251,6 +307,7 @@ int main(int argc,char**argv){
 			CHECK(fm.Fx(ft).Count()==0);
 		}
 	}
+	TestLatency(fails);
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

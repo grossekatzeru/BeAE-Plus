@@ -184,6 +184,7 @@ static bool AddDescriptor(const std::string &path, const std::string &group, con
 	p.maker = d->Maker ? d->Maker : "";
 	p.uniqueId = d->UniqueID;
 	p.audioIn = p.audioOut = 0;
+	p.latencyPort = -1;
 	p.realtimeSafe = d->Properties & 0x4;	// LADSPA_PROPERTY_HARD_RT_CAPABLE
 	for (unsigned long k = 0; k < d->PortCount; ++k) {
 		Port po;
@@ -193,6 +194,7 @@ static bool AddDescriptor(const std::string &path, const std::string &group, con
 		po.hint = d->PortRangeHints ? d->PortRangeHints[k].hint : 0;
 		po.lower = d->PortRangeHints ? d->PortRangeHints[k].lower : 0;
 		po.upper = d->PortRangeHints ? d->PortRangeHints[k].upper : 0;
+		if (po.IsControl() && po.IsOutput() && strcasecmp(po.name.c_str(), "latency") == 0) p.latencyPort = (int)k;
 		if (defaults && po.IsControl()) { po.hasDefault = true; po.defValue = defaults[k]; }
 		if (po.IsAudio()) {
 			if (po.IsInput()) ++p.audioIn; else ++p.audioOut;
@@ -423,6 +425,23 @@ float Runner::Control(int portIndex) const
 	if (portIndex >= 0 && portIndex < (int)fImpl->controls.size())
 		return fImpl->controls[portIndex];
 	return 0.0f;
+}
+
+int Runner::Latency() const
+{
+	const Impl &m = *fImpl;
+	if (!fRunning || m.plugin.latencyPort < 0 || m.plugin.latencyPort >= (int)m.controls.size()) return 0;
+	float v = m.controls[m.plugin.latencyPort];
+	return v > 0 && v < 1e6f ? (int)(v + 0.5f) : 0;
+}
+
+void Runner::Reset()
+{
+	if (!fRunning || !fImpl->desc) return;
+	for (size_t i = 0; i < fImpl->inst.size(); ++i) {
+		if (fImpl->desc->deactivate) fImpl->desc->deactivate(fImpl->inst[i]);
+		if (fImpl->desc->activate) fImpl->desc->activate(fImpl->inst[i]);
+	}
 }
 
 void Runner::Process(float *buf, size_t frames)

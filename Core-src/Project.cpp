@@ -431,6 +431,12 @@ bool Project_Mixdown(const char *path, BString &err)
 			int nfr = (int)((total - from < 4096) ? total - from : 4096);
 			local.Process(&tmp[(size_t)from * 2], nfr, outRate);
 		}
+		// плагины с задержкой (шумодав): сдвигаем результат назад на их задержку
+		const int64 lat = local.Latency();
+		if (lat > 0 && lat < total){
+			memmove(&tmp[0], &tmp[(size_t)lat * 2], sizeof(float) * 2 * (size_t)(total - lat));
+			memset(&tmp[(size_t)(total - lat) * 2], 0, sizeof(float) * 2 * (size_t)lat);
+		}
 		for (int64 n = 0; n < total; n++){
 			out[(size_t)n*2]   += tmp[(size_t)n*2]   * l.gl;
 			out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * l.gr;
