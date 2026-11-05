@@ -50,6 +50,7 @@ private:
 
 // ---- список плагинов и меню ----
 void				LadspaRescan();
+const char*			AppPluginsDir();	// папка plugins рядом с программой (может не существовать)
 const std::vector<Ladspa::Plugin>& LadspaList();
 const Ladspa::Plugin* LadspaFind(const char *file, const char *label);
 BMenu*				BuildLadspaMenu();

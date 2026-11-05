@@ -30,7 +30,7 @@ private:
 	int				fTrack;
 	BListView		*fList;
 	BCheckBox		*fEnabled;
-	BButton			*fAdd, *fRemove, *fUp, *fDown;
+	BButton			*fAdd, *fRemove, *fUp, *fDown, *fDefaults;
 	BScrollView		*fScroll;
 	BView			*fParams;
 	std::vector<LadspaSlider*>	fSliders;

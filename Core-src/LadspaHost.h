@@ -65,6 +65,9 @@ struct Port {
 	int			descriptor;		// PORT_*
 	int			hint;			// HINT_*
 	float		lower, upper;
+	bool		hasDefault;		// точное значение по умолчанию (у встроенных плагинов)
+	float		defValue;
+	Port() : index(0), descriptor(0), hint(0), lower(0), upper(0), hasDefault(false), defValue(0) {}
 	bool IsInput() const	{ return descriptor & PORT_INPUT; }
 	bool IsOutput() const	{ return descriptor & PORT_OUTPUT; }
 	bool IsAudio() const	{ return descriptor & PORT_AUDIO; }
@@ -81,7 +84,8 @@ enum Mode {
 };
 
 struct Plugin {
-	std::string		file;			// полный путь к .so
+	std::string		file;			// полный путь к .so (или "builtin:<метка>" у встроенных)
+	std::string		group;			// подпапка внутри папки поиска (для меню); у встроенных "Built-in"
 	std::string		label;			// уникальная метка в файле
 	std::string		name;
 	std::string		maker;
@@ -105,7 +109,13 @@ Range ResolveRange(const Port &port, float sampleRate);
 
 // Папки поиска: переменная LADSPA_PATH (через ':'), затем стандартные.
 std::vector<std::string> DefaultPaths();
-// Просмотр папок. В *log пишутся причины, по которым файл пропущен.
+// Дополнительная папка поиска (например, plugins рядом с программой). Сканируется вместе с подпапками.
+void AddSearchDir(const std::string &dir);
+// Встроенный плагин: дескриптор живёт в самой программе, файла .so нет. Вызывать до Scan.
+// defaults - точные значения по умолчанию по номерам портов (можно 0).
+void RegisterBuiltin(const Descriptor *d, const float *defaults = 0);
+bool IsBuiltin(const Plugin &p);
+// Просмотр папок (вместе с подпапками, глубина до 3). В *log пишутся причины, по которым файл пропущен.
 std::vector<Plugin> Scan(const std::vector<std::string> &dirs, std::vector<std::string> *log = 0);
 
 // ---- настройки (значения параметров) ----

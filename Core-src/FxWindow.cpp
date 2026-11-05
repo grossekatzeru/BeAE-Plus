@@ -3,6 +3,7 @@
 #include <PopUpMenu.h>
 #include <String.h>
 #include <stdio.h>
+#include <algorithm>
 #include <string.h>
 
 #include "CommonPool.h"
@@ -22,6 +23,7 @@
 #define FX_SELECT		'fxSl'
 #define FX_ENABLED		'fxEn'
 #define FX_PARAM		'fxPm'
+#define FX_DEFAULTS		'fxDf'
 
 static FxWindow *sOpen[MIX_MAX_TRACKS];
 
@@ -29,11 +31,19 @@ static FxWindow *sOpen[MIX_MAX_TRACKS];
 static std::vector<Vst2::Info> sVst;
 static bool sVstScanned = false;
 
+static std::vector<std::string> VstDirs()
+{
+	std::vector<std::string> d = Vst2::DefaultPaths();
+	const char *p = AppPluginsDir();		// plugins рядом с программой (с подпапками)
+	if (p && *p) d.insert(d.begin(), p);
+	return d;
+}
+
 static const std::vector<Vst2::Info> &VstList()
 {
 	if (!sVstScanned){
 		std::vector<std::string> log;
-		std::vector<Vst2::Info> all = Vst2::Scan(Vst2::DefaultPaths(), &log);
+		std::vector<Vst2::Info> all = Vst2::Scan(VstDirs(), &log);
 		for (size_t i = 0; i < log.size(); i++) fprintf(stderr, "VST2: %s\n", log[i].c_str());
 		for (size_t i = 0; i < all.size(); i++)
 			if (!all[i].synth) sVst.push_back(all[i]);
@@ -99,8 +109,10 @@ FxWindow::FxWindow(int track, BWindow *near)
 	fDown = new BButton(BRect(108, 342, 198, 366), "dn", Language.get("FX_DOWN"), new BMessage(FX_DOWN), B_FOLLOW_LEFT | B_FOLLOW_BOTTOM);
 	bg->AddChild(fAdd); bg->AddChild(fRemove); bg->AddChild(fUp); bg->AddChild(fDown);
 
-	fEnabled = new BCheckBox(BRect(236, 12, 567, 30), "en", Language.get("FX_ENABLED"), new BMessage(FX_ENABLED), B_FOLLOW_LEFT_RIGHT | B_FOLLOW_TOP);
+	fEnabled = new BCheckBox(BRect(236, 12, 400, 30), "en", Language.get("FX_ENABLED"), new BMessage(FX_ENABLED), B_FOLLOW_LEFT | B_FOLLOW_TOP);
 	bg->AddChild(fEnabled);
+	fDefaults = new BButton(BRect(412, 8, 567, 32), "defaults", Language.get("FX_DEFAULTS"), new BMessage(FX_DEFAULTS), B_FOLLOW_RIGHT | B_FOLLOW_TOP);
+	bg->AddChild(fDefaults);
 
 	fParams = new BView(BRect(0, 0, 330, 100), "params", B_FOLLOW_LEFT_RIGHT, B_WILL_DRAW);
 	fParams->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
@@ -126,7 +138,9 @@ void FxWindow::RefreshList(int select)
 	for (int i = 0; i < fx.Count(); i++){
 		const FxChain::Slot *s = fx.At(i);
 		BString n(s->enabled ? "" : "[off] ");
-		n << (s->kind == FxChain::KIND_VST2 ? "[VST2] " : "[LADSPA] ") << s->plugin.name.c_str();
+		if (s->kind == FxChain::KIND_VST2) n << "[VST2] ";
+		else if (!Ladspa::IsBuiltin(s->plugin)) n << "[LADSPA] ";
+		n << s->plugin.name.c_str();
 		fList->AddItem(new BStringItem(n.String()));
 	}
 	if (select >= fx.Count()) select = fx.Count() - 1;
@@ -146,6 +160,7 @@ void FxWindow::BuildParams()
 	int sel = fList->CurrentSelection();
 	const FxChain::Slot *s = fx.At(sel);
 	fEnabled->SetEnabled(s != NULL);
+	fDefaults->SetEnabled(s != NULL && s->kind == FxChain::KIND_LADSPA);
 	fRemove->SetEnabled(s != NULL);
 	fUp->SetEnabled(s != NULL && sel > 0);
 	fDown->SetEnabled(s != NULL && sel < fx.Count() - 1);
@@ -225,16 +240,38 @@ void FxWindow::ShowAddMenu()
 		none->SetEnabled(false);
 		ladspa->AddItem(none);
 	}else{
+		// плагины из подпапок (и встроенные) идут отдельными подменю, остальные - как раньше
+		std::vector<std::string> names;
+		for (size_t i = 0; i < list.size(); i++)
+			if (!list[i].group.empty() && std::find(names.begin(), names.end(), list[i].group) == names.end())
+				names.push_back(list[i].group);
+		std::sort(names.begin(), names.end());
+		std::vector<const Ladspa::Plugin*> plain;
+		for (size_t i = 0; i < list.size(); i++) if (list[i].group.empty()) plain.push_back(&list[i]);
+
+		for (size_t g = 0; g < names.size(); g++){
+			BMenu *sub = new BMenu(names[g] == "Built-in" ? Language.get("FX_BUILTIN") : names[g].c_str());
+			for (size_t i = 0; i < list.size(); i++){
+				if (list[i].group != names[g]) continue;
+				BMessage *m = new BMessage(FX_ADD_PLUGIN);
+				m->AddString("file", list[i].file.c_str());
+				m->AddString("label", list[i].label.c_str());
+				sub->AddItem(new BMenuItem(list[i].name.c_str(), m));
+			}
+			ladspa->AddItem(sub);
+		}
+		if (!names.empty() && !plain.empty()) ladspa->AddSeparatorItem();
+
 		BMenu *group = NULL;
 		char letter = 0;
-		const bool grouped = list.size() > 30;
-		for (size_t i = 0; i < list.size(); i++){
+		const bool grouped = plain.size() > 30;
+		for (size_t i = 0; i < plain.size(); i++){
 			BMessage *m = new BMessage(FX_ADD_PLUGIN);
-			m->AddString("file", list[i].file.c_str());
-			m->AddString("label", list[i].label.c_str());
-			BMenuItem *it = new BMenuItem(list[i].name.c_str(), m);
+			m->AddString("file", plain[i]->file.c_str());
+			m->AddString("label", plain[i]->label.c_str());
+			BMenuItem *it = new BMenuItem(plain[i]->name.c_str(), m);
 			if (!grouped){ ladspa->AddItem(it); continue; }
-			char c = list[i].name.empty() ? '#' : list[i].name[0];
+			char c = plain[i]->name.empty() ? '#' : plain[i]->name[0];
 			if (c >= 'a' && c <= 'z') c = (char)(c - 'a' + 'A');
 			if (!((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))) c = '#';
 			if (group == NULL || c != letter){
@@ -266,7 +303,11 @@ void FxWindow::ShowAddMenu()
 
 	menu->SetTargetForItems(this);
 	for (int32 i = 0; i < menu->CountItems(); i++)
-		if (BMenu *sub = menu->SubmenuAt(i)) sub->SetTargetForItems(this);
+		if (BMenu *sub = menu->SubmenuAt(i)){
+			sub->SetTargetForItems(this);
+			for (int32 j = 0; j < sub->CountItems(); j++)
+				if (BMenu *sub2 = sub->SubmenuAt(j)) sub2->SetTargetForItems(this);
+		}
 	BPoint where = fAdd->ConvertToScreen(BPoint(0, fAdd->Bounds().Height() + 1));
 	menu->Go(where, true, true, true);
 }
@@ -339,6 +380,21 @@ void FxWindow::MessageReceived(BMessage *msg)
 		fx.SetEnabled(sel, fEnabled->Value() == B_CONTROL_ON);
 		Mix.Touch();
 		RefreshList(sel);
+		break;
+	}
+	case FX_DEFAULTS:
+	{
+		int sel = fList->CurrentSelection();
+		const FxChain::Slot *s = fx.At(sel);
+		if (!s || s->kind != FxChain::KIND_LADSPA) break;
+		const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
+		for (size_t i = 0; i < fPorts.size(); i++){
+			Ladspa::Range r = Ladspa::ResolveRange(s->plugin.ports[fPorts[i]], rate);
+			fx.SetValue(sel, fPorts[i], r.def);
+			if (fSliders[i]) fSliders[i]->SetValueF(r.def);
+			else if (fChecks[i]) fChecks[i]->SetValue(r.def > 0.5f ? B_CONTROL_ON : B_CONTROL_OFF);
+		}
+		Mix.Touch();
 		break;
 	}
 	case FX_PARAM:

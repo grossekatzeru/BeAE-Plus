@@ -95,6 +95,7 @@ Range ResolveRange(const Port &p, float rate)
 		if (def > r.upper) def = r.upper;
 		break;
 	}
+	if (p.hasDefault) def = p.defValue;
 	if (def < r.lower) def = r.lower;
 	if (def > r.upper) def = r.upper;
 	if (r.integer) def = floorf(def + 0.5f);
@@ -104,9 +105,33 @@ Range ResolveRange(const Port &p, float rate)
 
 // ------------------------------------------------------------------ поиск
 
+static std::vector<std::string> sExtraDirs;
+static std::vector<const Descriptor *> sBuiltins;
+static std::vector<const float *> sBuiltinDefaults;
+static const char *kBuiltinPrefix = "builtin:";
+
+void AddSearchDir(const std::string &dir)
+{
+	if (!dir.empty() && std::find(sExtraDirs.begin(), sExtraDirs.end(), dir) == sExtraDirs.end())
+		sExtraDirs.push_back(dir);
+}
+
+void RegisterBuiltin(const Descriptor *d, const float *defaults)
+{
+	if (d && std::find(sBuiltins.begin(), sBuiltins.end(), d) == sBuiltins.end()) {
+		sBuiltins.push_back(d);
+		sBuiltinDefaults.push_back(defaults);
+	}
+}
+
+bool IsBuiltin(const Plugin &p)
+{
+	return p.file.compare(0, strlen(kBuiltinPrefix), kBuiltinPrefix) == 0;
+}
+
 std::vector<std::string> DefaultPaths()
 {
-	std::vector<std::string> dirs;
+	std::vector<std::string> dirs(sExtraDirs);
 	const char *env = getenv("LADSPA_PATH");
 	if (env && *env) {
 		std::string s(env);
@@ -138,12 +163,6 @@ std::vector<std::string> DefaultPaths()
 	return out;
 }
 
-static bool IsRegularFile(const std::string &path)
-{
-	struct stat st;
-	return stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
-}
-
 static Mode ModeFor(int in, int out)
 {
 	if (in == 1 && out == 1) return MODE_MONO_MONO;
@@ -153,7 +172,39 @@ static Mode ModeFor(int in, int out)
 	return MODE_UNSUPPORTED;
 }
 
-static void ScanFile(const std::string &path, std::vector<Plugin> *out, std::vector<std::string> *log)
+static bool AddDescriptor(const std::string &path, const std::string &group, const Descriptor *d, std::vector<Plugin> *out, const float *defaults = 0)
+{
+	if (!d->Label || !d->instantiate || !d->connect_port || !d->run)
+		return false;
+	Plugin p;
+	p.file = path;
+	p.group = group;
+	p.label = d->Label;
+	p.name = d->Name ? d->Name : d->Label;
+	p.maker = d->Maker ? d->Maker : "";
+	p.uniqueId = d->UniqueID;
+	p.audioIn = p.audioOut = 0;
+	p.realtimeSafe = d->Properties & 0x4;	// LADSPA_PROPERTY_HARD_RT_CAPABLE
+	for (unsigned long k = 0; k < d->PortCount; ++k) {
+		Port po;
+		po.index = (int)k;
+		po.name = d->PortNames && d->PortNames[k] ? d->PortNames[k] : "";
+		po.descriptor = d->PortDescriptors[k];
+		po.hint = d->PortRangeHints ? d->PortRangeHints[k].hint : 0;
+		po.lower = d->PortRangeHints ? d->PortRangeHints[k].lower : 0;
+		po.upper = d->PortRangeHints ? d->PortRangeHints[k].upper : 0;
+		if (defaults && po.IsControl()) { po.hasDefault = true; po.defValue = defaults[k]; }
+		if (po.IsAudio()) {
+			if (po.IsInput()) ++p.audioIn; else ++p.audioOut;
+		}
+		p.ports.push_back(po);
+	}
+	p.mode = ModeFor(p.audioIn, p.audioOut);
+	out->push_back(p);
+	return true;
+}
+
+static void ScanFile(const std::string &path, const std::string &group, std::vector<Plugin> *out, std::vector<std::string> *log)
 {
 	void *h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
 	if (!h) {
@@ -168,55 +219,45 @@ static void ScanFile(const std::string &path, std::vector<Plugin> *out, std::vec
 	for (unsigned long i = 0; ; ++i) {
 		const Descriptor *d = fn(i);
 		if (!d) break;
-		if (!d->Label || !d->instantiate || !d->connect_port || !d->run)
-			continue;
-		Plugin p;
-		p.file = path;
-		p.label = d->Label;
-		p.name = d->Name ? d->Name : d->Label;
-		p.maker = d->Maker ? d->Maker : "";
-		p.uniqueId = d->UniqueID;
-		p.audioIn = p.audioOut = 0;
-		p.realtimeSafe = d->Properties & 0x4;	// LADSPA_PROPERTY_HARD_RT_CAPABLE
-		for (unsigned long k = 0; k < d->PortCount; ++k) {
-			Port po;
-			po.index = (int)k;
-			po.name = d->PortNames && d->PortNames[k] ? d->PortNames[k] : "";
-			po.descriptor = d->PortDescriptors[k];
-			po.hint = d->PortRangeHints ? d->PortRangeHints[k].hint : 0;
-			po.lower = d->PortRangeHints ? d->PortRangeHints[k].lower : 0;
-			po.upper = d->PortRangeHints ? d->PortRangeHints[k].upper : 0;
-			if (po.IsAudio()) {
-				if (po.IsInput()) ++p.audioIn; else ++p.audioOut;
-			}
-			p.ports.push_back(po);
-		}
-		p.mode = ModeFor(p.audioIn, p.audioOut);
-		out->push_back(p);
+		AddDescriptor(path, group, d, out);
 	}
 	dlclose(h);
+}
+
+// Каталог и его подкаталоги: group - путь подкаталога относительно корня поиска.
+static void ScanDir(const std::string &dir, const std::string &group, int depth, std::vector<Plugin> *out, std::vector<std::string> *log)
+{
+	DIR *d = opendir(dir.c_str());
+	if (!d) return;
+	std::vector<std::string> files, subs;
+	while (struct dirent *e = readdir(d)) {
+		std::string n = e->d_name;
+		if (n == "." || n == "..") continue;
+		std::string full = dir + "/" + n;
+		struct stat st;
+		if (stat(full.c_str(), &st) != 0) continue;
+		if (S_ISDIR(st.st_mode)) {
+			if (depth < 3) subs.push_back(n);
+		} else if (S_ISREG(st.st_mode) && n.size() >= 4 && n.compare(n.size() - 3, 3, ".so") == 0) {
+			files.push_back(full);
+		}
+	}
+	closedir(d);
+	std::sort(files.begin(), files.end());
+	std::sort(subs.begin(), subs.end());
+	for (size_t i = 0; i < files.size(); ++i)
+		ScanFile(files[i], group, out, log);
+	for (size_t i = 0; i < subs.size(); ++i)
+		ScanDir(dir + "/" + subs[i], group.empty() ? subs[i] : group + "/" + subs[i], depth + 1, out, log);
 }
 
 std::vector<Plugin> Scan(const std::vector<std::string> &dirs, std::vector<std::string> *log)
 {
 	std::vector<Plugin> result;
-	for (size_t di = 0; di < dirs.size(); ++di) {
-		DIR *d = opendir(dirs[di].c_str());
-		if (!d) continue;
-		std::vector<std::string> files;
-		while (struct dirent *e = readdir(d)) {
-			std::string n = e->d_name;
-			if (n.size() < 4 || n.compare(n.size() - 3, 3, ".so") != 0)
-				continue;
-			std::string full = dirs[di] + "/" + n;
-			if (IsRegularFile(full))
-				files.push_back(full);
-		}
-		closedir(d);
-		std::sort(files.begin(), files.end());
-		for (size_t i = 0; i < files.size(); ++i)
-			ScanFile(files[i], &result, log);
-	}
+	for (size_t i = 0; i < sBuiltins.size(); ++i)
+		AddDescriptor(std::string(kBuiltinPrefix) + sBuiltins[i]->Label, "Built-in", sBuiltins[i], &result, sBuiltinDefaults[i]);
+	for (size_t di = 0; di < dirs.size(); ++di)
+		ScanDir(dirs[di], "", 0, &result, log);
 	std::stable_sort(result.begin(), result.end(), [](const Plugin &a, const Plugin &b) {
 		return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
 	});
@@ -300,17 +341,22 @@ bool Runner::Start(const Plugin &plugin, float rate, int channels, std::string *
 		if (error) *error = "channels must be 1 or 2";
 		return false;
 	}
-	m.lib = dlopen(plugin.file.c_str(), RTLD_NOW | RTLD_LOCAL);
-	if (!m.lib) {
-		if (error) { const char *e = dlerror(); *error = e ? e : "dlopen failed"; }
-		return false;
-	}
-	DescriptorFunc fn = (DescriptorFunc)dlsym(m.lib, "ladspa_descriptor");
-	if (fn) {
-		for (unsigned long i = 0; ; ++i) {
-			const Descriptor *d = fn(i);
-			if (!d) break;
-			if (d->Label && plugin.label == d->Label) { m.desc = d; break; }
+	if (IsBuiltin(plugin)) {
+		for (size_t i = 0; i < sBuiltins.size(); ++i)
+			if (plugin.label == sBuiltins[i]->Label) { m.desc = sBuiltins[i]; break; }
+	} else {
+		m.lib = dlopen(plugin.file.c_str(), RTLD_NOW | RTLD_LOCAL);
+		if (!m.lib) {
+			if (error) { const char *e = dlerror(); *error = e ? e : "dlopen failed"; }
+			return false;
+		}
+		DescriptorFunc fn = (DescriptorFunc)dlsym(m.lib, "ladspa_descriptor");
+		if (fn) {
+			for (unsigned long i = 0; ; ++i) {
+				const Descriptor *d = fn(i);
+				if (!d) break;
+				if (d->Label && plugin.label == d->Label) { m.desc = d; break; }
+			}
 		}
 	}
 	if (!m.desc) {

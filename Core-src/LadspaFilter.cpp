@@ -2,6 +2,8 @@
  * LadspaFilter - см. LadspaFilter.h
  */
 #include <Alert.h>
+#include <Application.h>
+#include <Entry.h>
 #include <Button.h>
 #include <CheckBox.h>
 #include <Directory.h>
@@ -20,6 +22,7 @@
 
 #include "Globals.h"
 #include "LadspaFilter.h"
+#include "SpringReverb.h"
 #include "LadspaSlider.h"
 #include "main.h"
 
@@ -235,8 +238,26 @@ const char *LadspaFilter::RepeatTag() const
 static std::vector<Ladspa::Plugin> sPlugins;
 static bool sScanned = false;
 
+const char *AppPluginsDir()
+{
+	static BString dir;
+	if (dir.Length() == 0) {
+		app_info ai;
+		if (be_app && be_app->GetAppInfo(&ai) == B_OK) {
+			BEntry entry(&ai.ref);
+			BPath path;
+			if (entry.GetPath(&path) == B_OK && path.GetParent(&path) == B_OK && path.Append("plugins") == B_OK)
+				dir = path.Path();
+		}
+	}
+	return dir.String();
+}
+
 void LadspaRescan()
 {
+	// встроенные плагины и папка plugins рядом с программой (с подпапками)
+	Ladspa::RegisterBuiltin(SpringReverb::Descriptor(), SpringReverb::kDefaults);
+	Ladspa::AddSearchDir(AppPluginsDir());
 	std::vector<std::string> log;
 	std::vector<Ladspa::Plugin> all = Ladspa::Scan(Ladspa::DefaultPaths(), &log);
 	for (size_t i = 0; i < log.size(); ++i)
