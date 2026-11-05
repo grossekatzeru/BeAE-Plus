@@ -168,9 +168,9 @@ class CommonPool{
 	BMenu		*menu_edit, *menu_transform, *menu_zero, *menu_analyze, *menu_generate;
 	BMenuItem	*mn_save, *mn_save_as, *mn_save_sel, *mn_undo_enable, *mn_undo, *mn_cut, *mn_copy;
 	BMenuItem	*mn_paste, *mn_select_all, *mn_trim, *mn_set_freq, *mn_resample;
-	BMenuItem	*mn_clear, *mn_unselect, *mn_copy_silence, *mn_paste_new;
+	BMenuItem	*mn_clear, *mn_unselect, *mn_copy_silence, *mn_paste_new, *mn_redo;
 #ifdef __SAMPLE_STUDIO_LE
-	BMenuItem	*mn_paste_mix, *mn_copy_to_stack, *mn_redo;
+	BMenuItem	*mn_paste_mix, *mn_copy_to_stack;
 #endif
 
 	bool	sample_view_dirty, update_draw_cache;	// these are uses to recalc the sampleview cache and as dirty bit
