@@ -17,7 +17,7 @@ static const int kDivCount = 6;
 
 TempoView::TempoView(BRect r)
 	: BView(r, "Tempo view", B_FOLLOW_NONE, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fRepeat(0)
+	  fPressed(HIT_NONE), fLastBpm(-1), fLastDiv(-1), fLastMetro(false), fRepeat(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 	back = BTranslationUtils::GetBitmapFile("./Bitmaps/Box.png");
@@ -50,7 +50,14 @@ BRect TempoView::ButtonRect(int which) const
 BRect TempoView::DepthRect() const
 {
 	BRect l = LcdRect();
-	return BRect(ButtonRect(HIT_UP).right + 6, l.top, Bounds().right - 6, l.top + 18);
+	const float x = ButtonRect(HIT_UP).right + 6;
+	return BRect(x, l.top, x + 44, l.top + 18);
+}
+
+BRect TempoView::MetroRect() const
+{
+	BRect d = DepthRect();
+	return BRect(d.right + 6, d.top, d.right + 6 + 26, d.bottom);
 }
 
 int TempoView::HitTest(BPoint p) const
@@ -58,6 +65,7 @@ int TempoView::HitTest(BPoint p) const
 	for (int w = HIT_UP; w <= HIT_DOWN; w++)
 		if (ButtonRect(w).Contains(p)) return w;
 	if (DepthRect().Contains(p)) return HIT_DEPTH;
+	if (MetroRect().Contains(p)) return HIT_METRO;
 	return HIT_NONE;
 }
 
@@ -121,10 +129,26 @@ void TempoView::Draw(BRect)
 	SetHighColor(make_color(120, 255, 120));
 	SetLowColor(make_color(20, 30, 20));
 	DrawString(s, BPoint(dr.left + (dr.Width() - StringWidth(s)) / 2, dr.bottom - 5));
+	// кнопка метронома: силуэт метронома с маятником, включённый светится зелёным
+	{
+		BRect m = MetroRect();
+		const bool on = Mix.MetronomeOn();
+		SetHighColor(on ? make_color(60, 200, 90) : make_color(150, 156, 164));
+		FillRect(m);
+		SetHighColor(make_color(20, 20, 20));
+		StrokeRect(m);
+		const float cx = (m.left + m.right) / 2;
+		SetHighColor(on ? make_color(0, 40, 10) : make_color(30, 30, 30));
+		FillTriangle(BPoint(cx - 6, m.bottom - 3), BPoint(cx + 6, m.bottom - 3), BPoint(cx, m.top + 3));
+		SetHighColor(on ? make_color(220, 255, 230) : make_color(240, 240, 240));
+		StrokeLine(BPoint(cx, m.bottom - 5), BPoint(cx + 4, m.top + 4));
+	}
 	SetHighColor(make_color(230, 230, 230));
 	SetLowColor(make_color(60, 60, 60));
 	SetFontSize(9);
 	DrawString("GRID", BPoint(dr.left + (dr.Width() - StringWidth("GRID")) / 2, dr.bottom + 13));
+	BRect mr = MetroRect();
+	DrawString("CLICK", BPoint(mr.left + (mr.Width() - StringWidth("CLICK")) / 2, mr.bottom + 13));
 	SetFontSize(be_plain_font->Size());
 }
 
@@ -143,6 +167,11 @@ void TempoView::MouseDown(BPoint p)
 {
 	const int hit = HitTest(p);
 	if (hit == HIT_NONE) return;
+	if (hit == HIT_METRO){
+		Mix.SetMetronome(!Mix.MetronomeOn());
+		Invalidate();
+		return;
+	}
 	if (hit == HIT_DEPTH){
 		BPopUpMenu *menu = new BPopUpMenu("depth", false, false);
 		for (int i = 0; i < kDivCount; i++){
@@ -191,7 +220,8 @@ void TempoView::Pulse()
 	if (fPressed == HIT_UP || fPressed == HIT_DOWN){
 		if (++fRepeat > 4) Step(fPressed == HIT_UP ? +1 : -1);
 	}
-	if (fLastBpm != Mix.Bpm() || fLastDiv != Mix.GridDiv()){
+	if (fLastBpm != Mix.Bpm() || fLastDiv != Mix.GridDiv() || fLastMetro != Mix.MetronomeOn()){
+		fLastMetro = Mix.MetronomeOn();
 		fLastBpm = Mix.Bpm();
 		fLastDiv = Mix.GridDiv();
 		Invalidate();

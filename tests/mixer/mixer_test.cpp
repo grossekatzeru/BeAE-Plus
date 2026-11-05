@@ -128,6 +128,56 @@ int main(int argc,char**argv){
 		CHECK(gm.Snap(0,-0.3)==0);
 		gm.ResetAll(); CHECK(gm.Bpm()==120.0 && gm.GridDiv()==4 && !gm.Track(0)->grid);
 	}
+	// метроном: 120 BPM -> такт 2 с, 32-я доля = 62.5 мс
+	{
+		const double R = 8000;
+		auto energy = [&](Mixer &m, double t0, double len) {
+			const int n = (int)(len * R);
+			std::vector<float> b(2 * n, 0.0f);
+			m.Process(b.data(), n, t0 * R, R, R, true);
+			double e = 0; for (int i = 0; i < 2 * n; i++) e += b[i] * b[i];
+			return e;
+		};
+		Mixer mm;
+		CHECK(!mm.MetronomeOn() && energy(mm, 0, 0.1) == 0);		// выключен - тишина
+		mm.SetMetronome(true);
+		// глубина 1: только бочка на «раз»
+		mm.SetGridDiv(1);
+		CHECK(energy(mm, 0, 0.1) > 1.0);
+		CHECK(energy(mm, 0.5, 0.1) == 0 && energy(mm, 1.0, 0.1) == 0);
+		// глубина 2: + малый на «три» (1.0 с)
+		mm.SetGridDiv(2);
+		CHECK(energy(mm, 1.0, 0.1) > 1.0);
+		CHECK(energy(mm, 0.5, 0.1) == 0);
+		// глубина 4: + хай-хет на «два» (0.5 с) и «четыре» (1.5 с), он тише бочки и малого
+		mm.SetGridDiv(4);
+		const double hat = energy(mm, 0.5, 0.05), snare = energy(mm, 1.0, 0.1), kick = energy(mm, 0, 0.1);
+		CHECK(hat > 0 && hat < snare && hat < kick);
+		CHECK(energy(mm, 1.5, 0.05) > 0);
+		CHECK(energy(mm, 0.25, 0.05) == 0);							// 1/8 при глубине 4 не звучит
+		// глубина 8: хай-хет на 1/8 (0.25 с) тише, чем на четвертях
+		mm.SetGridDiv(8);
+		const double hat8 = energy(mm, 0.25, 0.05);
+		CHECK(hat8 > 0 && hat8 < hat);
+		mm.SetGridDiv(32);
+		{ const double h32 = energy(mm, 0.3125, 0.05); CHECK(h32 > 0 && h32 < hat8); }	// 32-я доля (после хвоста бочки)
+		// буфер по частям даёт то же, что целиком (удар, начавшийся в прошлом буфере, не обрывается)
+		mm.SetGridDiv(4);
+		std::vector<float> whole(2 * 4000, 0.0f), parts(2 * 4000, 0.0f);
+		mm.Process(whole.data(), 4000, 0, R, R, true);
+		for (int from = 0; from < 4000; from += 700) {
+			int n = from + 700 <= 4000 ? 700 : 4000 - from;
+			mm.Process(&parts[2 * from], n, from, R, R, true);
+		}
+		double maxd = 0; for (size_t i = 0; i < whole.size(); i++) maxd = fmax(maxd, fabs(whole[i] - parts[i]));
+		CHECK(maxd < 1e-6);
+		// пауза и реверс - тишина
+		std::vector<float> pb(2 * 800, 0.0f);
+		mm.Process(pb.data(), 800, 0, R, R, false);
+		double ep = 0; for (float v : pb) ep += v * v; CHECK(ep == 0);
+		mm.Process(pb.data(), 800, 800, -R, R, true);
+		ep = 0; for (float v : pb) ep += v * v; CHECK(ep == 0);
+	}
 	// эффекты: плагин amp (из tests/ladspa) на неактивной и на активной дорожке
 	if(argc>1){
 		std::vector<std::string> dirs(1,argv[1]);

@@ -20,7 +20,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 	return SourceRef(s);
 }
 
-Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0)
+Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMetroOn(false)
 {
 	fLock.clear();
 	memset(fTmp, 0, sizeof(fTmp));
@@ -321,6 +321,9 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		}
 		fPeakL[act] = pl; fPeakR[act] = pr;
 	}
+
+	if (fMetroOn && mixExtras && dir > 0)
+		fMetro.Render(buf, frames, now, sysRate, fBpm, fGridDiv);
 
 	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;

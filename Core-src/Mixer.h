@@ -21,6 +21,7 @@
 #include <memory>
 #include <vector>
 #include "FxChain.h"
+#include "Metronome.h"
 
 #define MIX_MAX_TRACKS	16
 
@@ -113,7 +114,11 @@ public:
 	int		GridDiv() const { return fGridDiv; }
 	void	SetGridDiv(int div);
 	double	GridStep() const { return 60.0 / fBpm * 4.0 / fGridDiv; }	// секунд между линиями
-	double	Snap(int lane, double t) const;			// t притянуто к сетке, если у дорожки она включена
+	double	Snap(int lane, double t) const;
+
+	// Метроном-барабанщик: звучит при воспроизведении, в Mixdown не попадает
+	void	SetMetronome(bool on) { fMetroOn = on; }
+	bool	MetronomeOn() const { return fMetroOn; }			// t притянуто к сетке, если у дорожки она включена
 
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
 	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
@@ -156,6 +161,8 @@ private:
 	std::atomic<int> fRevision;
 	double		fBpm;
 	int			fGridDiv;
+	std::atomic<bool> fMetroOn;
+	Metronome	fMetro;
 };
 
 extern Mixer Mix;

@@ -9,7 +9,7 @@
 #include <View.h>
 #include <Bitmap.h>
 
-#define TEMPO_VIEW_WIDTH	142
+#define TEMPO_VIEW_WIDTH	178
 
 class TempoView : public BView {
 public:
@@ -22,10 +22,11 @@ public:
 	virtual void Pulse();
 
 private:
-	enum { HIT_NONE, HIT_UP, HIT_RESET, HIT_DOWN, HIT_DEPTH };
+	enum { HIT_NONE, HIT_UP, HIT_RESET, HIT_DOWN, HIT_DEPTH, HIT_METRO };
 	BRect	LcdRect() const;
 	BRect	ButtonRect(int which) const;
 	BRect	DepthRect() const;
+	BRect	MetroRect() const;						// кнопка метронома справа от глубины сетки
 	int		HitTest(BPoint p) const;
 	void	Step(int delta);
 	void	DrawSmallButton(int which);
@@ -34,6 +35,7 @@ private:
 	int		fPressed;
 	double	fLastBpm;
 	int		fLastDiv;
+	bool	fLastMetro;
 	int		fRepeat;				// пульсов с момента нажатия (автоповтор при удержании)
 };
 
