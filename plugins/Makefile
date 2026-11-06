@@ -1,25 +1,11 @@
-# Плагины BeAE-Plus: обычные LADSPA-плагины (.so), работают в любом LADSPA-хосте.
-# Сборка:    make
-# Установка: make install                (в ~/config/non-packaged/lib/ladspa, видят все приложения)
-#            make install DEST=<папка>   (например, plugins рядом с BeAE: DEST=/путь/к/BeAE/plugins)
-CXX      ?= g++
-CXXFLAGS ?= -O2 -Wall
-CXXFLAGS += -fPIC
-LDFLAGS  += -shared
-DEST     ?= $(HOME)/config/non-packaged/lib/ladspa
+# Сборка всех плагинов: каждый плагин лежит в своей подпапке и имеет свой Makefile.
+#   make              собрать все
+#   make install      установить все (DEST=<папка>, по умолчанию ~/config/non-packaged/lib/ladspa)
+#   make clean        очистить
+# Один плагин: cd <подпапка> && make [install]
+SUBDIRS := $(patsubst %/Makefile,%,$(wildcard */Makefile))
 
-PLUGINS = spring_reverb.so
-
-all: $(PLUGINS)
-
-spring_reverb.so: SpringReverb.cpp SpringReverb.h ladspa_abi.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ SpringReverb.cpp -lm
-
-install: all
-	mkdir -p "$(DEST)/Reverb"
-	cp spring_reverb.so "$(DEST)/Reverb/"
-
-clean:
-	rm -f $(PLUGINS)
+all install clean:
+	@for d in $(SUBDIRS); do $(MAKE) -C $$d $@ || exit 1; done
 
 .PHONY: all install clean

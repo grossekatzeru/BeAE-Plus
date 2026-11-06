@@ -10,7 +10,7 @@
 #ifndef SPRING_REVERB_H
 #define SPRING_REVERB_H
 
-#include "ladspa_abi.h"
+#include "../common/ladspa_abi.h"
 
 namespace SpringReverb {
 

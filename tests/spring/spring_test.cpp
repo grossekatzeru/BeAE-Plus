@@ -1,6 +1,6 @@
 // Проверка SpringReverb на Linux: через Ladspa::Runner как встроенный плагин.
 #include "LadspaHost.h"
-#include "../../plugins/SpringReverb.h"
+#include "../../plugins/spring_reverb/SpringReverb.h"
 #include <stdio.h>
 #include <math.h>
 #include <string>

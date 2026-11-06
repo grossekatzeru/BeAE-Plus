@@ -6,14 +6,27 @@
 
 | Файл | Название | Что делает |
 |---|---|---|
-| `spring_reverb.so` | Ламповое эхо (пружинный реверб) | имитация пружинного ревербератора, 3–5 пружин |
+| `spring_reverb/` → `spring_reverb.so` | Ламповое эхо (пружинный реверб) | имитация пружинного ревербератора, 3–5 пружин |
+
+## Устройство папки
+
+    plugins/
+      Makefile            общий: собирает все плагины (по подпапкам с Makefile)
+      common.mk           общие правила сборки одного плагина
+      common/ladspa_abi.h интерфейс LADSPA
+      spring_reverb/      один плагин: исходники и свой Makefile
+
+Новый плагин: создать подпапку, положить исходники и `Makefile` из четырёх строк (NAME, SRCS, GROUP, include ../common.mk).
+Общий Makefile подхватит его сам. Функция `ladspa_descriptor` должна быть экспортирована (`extern "C"`).
 
 ## Сборка и установка (Haiku)
 
     cd plugins
-    make
-    make install                      # ~/config/non-packaged/lib/ladspa
-    make install DEST=/путь/BeAE/plugins    # папка plugins рядом с BeAE (подпапки допустимы)
+    make                  # все плагины
+    make install          # ~/config/non-packaged/lib/ladspa/<группа>/
+    make install DEST=/путь/BeAE/plugins    # папка plugins рядом с BeAE (подпапка группы станет подменю)
+
+    cd spring_reverb && make && make install    # только один плагин
 
 BeAE ищет плагины в `plugins` рядом с программой (вместе с подпапками, глубина до 3, подпапка = подменю),
 а также в стандартных папках LADSPA (`~/config/lib/ladspa`, `~/config/non-packaged/lib/ladspa`,
