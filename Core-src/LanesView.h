@@ -8,6 +8,9 @@
 #define LANES_VIEW_H
 
 #include <View.h>
+#include <vector>
+
+struct ClipRef { int slot; int idx; double pos0; };		// клип группы при переносе: дорожка, номер, исходное положение
 
 // Рисует клипы дорожки slot в области body (волна, границы). tl - время левого края (сек), dt - секунд на
 // пиксель, W - ширина в пикселях. skipFill: не заливать фон клипа (используется поверх уже нарисованной волны).
@@ -49,6 +52,8 @@ private:
 	float		fDragX0;
 	double		fDragPos0;
 	int			fDropLane;			// при переносе клипа на другую дорожку: куда (или -1)
+	std::vector<ClipRef>	fGroup;		// выделенные клипы, едущие вместе с перетаскиваемым (пусто - одиночный перенос)
+	double		fGroupDelta;		// на сколько секунд сдвинута группа
 };
 
 #endif

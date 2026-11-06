@@ -98,6 +98,19 @@ static void TestMaster(int &fails){
 		std::vector<float> o2(256*2,0.0f); n.Process(o2.data(),256,0,44100,44100,true);
 		for(size_t i=0;i<o2.size();i++) CHECK(fabsf(o2[i])<1e-6);
 	}
+	{	// выделение и закрепление клипов: у нового клипа флагов нет, флаги ставятся по одному клипу
+		float x[8]={.1f,.1f,.1f,.1f,.1f,.1f,.1f,.1f};
+		Mixer m; int s=m.AddTrack("a",x,8,1);
+		CHECK(s>=0 && m.Clip(s,0)!=NULL); if(s<0||!m.Clip(s,0)) return;
+		SourceRef src=m.Clip(s,0)->src;
+		int c0=m.AddClip(s,src,0,4,2.0), c1=m.AddClip(s,src,0,4,5.0);
+		CHECK(c0>=0&&c1>=0);
+		CHECK(!m.Clip(s,c0)->locked && !m.Clip(s,c0)->selected);
+		CHECK(m.SetClipLocked(s,c0,true) && m.SetClipSelected(s,c0,true));
+		CHECK(m.Clip(s,c0)->locked && m.Clip(s,c0)->selected);
+		CHECK(!m.Clip(s,c1)->locked && !m.Clip(s,c1)->selected);	// «дубликат» рядом не закреплён и не выделен
+		MixClip tk; CHECK(m.TakeClip(s,c0,tk) && tk.locked && tk.selected);
+	}
 	{	// ResetAll очищает мастер
 		Mixer m; m.SetMasterGain(0.3f); m.SetMasterMute(true); m.Fx(MIX_MASTER).Add(*dp,44100,&err);
 		m.ResetAll();

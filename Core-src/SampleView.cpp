@@ -418,13 +418,24 @@ void SampleView::MouseDown(BPoint p)
 		Pool.UpdateToolBar();
 	}
 
-	// клик по другому клипу этой же дорожки делает его активным (правая кнопка - меню как обычно)
+	const bool ctrl = (modifiers() & (B_COMMAND_KEY | B_CONTROL_KEY)) != 0;
+	// обычный щелчок (не правой кнопкой, не Ctrl, не в «Перемещении») снимает выделение нескольких клипов
+	if (button != B_SECONDARY_MOUSE_BUTTON && !ctrl && Pool.tool_mode != MOVE_TOOL)
+		Tracks_ClearClipSelection();
+
+	// клик по другому клипу этой же дорожки делает его активным (правая кнопка - меню как обычно);
+	// Ctrl+щелчок добавляет его в выделение или убирает
 	if (button != B_SECONDARY_MOUSE_BUTTON && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f
 		&& Mix.ClipCount(Mix.Active()) > 0){
 		const double t = ((double)Pool.l_pointer + p.x * (double)(Pool.r_pointer - Pool.l_pointer) / (Bounds().Width() + 1)) / Pool.frequency;
 		double cs = 0, ce = 0;
 		const bool inActive = Tracks_ActiveClipSpan(cs, ce) && t >= cs && t < ce;
 		const int other = Mix.ClipAt(Mix.Active(), t);
+		if (!inActive && other >= 0 && ctrl){
+			Tracks_ToggleClipSelected(Mix.Active(), other);
+			Invalidate();
+			return;
+		}
 		if (!inActive && other >= 0 && !Recorder.IsRecording()){
 			Tracks_Activate(Mix.Active(), t, other);
 			if (Pool.tool_mode != MOVE_TOOL)
@@ -485,7 +496,7 @@ void SampleView::MouseDown(BPoint p)
 				menu->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 				menu->AddSeparatorItem();
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
-				menuItem->SetMarked(Tracks_ActiveClipLocked());
+				menuItem->SetMarked(Tracks_SelectionLocked());
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
 				menuItem->SetMarked(Pool.tool_mode == MOVE_TOOL);
 				menu->AddSeparatorItem();
@@ -885,7 +896,10 @@ void SampleView::MouseUp(BPoint p)
 			target = lanes->SlotAtY(ConvertToParent(p).y);
 			lanes->SetDropLane(-1);
 		}
-		if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
+		if (Tracks_SelectedCount() > 1){				// выделено несколько клипов: двигаются вместе (незакреплённые)
+			Tracks_MoveSelectionBy(off - (double)move_first / Pool.frequency, true);
+			Pool.changed = true;
+		}else if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
 			Tracks_MoveActiveClipToLane(target, Tracks_ActiveClipLocked() ? off : Mix.Snap(target, off));
 			Pool.changed = true;
 		}else{

@@ -49,7 +49,8 @@ struct MixClip {
 	int64_t		len;		// число кадров
 	double		pos;		// начало на ленте времени, секунды (>= 0)
 	bool		locked;		// закреплён во времени: сдвигать нельзя
-	MixClip() : start(0), len(0), pos(0), locked(false) {}
+	bool		selected;	// входит в выделение нескольких клипов (активный клип выделен всегда)
+	MixClip() : start(0), len(0), pos(0), locked(false), selected(false) {}
 	float	Rate() const { return src ? src->rate : 44100.0f; }
 	double	Length() const { return src ? (double)len / src->rate : 0.0; }	// секунды
 	double	End() const { return pos + Length(); }
@@ -99,6 +100,7 @@ public:
 	bool	TakeClip(int lane, int idx, MixClip &out);	// убрать и вернуть (клип уходит в Pool)
 	bool	SetClipPos(int lane, int idx, double pos);
 	bool	SetClipLocked(int lane, int idx, bool locked);
+	bool	SetClipSelected(int lane, int idx, bool selected);
 	bool	SetClipRange(int lane, int idx, int64_t start, int64_t len);
 	void	ClearClips(int lane);
 	int		LaneChannels(int lane) const;				// 1, если все клипы моно, иначе 2

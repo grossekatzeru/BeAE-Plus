@@ -113,13 +113,30 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 		v->SetHighColor(make_color(255, 255, 255));
 		if (xs >= 0 && xs < W) v->StrokeLine(BPoint(body.left + (float)xs, body.top), BPoint(body.left + (float)xs, body.bottom));
 		if (xe >= 0 && xe < W) v->StrokeLine(BPoint(body.left + (float)xe, body.top), BPoint(body.left + (float)xe, body.bottom));
+		if (c->selected){				// выделенный клип: синяя рамка
+			v->SetHighColor(70, 130, 255);
+			v->SetPenSize(2);
+			v->StrokeRect(BRect(body.left + x0 + 1, body.top + 1, body.left + x1 - 1, body.bottom - 1));
+			v->SetPenSize(1);
+		}
+		if (c->locked && x1 - x0 > 14){		// закреплён во времени: маленький замок в углу
+			const float lx = body.left + x0 + 4, ly = body.top + 4;
+			v->SetHighColor(0, 0, 0);
+			v->StrokeLine(BPoint(lx + 2, ly + 4), BPoint(lx + 2, ly + 1));
+			v->StrokeLine(BPoint(lx + 6, ly + 4), BPoint(lx + 6, ly + 1));
+			v->StrokeLine(BPoint(lx + 2, ly + 1), BPoint(lx + 6, ly + 1));
+			v->SetHighColor(255, 200, 0);
+			v->FillRect(BRect(lx, ly + 4, lx + 8, ly + 10));
+			v->SetHighColor(0, 0, 0);
+			v->StrokeRect(BRect(lx, ly + 4, lx + 8, ly + 10));
+		}
 	}
 }
 
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1), fGroupDelta(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -279,6 +296,16 @@ void LanesView::MouseDown(BPoint p)
 			if (t < 0) t = 0;
 		}
 		const int clip = (t >= 0) ? Mix.ClipAt(slot, t) : -1;
+		if (clip >= 0 && (modifiers() & (B_COMMAND_KEY | B_CONTROL_KEY)) && !(buttons & B_SECONDARY_MOUSE_BUTTON)){
+			Tracks_ToggleClipSelected(slot, clip);		// Ctrl+щелчок: добавить клип в выделение или убрать
+			Invalidate();
+			return;
+		}
+		if (!(buttons & B_SECONDARY_MOUSE_BUTTON)){
+			const MixClip *c0 = Mix.Clip(slot, clip);
+			if (!(Pool.tool_mode == MOVE_TOOL && c0 && c0->selected))	// щелчок по выделенному клипу в «Перемещении» - тянуть всех
+				Tracks_ClearClipSelection();
+		}
 		if (Pool.tool_mode == MOVE_TOOL){			// тянем клип по ленте, не делая его активным
 			const MixClip *mc = Mix.Clip(slot, clip);
 			if (mc && Pool.sample_type != NONE){
@@ -287,6 +314,15 @@ void LanesView::MouseDown(BPoint p)
 				fDragX0 = p.x;
 				fDragPos0 = mc->pos;
 				fDropLane = -1;
+				fGroup.clear();
+				fGroupDelta = 0;
+				if (mc->selected && Tracks_SelectedCount() > 1){		// группа: все выделенные клипы микшера
+					for (int s = 0; s < MIX_MAX_TRACKS; s++)
+						for (int k = 0; k < Mix.ClipCount(s); k++){
+							const MixClip *g = Mix.Clip(s, k);
+							if (g->selected){ ClipRef r = { s, k, g->pos }; fGroup.push_back(r); }
+						}
+				}
 				SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
 			}
 			return;
@@ -312,6 +348,24 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 		if (pos < 0) pos = 0;
 		const MixClip *dc = Mix.Clip(fDragSlot, fDragClip);
 		if (dc && dc->locked) pos = fDragPos0;		// закреплённый во времени клип не едет по горизонтали
+		if (!fGroup.empty()){						// группа: все незакреплённые выделенные клипы едут на одну величину
+			double delta = pos - fDragPos0;
+			if (dc && dc->locked) delta = 0;
+			double minPos = 1e18;
+			for (size_t g = 0; g < fGroup.size(); g++){
+				const MixClip *gc = Mix.Clip(fGroup[g].slot, fGroup[g].idx);
+				if (gc && !gc->locked) minPos = MIN(minPos, fGroup[g].pos0);
+			}
+			if (minPos < 1e17 && minPos + delta < 0) delta = -minPos;
+			for (size_t g = 0; g < fGroup.size(); g++){
+				const MixClip *gc = Mix.Clip(fGroup[g].slot, fGroup[g].idx);
+				if (gc && !gc->locked) Mix.SetClipPos(fGroup[g].slot, fGroup[g].idx, fGroup[g].pos0 + delta);
+			}
+			fGroupDelta = delta;
+			SetDropLane(-1);						// группа на другую дорожку не переносится
+			Invalidate();
+			return;
+		}
 		Mix.SetClipPos(fDragSlot, fDragClip, pos);	// живой сдвиг: звук клипа не копируется
 		const int target = SlotAtY(p.y);			// курсор над другой дорожкой: при отпускании клип уйдёт туда
 		SetDropLane((target >= 0 && target != fDragSlot) ? target : -1);
@@ -327,6 +381,17 @@ void LanesView::MouseUp(BPoint)
 		fDragSlot = -1;
 		fDragClip = -1;
 		fDropLane = -1;
+		if (!fGroup.empty()){
+			for (size_t g = 0; g < fGroup.size(); g++)		// вернуть старые положения: в отмену попадёт исходная раскладка
+				if (Mix.Clip(fGroup[g].slot, fGroup[g].idx)) Mix.SetClipPos(fGroup[g].slot, fGroup[g].idx, fGroup[g].pos0);
+			const double delta = fGroupDelta;
+			fGroup.clear();
+			fGroupDelta = 0;
+			if (Tracks_MoveSelectionBy(delta, true)) Pool.changed = true;
+			Relayout();
+			Invalidate();
+			return;
+		}
 		const MixClip *mc = Mix.Clip(slot, clip);
 		if (mc){
 			double np = mc->pos;

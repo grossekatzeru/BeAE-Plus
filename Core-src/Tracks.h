@@ -26,6 +26,13 @@ bool	Tracks_SetOffset(int index, double seconds);	// false, если клип з
 bool	Tracks_MoveClip(int lane, int clip, double seconds);	// сдвинуть клип из микшера (не активный)
 bool	Tracks_ActiveClipLocked();				// активный клип закреплён во времени (его нельзя сдвигать)
 void	Tracks_ToggleActiveClipLock();			// закрепить / освободить активный клип
+// Выделение нескольких клипов: активный клип выделен всегда, остальные добавляются Ctrl+щелчком
+void	Tracks_ClearClipSelection();			// снять выделение со всех клипов, кроме активного
+bool	Tracks_ToggleClipSelected(int lane, int clip);	// добавить / убрать клип микшера из выделения
+int		Tracks_SelectedCount();					// число выделенных клипов, включая активный
+bool	Tracks_SelectionLocked();				// все выделенные клипы закреплены во времени
+void	Tracks_ToggleSelectionLock();			// закрепить все выделенные (если не все закреплены) или освободить все
+bool	Tracks_MoveSelectionBy(double delta, bool includeActive);	// сдвинуть выделенные незакреплённые клипы на delta секунд (одна правка в отмене)
 bool	Tracks_MoveClipToLane(int fromLane, int clip, int toLane, double seconds);	// перенести клип (не активный) на другую дорожку в момент seconds
 bool	Tracks_MoveActiveClipToLane(int toLane, double seconds);	// перенести активный клип на другую дорожку; она становится активной
 // Положить звук (из файла) клипом на дорожку lane (-1: на первую пустую, иначе на новую) в момент seconds.

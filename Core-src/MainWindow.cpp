@@ -767,7 +767,7 @@ MainWindow::~MainWindow()
 void MainWindow::MenusBeginning()
 {
 	Pool.UpdateMenu();
-	if (fLockItem) fLockItem->SetMarked(Tracks_ActiveClipLocked());
+	if (fLockItem) fLockItem->SetMarked(Tracks_SelectionLocked());
 }
 
 void MainWindow::UpdateRecent()
@@ -1484,7 +1484,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		break;
 	case CLIP_LOCK:
 		if (Pool.sample_type != NONE && !Recorder.IsRecording()){
-			Tracks_ToggleActiveClipLock();
+			Tracks_ToggleSelectionLock();
 			Pool.changed = true;
 			Pool.sample_view_dirty = true;
 			Pool.RedrawWindow();

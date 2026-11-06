@@ -3,6 +3,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <algorithm>
+#include <utility>
+#include <vector>
 #include <Window.h>
 
 #include "CommonPool.h"
@@ -470,6 +473,96 @@ void Tracks_ToggleActiveClipLock()
 	gActiveLocked = !gActiveLocked;
 	gOrigin.locked = gActiveLocked;
 	Mix.Touch();
+}
+
+// ---- выделение нескольких клипов ----
+
+static bool ActiveClipExists()
+{
+	int64 first = 0, last = 0;
+	return Tracks_ActiveRange(first, last);
+}
+
+void Tracks_ClearClipSelection()
+{
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->selected)
+				Mix.SetClipSelected(i, k, false);
+}
+
+bool Tracks_ToggleClipSelected(int lane, int clip)
+{
+	const MixClip *c = Mix.Clip(lane, clip);
+	if (!c) return false;
+	Mix.SetClipSelected(lane, clip, !c->selected);
+	return true;
+}
+
+int Tracks_SelectedCount()
+{
+	int n = ActiveClipExists() ? 1 : 0;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->selected) n++;
+	return n;
+}
+
+bool Tracks_SelectionLocked()
+{
+	int n = 0;
+	if (ActiveClipExists()){
+		if (!gActiveLocked) return false;
+		n++;
+	}
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++){
+			const MixClip *c = Mix.Clip(i, k);
+			if (!c->selected) continue;
+			if (!c->locked) return false;
+			n++;
+		}
+	return n > 0;
+}
+
+void Tracks_ToggleSelectionLock()
+{
+	const bool target = !Tracks_SelectionLocked();
+	if (ActiveClipExists()){
+		gActiveLocked = target;
+		gOrigin.locked = target;
+	}
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->selected)
+				Mix.SetClipLocked(i, k, target);
+	Mix.Touch();
+}
+
+bool Tracks_MoveSelectionBy(double delta, bool includeActive)
+{
+	if (Recorder.IsRecording() || delta == 0)
+		return false;
+	return Restructure([&](int lane, int stashed, const ViewState&){
+		std::vector<std::pair<int, int> > movers;				// (дорожка, номер клипа) незакреплённых выделенных
+		for (int i = 0; i < MIX_MAX_TRACKS; i++)
+			for (int k = 0; k < Mix.ClipCount(i); k++){
+				const MixClip *c = Mix.Clip(i, k);
+				if (c->selected && !c->locked && !(i == lane && k == stashed)) movers.push_back(std::make_pair(i, k));
+			}
+		if (includeActive && stashed >= 0 && Mix.Clip(lane, stashed) && !Mix.Clip(lane, stashed)->locked)
+			movers.push_back(std::make_pair(lane, stashed));
+		double minPos = 1e18;
+		for (size_t m = 0; m < movers.size(); m++)
+			minPos = std::min(minPos, Mix.Clip(movers[m].first, movers[m].second)->pos);
+		double d = delta;
+		if (!movers.empty() && minPos + d < 0) d = -minPos;		// не дальше начала ленты
+		for (size_t m = 0; m < movers.size(); m++){
+			const MixClip *c = Mix.Clip(movers[m].first, movers[m].second);
+			Mix.SetClipPos(movers[m].first, movers[m].second, c->pos + d);
+		}
+		return stashed;
+	});
 }
 
 bool Tracks_MoveClipToLane(int from, int clip, int to, double seconds)
