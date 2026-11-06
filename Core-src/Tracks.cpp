@@ -475,34 +475,40 @@ void Tracks_ToggleActiveClipLock()
 bool Tracks_MoveClipToLane(int from, int clip, int to, double seconds)
 {
 	if (from == to) return Tracks_MoveClip(from, clip, seconds);
-	if (!Mix.Clip(from, clip) || !Mix.Track(to) || Recorder.IsRecording() || Mix.Clip(from, clip)->locked)
+	if (!Mix.Clip(from, clip) || !Mix.Track(to) || Recorder.IsRecording())
 		return false;
 	if (from == Mix.Active())
 		return false;					// активный клип лежит в Pool: для него Tracks_MoveActiveClipToLane
 	if (seconds < 0) seconds = 0;
 	return Restructure([&](int, int stashed, const ViewState&){
 		MixClip mc;
-		if (Mix.TakeClip(from, clip, mc))
-			Mix.AddClip(to, mc.src, mc.start, mc.len, seconds);
+		if (Mix.TakeClip(from, clip, mc)){
+			// закреплённый во времени клип меняет дорожку, но остаётся в том же моменте и закреплённым
+			const int ni = Mix.AddClip(to, mc.src, mc.start, mc.len, mc.locked ? mc.pos : seconds);
+			if (ni >= 0 && mc.locked) Mix.SetClipLocked(to, ni, true);
+		}
 		return stashed;
 	});
 }
 
 bool Tracks_MoveActiveClipToLane(int to, double seconds)
 {
-	if (!Mix.Track(to) || to == Mix.Active() || !PoolHasSound() || Recorder.IsRecording() || gActiveLocked)
+	if (!Mix.Track(to) || to == Mix.Active() || !PoolHasSound() || Recorder.IsRecording())
 		return false;
 	if (seconds < 0) seconds = 0;
 	int newIdx = -1;
+	double placed = seconds;
 	bool ok = Restructure([&](int lane, int stashed, const ViewState &view){
 		if (stashed < 0) return stashed;
 		MixClip mc;
 		if (!Mix.TakeClip(lane, stashed, mc)) return stashed;
-		newIdx = Mix.AddClip(to, mc.src, mc.start, mc.len, seconds);
+		if (mc.locked) placed = mc.pos;				// закреплённый во времени клип остаётся в том же моменте
+		newIdx = Mix.AddClip(to, mc.src, mc.start, mc.len, placed);
+		if (newIdx >= 0 && mc.locked) Mix.SetClipLocked(to, newIdx, true);
 		return ChooseClip(lane, view.tp);			// на прежней дорожке остаётся другой клип или пусто
 	});
 	if (ok && newIdx >= 0)
-		Tracks_Activate(to, seconds, newIdx);		// идём за клипом
+		Tracks_Activate(to, placed, newIdx);		// идём за клипом
 	return ok;
 }
 

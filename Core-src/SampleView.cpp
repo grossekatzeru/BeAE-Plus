@@ -710,6 +710,7 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 	if (move_drag){
 		double frames = (p.x - move_x0) * (double)(Pool.r_pointer - Pool.l_pointer) / Bounds().Width();
 		double d = frames / Pool.frequency;
+		if (Tracks_ActiveClipLocked()) d = 0;			// закреплённый во времени клип не едет по горизонтали, но может уйти на другую дорожку
 		const double first = (double)move_first / Pool.frequency;
 		d = Mix.Snap(Mix.Active(), first + d) - first;			// липкая сетка: начало звука к линии
 		double minD = -first;									// левее нуля ленты звук не уйдёт
@@ -885,7 +886,7 @@ void SampleView::MouseUp(BPoint p)
 			lanes->SetDropLane(-1);
 		}
 		if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
-			Tracks_MoveActiveClipToLane(target, Mix.Snap(target, off));
+			Tracks_MoveActiveClipToLane(target, Tracks_ActiveClipLocked() ? off : Mix.Snap(target, off));
 			Pool.changed = true;
 		}else{
 			Tracks_SetOffset(Mix.Active(), off);		// пересобирает активную дорожку под новое положение

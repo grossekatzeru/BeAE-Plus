@@ -310,6 +310,8 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 		double pos = fDragPos0 + (p.x - fDragX0) * dt;
 		pos = Mix.Snap(fDragSlot, pos);				// липкая сетка
 		if (pos < 0) pos = 0;
+		const MixClip *dc = Mix.Clip(fDragSlot, fDragClip);
+		if (dc && dc->locked) pos = fDragPos0;		// закреплённый во времени клип не едет по горизонтали
 		Mix.SetClipPos(fDragSlot, fDragClip, pos);	// живой сдвиг: звук клипа не копируется
 		const int target = SlotAtY(p.y);			// курсор над другой дорожкой: при отпускании клип уйдёт туда
 		SetDropLane((target >= 0 && target != fDragSlot) ? target : -1);
@@ -330,7 +332,7 @@ void LanesView::MouseUp(BPoint)
 			double np = mc->pos;
 			if (np != fDragPos0) Mix.SetClipPos(slot, clip, fDragPos0);	// вернуть старое: так в отмену попадёт исходная раскладка
 			if (drop >= 0 && Mix.Track(drop)){
-				np = Mix.Snap(drop, np);			// на новой дорожке своя сетка
+				if (!mc->locked) np = Mix.Snap(drop, np);	// на новой дорожке своя сетка (закреплённый остаётся в том же моменте)
 				Tracks_MoveClipToLane(slot, clip, drop, np);
 			}else{
 				Tracks_MoveClip(slot, clip, np);	// лента могла удлиниться: пересобрать активный клип
