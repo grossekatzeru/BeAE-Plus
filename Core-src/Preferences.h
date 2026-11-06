@@ -100,6 +100,9 @@ class Preferences{
 	bool	filter_compressor_rms;
 	float	filter_compressor_ratio, filter_compressor_attac, filter_compressor_decay, filter_compressor_treshold, filter_compressor_gain;
 
+	float	filter_noise_reduction, filter_noise_sensitivity, filter_noise_smooth;	// шумодав
+	bool	filter_noise_profile;
+
 	uint32	repeat_message;
 	BString	repeat_tag;
 

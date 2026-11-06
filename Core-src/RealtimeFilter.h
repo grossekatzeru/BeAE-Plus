@@ -75,6 +75,10 @@ class RealtimeFilter : public BWindow {
 	// встроенные — NULL.
 	virtual const char* RepeatTag() const { return NULL; }
 
+	// Задержка выхода относительно входа в кадрах (фильтры с БПФ и т.п.). При применении к выделению
+	// ExecuteFilter убирает её: выход сдвигается назад, хвост дорабатывается нулями.
+	virtual int32 Latency() const { return 0; }
+
 	// multipass stuff
 	int32 Passes();
 	void SetPasses(int32 x);

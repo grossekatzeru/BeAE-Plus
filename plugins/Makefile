@@ -8,20 +8,16 @@ CXXFLAGS += -fPIC
 LDFLAGS  += -shared
 DEST     ?= $(HOME)/config/non-packaged/lib/ladspa
 
-PLUGINS = spring_reverb.so noise_reducer.so
+PLUGINS = spring_reverb.so
 
 all: $(PLUGINS)
 
 spring_reverb.so: SpringReverb.cpp SpringReverb.h ladspa_abi.h
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ SpringReverb.cpp -lm
 
-noise_reducer.so: NoiseReducer.cpp NoiseReducer.h ladspa_abi.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ NoiseReducer.cpp -lm
-
 install: all
-	mkdir -p "$(DEST)/Reverb" "$(DEST)/Noise"
+	mkdir -p "$(DEST)/Reverb"
 	cp spring_reverb.so "$(DEST)/Reverb/"
-	cp noise_reducer.so "$(DEST)/Noise/"
 
 clean:
 	rm -f $(PLUGINS)

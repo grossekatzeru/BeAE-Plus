@@ -212,6 +212,11 @@ void Preferences::Init(){
 	if(prefs.FindFloat("f_compressor_decay", &filter_compressor_decay) != B_OK)	filter_compressor_decay = 0.1;
 	if(prefs.FindFloat("f_compressor_treshold", &filter_compressor_treshold) != B_OK) filter_compressor_treshold = -32;
 	if(prefs.FindFloat("f_compressor_gain", &filter_compressor_gain) != B_OK)	filter_compressor_gain = 4.0;
+
+	if(prefs.FindFloat("f_noise_reduction", &filter_noise_reduction) != B_OK)	filter_noise_reduction = 12.0;
+	if(prefs.FindFloat("f_noise_sensitivity", &filter_noise_sensitivity) != B_OK)	filter_noise_sensitivity = 2.0;
+	if(prefs.FindFloat("f_noise_smooth", &filter_noise_smooth) != B_OK)			filter_noise_smooth = 0.5;
+	if(prefs.FindBool("f_noise_profile", &filter_noise_profile) != B_OK)		filter_noise_profile = false;
 }
 
 /*******************************************************
@@ -331,6 +336,11 @@ void Preferences::Sync(){
 	prefs.FindFloat("f_compressor_decay", filter_compressor_decay);
 	prefs.FindFloat("f_compressor_treshold", filter_compressor_treshold);
 	prefs.FindFloat("f_compressor_gain", filter_compressor_gain);
+
+	prefs.SetFloat("f_noise_reduction", filter_noise_reduction);
+	prefs.SetFloat("f_noise_sensitivity", filter_noise_sensitivity);
+	prefs.SetFloat("f_noise_smooth", filter_noise_smooth);
+	prefs.SetBool("f_noise_profile", filter_noise_profile);
 }
 
 /*******************************************************

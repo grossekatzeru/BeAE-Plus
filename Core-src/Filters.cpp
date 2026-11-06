@@ -38,12 +38,14 @@
 #include "VMSystem.h"
 
 // the filters with GUI
+#include <vector>
 #include "RoomFilter.h"
 #include "ReverbFilter.h"
 #include "DelayFilter.h"
 #include "BassBoostFilter.h"
 #include "AmplifierFilter.h"
 #include "CompressorFilter.h"
+#include "NoiseFilter.h"
 #include "NormalizeFilter.h"
 #include "LadspaFilter.h"
 
@@ -67,6 +69,8 @@ filter_info __FilterList[] = {
 	{"BASSBOOST", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
 	{"COMPRESSOR", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
 	{"AMPLIFIER", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
+	{"---", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
+	{"NOISE_FILTER", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
 	{"---", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
 	{"DELAY", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
 	{"REVERB", FILTER_BOTH | FILTER_REALTIME | FILTER_GUI, 1},
@@ -121,6 +125,9 @@ RealtimeFilter *CreateFilter(int32 filter)
 
 	else if (strcmp(__FilterList[filter].name, "COMPRESSOR") == 0)
 		pFilter = new CompressorFilter(bRealtime);
+
+	else if (strcmp(__FilterList[filter].name, "NOISE_FILTER") == 0)
+		pFilter = new NoiseFilter(bRealtime);
 
 	else if (strcmp(__FilterList[filter].name, "SILENCE") == 0)
 		pFilter = new SilenceFilter();
@@ -253,20 +260,51 @@ void ExecuteFilter(RealtimeFilter *pFilter)
 			int32 size = (Pool.r_sel_pointer - Pool.pointer +1)*Pool.sample_type;
 			float *p = Pool.sample_memory + Pool.pointer*Pool.sample_type;
 			pFilter->InitFilter(Pool.system_frequency, Pool.sample_type, filter_pass, size);
+			const int32 latency = pFilter->Latency() * Pool.sample_type;		// в отсчётах
 
-			while(size >= FILTER_BLOCK){
-				memcpy( filter_buffer, p, FILTER_BLOCK*4 );	// get the data
-				pFilter->FilterBuffer( filter_buffer, FILTER_BLOCK);
-				WriteBack( filter_buffer, p, FILTER_BLOCK);
-				p+=FILTER_BLOCK;
-				size-=FILTER_BLOCK;
-				Pool.ProgressUpdate( FILTER_BLOCK );
-			}
-			if (size)
-			{
-				memcpy( filter_buffer, p, size*4 );	// get the data
-				pFilter->FilterBuffer( filter_buffer, size);
-				WriteBack( filter_buffer, p, size);
+			if (latency <= 0){
+				while(size >= FILTER_BLOCK){
+					memcpy( filter_buffer, p, FILTER_BLOCK*4 );	// get the data
+					pFilter->FilterBuffer( filter_buffer, FILTER_BLOCK);
+					WriteBack( filter_buffer, p, FILTER_BLOCK);
+					p+=FILTER_BLOCK;
+					size-=FILTER_BLOCK;
+					Pool.ProgressUpdate( FILTER_BLOCK );
+				}
+				if (size)
+				{
+					memcpy( filter_buffer, p, size*4 );	// get the data
+					pFilter->FilterBuffer( filter_buffer, size);
+					WriteBack( filter_buffer, p, size);
+				}
+			}else{
+				// фильтр с задержкой: результат первых отсчётов приходит с опозданием, поэтому
+				// собираем весь выход, добавляя в конце нули, и записываем его со сдвигом назад
+				const int32 total = size;
+				std::vector<float> result;
+				result.reserve((size_t)total + latency + FILTER_BLOCK);
+				float *src = p;
+				while (size > 0){
+					int32 n = size < FILTER_BLOCK ? size : FILTER_BLOCK;
+					memcpy( filter_buffer, src, n*4 );
+					pFilter->FilterBuffer( filter_buffer, n);
+					result.insert(result.end(), filter_buffer, filter_buffer + n);
+					src += n;
+					size -= n;
+					Pool.ProgressUpdate( n );
+				}
+				int32 flush = latency;			// дорабатываем хвост нулями
+				while (flush > 0){
+					int32 n = flush < FILTER_BLOCK ? flush : FILTER_BLOCK;
+					memset( filter_buffer, 0, n*4 );
+					pFilter->FilterBuffer( filter_buffer, n);
+					result.insert(result.end(), filter_buffer, filter_buffer + n);
+					flush -= n;
+				}
+				for (int32 done = 0; done < total; done += FILTER_BLOCK){
+					int32 n = total - done < FILTER_BLOCK ? total - done : FILTER_BLOCK;
+					WriteBack( &result[(size_t)done + latency], p + done, n);
+				}
 			}
 		}
 #else	// VM
