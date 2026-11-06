@@ -751,7 +751,10 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 		SetViewCursor( Pool.mouseMove );
 		if (LanesView *lanes = dynamic_cast<LanesView*>(Parent())){		// курсор над другой дорожкой - подсветить её
 			const int target = lanes->SlotAtY(ConvertToParent(p).y);
-			lanes->SetDropLane((target >= 0 && target != Mix.Active()) ? target : -1);
+			bool ok = (target >= 0 && target != Mix.Active());
+			if (ok && Tracks_SelectedCount() > 1)		// группа: на столько же дорожек, если места хватает
+				ok = Tracks_SelectionCanShiftLanes(Tracks_Rank(target) - Tracks_Rank(Mix.Active()));
+			lanes->SetDropLane(ok ? target : -1);
 		}
 		Invalidate();
 		return;
@@ -918,7 +921,9 @@ void SampleView::MouseUp(BPoint p)
 			lanes->SetDropLane(-1);
 		}
 		if (Tracks_SelectedCount() > 1){				// выделено несколько клипов: двигаются вместе (незакреплённые)
-			Tracks_MoveSelectionBy(off - (double)move_first / Pool.frequency, true);
+			int dr = (target >= 0 && target != Mix.Active()) ? Tracks_Rank(target) - Tracks_Rank(Mix.Active()) : 0;
+			if (dr != 0 && !Tracks_SelectionCanShiftLanes(dr)) dr = 0;		// не хватает дорожек: только по времени
+			Tracks_MoveSelection(off - (double)move_first / Pool.frequency, dr);
 			Pool.changed = true;
 		}else if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
 			Tracks_MoveActiveClipToLane(target, Tracks_ActiveClipLocked() ? off : Mix.Snap(target, off));

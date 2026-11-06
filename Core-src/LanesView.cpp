@@ -392,7 +392,11 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 				if (gc && !gc->locked) Mix.SetClipPos(fGroup[g].slot, fGroup[g].idx, fGroup[g].pos0 + delta);
 			}
 			fGroupDelta = delta;
-			SetDropLane(-1);						// группа на другую дорожку не переносится
+			int lane = -1;							// курсор над другой дорожкой: вся группа уйдёт на столько же дорожек
+			const int target = SlotAtY(p.y);
+			if (target >= 0 && target != fDragSlot && Tracks_SelectionCanShiftLanes(Tracks_Rank(target) - Tracks_Rank(fDragSlot)))
+				lane = target;
+			SetDropLane(lane);
 			Invalidate();
 			return;
 		}
@@ -417,7 +421,8 @@ void LanesView::MouseUp(BPoint)
 			const double delta = fGroupDelta;
 			fGroup.clear();
 			fGroupDelta = 0;
-			if (Tracks_MoveSelectionBy(delta, true)) Pool.changed = true;
+			const int dr = (drop >= 0 && Mix.Track(drop)) ? Tracks_Rank(drop) - Tracks_Rank(slot) : 0;
+			if (Tracks_MoveSelection(delta, dr)) Pool.changed = true;
 			Relayout();
 			Invalidate();
 			return;
