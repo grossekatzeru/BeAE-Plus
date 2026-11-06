@@ -66,7 +66,7 @@ void ValuesView::Draw(BRect rect)
 
 	// шкала для каждой полосы: область полос - от нижнего края обзорной панели до верха шкалы времени
 	const float areaTop = INDEXVIEW_HEIGHT;
-	const float area = r.Height() + 1 - INDEXVIEW_HEIGHT - TIMEBAR_HEIGHT;
+	const float area = r.Height() + 1 - INDEXVIEW_HEIGHT - TIMEBAR_HEIGHT - MASTER_STRIP_H;
 	if (area <= 0) return;
 	BRegion clip(BRect(0, areaTop, r.right, areaTop + area - 1));
 	ConstrainClippingRegion(&clip);

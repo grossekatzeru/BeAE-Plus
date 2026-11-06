@@ -61,6 +61,52 @@ static void TestLatency(int &fails){
 		for(size_t i=0;i<o2.size();i++) CHECK(fabsf(o2[i])<1e-6);
 	}
 }
+// мастер-шина: громкость, mute, индикатор уровня, эффекты с задержкой, сброс при перемотке, очистка
+static void TestMaster(int &fails){
+	std::vector<Ladspa::Plugin> all=Ladspa::Scan(std::vector<std::string>());
+	const Ladspa::Plugin *dp=NULL; for(size_t i=0;i<all.size();i++) if(all[i].label=="test_delay") dp=&all[i];
+	CHECK(dp!=NULL); if(!dp) return;
+	std::string err;
+	float d[4]={.5f,.5f,.5f,.5f};
+	{	// громкость и mute мастера действуют на сумму дорожек, в том числе без mixExtras
+		Mixer m; m.AddTrack("t",d,4,1);
+		CHECK(m.MasterGain()==1.0f && !m.MasterMute());
+		m.SetMasterGain(0.5f);
+		float o[8]={0}; m.Process(o,4,0,44100,44100,true);
+		for(int i=0;i<8;i++) CHECK(fabsf(o[i]-.25f)<1e-6);
+		CHECK(fabsf(m.MasterPeakL()-.25f)<1e-6 && fabsf(m.MasterPeakR()-.25f)<1e-6);
+		float o2[8]={1,1,1,1,1,1,1,1}; m.Process(o2,4,0,44100,44100,false);
+		for(int i=0;i<8;i++) CHECK(fabsf(o2[i]-.5f)<1e-6);
+		m.SetMasterMute(true);
+		float o3[8]={0}; m.Process(o3,4,0,44100,44100,true);
+		for(int i=0;i<8;i++) CHECK(o3[i]==0);
+		CHECK(m.MasterPeakL()==0);
+		m.SetMasterGain(5.0f); CHECK(m.MasterGain()==2.0f);	// ограничение +6 дБ
+		m.SetMasterGain(-1.0f); CHECK(m.MasterGain()==0.0f);
+	}
+	{	// эффект мастера с задержкой: весь микс сдвигается, остальное не ломается
+		std::vector<float> imp(1000,0.0f); imp[500]=1.0f;
+		Mixer m; m.AddTrack("a",imp.data(),1000,1);
+		CHECK(m.Fx(MIX_MASTER).Add(*dp,44100,&err)); CHECK(m.Fx(MIX_MASTER).Latency()==kD);
+		CHECK(m.Fx(0).Latency()==0);						// цепочка дорожки 0 - отдельная
+		std::vector<float> o=RunMixer(m,1000,300);
+		CHECK(PeakIndex(o,0,0.1f)==500+kD);
+		// перемотка: хвост мастера не звучит после скачка
+		Mixer n; n.AddTrack("a",imp.data(),1000,1);
+		CHECK(n.Fx(MIX_MASTER).Add(*dp,44100,&err));
+		std::vector<float> o1(256*2,0.0f); n.Process(o1.data(),256,400,44100,44100,true);
+		std::vector<float> o2(256*2,0.0f); n.Process(o2.data(),256,0,44100,44100,true);
+		for(size_t i=0;i<o2.size();i++) CHECK(fabsf(o2[i])<1e-6);
+	}
+	{	// ResetAll очищает мастер
+		Mixer m; m.SetMasterGain(0.3f); m.SetMasterMute(true); m.Fx(MIX_MASTER).Add(*dp,44100,&err);
+		m.ResetAll();
+		CHECK(m.MasterGain()==1.0f && !m.MasterMute() && m.Fx(MIX_MASTER).Count()==0);
+		// Fx(MIX_MASTER) и Fx(неверный номер) - разные цепочки
+		m.Fx(MIX_MASTER).Add(*dp,44100,&err);
+		CHECK(m.Fx(0).Count()==0 && m.Fx(MIX_MASTER).Count()==1);
+	}
+}
 int main(int argc,char**argv){
 	int fails=0;
 	Mixer m;
@@ -308,6 +354,7 @@ int main(int argc,char**argv){
 		}
 	}
 	TestLatency(fails);
+	TestMaster(fails);
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

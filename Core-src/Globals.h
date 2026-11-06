@@ -61,6 +61,7 @@
 #define TIMEBAR_HEIGHT		16
 #define VALUEBAR_WIDTH		32
 #define INDEXVIEW_HEIGHT	20	//POINTER_BAR_HEIGHT +24	//+32
+#define MASTER_STRIP_H		64	// мастер-дорожка: фиксированная полоса внизу, над шкалой времени
 
 #define COPY_RIGHT "Copyright 2002 Xentronix"
 

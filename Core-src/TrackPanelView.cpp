@@ -89,7 +89,7 @@ float TrackPanelView::PosToVol(float pos)
 // область полос по высоте: от низа заголовка до верха шкалы времени (как у полос с волнами)
 static float AreaHeight(BRect b)
 {
-	return b.Height() + 1 - HEADER_H - TIMEBAR_HEIGHT;
+	return b.Height() + 1 - HEADER_H - TIMEBAR_HEIGHT - MASTER_STRIP_H;		// внизу - мастер-дорожка
 }
 
 BRect TrackPanelView::StripRect(int slot) const
@@ -148,6 +148,42 @@ BRect TrackPanelView::AddRect() const
 BRect TrackPanelView::RemoveRect() const
 {
 	return BRect(Bounds().right - 20, 2, Bounds().right - 2, HEADER_H - 3);
+}
+
+BRect TrackPanelView::MasterRect() const
+{
+	const float top = HEADER_H + AreaHeight(Bounds());
+	return BRect(0, top, Bounds().right, top + MASTER_STRIP_H - 1);
+}
+
+BRect TrackPanelView::MasterMeterRect() const
+{
+	BRect s = MasterRect();
+	return BRect(s.left + 1, s.top + 2, s.left + 14, s.bottom - 3);
+}
+
+BRect TrackPanelView::MasterNameRect() const
+{
+	BRect s = MasterRect();
+	return BRect(s.left + CONTENT_X, s.top + 3, s.right - 5, s.top + 18);
+}
+
+BRect TrackPanelView::MasterMuteRect() const
+{
+	BRect s = MasterRect();
+	return BRect(s.left + CONTENT_X, s.top + 23, s.left + CONTENT_X + 18, s.top + 36);
+}
+
+BRect TrackPanelView::MasterFxRect() const
+{
+	BRect s = MasterRect();
+	return BRect(s.left + CONTENT_X + 22, s.top + 23, s.left + CONTENT_X + 22 + 24, s.top + 36);
+}
+
+BRect TrackPanelView::MasterVolRect() const
+{
+	BRect s = MasterRect();
+	return BRect(s.left + CONTENT_X + KNOB_W / 2, s.top + 41, s.right - 48, s.top + 51);
 }
 
 void TrackPanelView::DrawButton(BRect r, const char *label, bool on, rgb_color onColor)
@@ -328,8 +364,67 @@ void TrackPanelView::Draw(BRect update)
 	}
 
 	ConstrainClippingRegion(NULL);
+	DrawMaster(update);
 	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeLine(BPoint(b.right, 0), BPoint(b.right, b.bottom));
+}
+
+// Мастер-дорожка: всегда последняя, не удаляется и не выбирается как активная.
+// Громкость, mute, эффекты (FX) и индикатор уровня общего выхода.
+void TrackPanelView::DrawMaster(BRect)
+{
+	rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
+	rgb_color text = ui_color(B_PANEL_TEXT_COLOR);
+	BRect s = MasterRect();
+	const bool playing = Pool.IsPlaying();
+
+	SetHighColor(tint_color(base, B_DARKEN_1_TINT));
+	FillRect(s);
+	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+	StrokeLine(BPoint(s.left, s.top), BPoint(s.right, s.top));
+	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	StrokeLine(BPoint(s.left, s.top + 1), BPoint(s.right, s.top + 1));
+	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
+
+	// название
+	BRect nb = MasterNameRect();
+	SetHighColor(tint_color(base, B_DARKEN_2_TINT));
+	FillRect(nb);
+	SetHighColor(0, 0, 0);
+	StrokeRect(nb);
+	SetHighColor(255, 255, 255);
+	SetLowColor(tint_color(base, B_DARKEN_2_TINT));
+	DrawString("Master", BPoint(nb.left + 4, nb.bottom - 4));
+	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
+
+	DrawButton(MasterMuteRect(), "M", Mix.MasterMute(), make_color(255, 140, 0));
+	DrawButton(MasterFxRect(), "FX", Mix.Fx(MIX_MASTER).Count() > 0, make_color(110, 200, 110));
+
+	// индикатор уровня
+	BRect m = MasterMeterRect();
+	SetHighColor(52, 73, 94);
+	FillRect(m);
+	SetHighColor(0, 0, 0);
+	StrokeRect(m);
+	{
+		float pl = playing ? Mix.MasterPeakL() : 0, pr = playing ? Mix.MasterPeakR() : 0;
+		const float inner = m.Height() - 2;
+		const float bw = 4;
+		float hl = (pl > 1 ? 1 : pl) * inner, hr = (pr > 1 ? 1 : pr) * inner;
+		SetHighColor(pl >= 1.0f ? make_color(255, 60, 40) : make_color(40, 210, 70));
+		if (hl >= 1) FillRect(BRect(m.left + 2, m.bottom - 1 - hl + 1, m.left + 2 + bw - 1, m.bottom - 1));
+		SetHighColor(pr >= 1.0f ? make_color(255, 60, 40) : make_color(40, 210, 70));
+		if (hr >= 1) FillRect(BRect(m.left + 2 + bw + 1, m.bottom - 1 - hr + 1, m.left + 2 + 2 * bw, m.bottom - 1));
+	}
+
+	// громкость
+	const float g = Mix.MasterGain();
+	DrawSlider(MasterVolRect(), VolToPos(g), false);
+	char buf[24];
+	if (g <= 0.001f) strcpy(buf, "-inf");
+	else snprintf(buf, sizeof(buf), "%.1f dB", 20.0f * log10f(g));
+	SetHighColor(text);
+	DrawString(buf, BPoint(MasterVolRect().right + KNOB_W / 2 + 4, MasterVolRect().bottom - 1));
 }
 
 int TrackPanelView::HitTest(BPoint p, int &index) const
@@ -337,6 +432,16 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 	index = -1;
 	if (AddRect().Contains(p)) return HIT_ADD;
 	if (RemoveRect().Contains(p)) return HIT_REMOVE;
+	if (MasterRect().Contains(p)){
+		index = MIX_MASTER;
+		if (MasterMuteRect().Contains(p)) return HIT_MASTER_MUTE;
+		if (MasterFxRect().Contains(p)) return HIT_MASTER_FX;
+		BRect v = MasterVolRect();
+		v.InsetBy(-KNOB_W / 2 - 1, -2);
+		if (v.Contains(p)) return HIT_MASTER_VOL;
+		return HIT_MASTER;
+	}
+	if (p.y >= MasterRect().top) return HIT_NONE;
 	for (int i=0; i<MIX_MAX_TRACKS; i++){
 		if (!Mix.Track(i)) continue;
 		BRect s = StripRect(i);
@@ -359,6 +464,14 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 
 void TrackPanelView::SetFromMouse(int what, int index, BPoint p)
 {
+	if (what == HIT_MASTER_VOL){
+		BRect r = MasterVolRect();
+		float pos = (p.x - r.left) / r.Width();
+		pos = pos < 0 ? 0 : (pos > 1 ? 1 : pos);
+		Mix.SetMasterGain(PosToVol(pos));
+		Invalidate();
+		return;
+	}
 	MixTrack *t = Mix.Track(index);
 	if (!t) return;
 	if (what == HIT_VOL){
@@ -425,6 +538,24 @@ void TrackPanelView::MouseDown(BPoint p)
 	case HIT_REMOVE:
 		Tracks_RemoveActive();
 		Invalidate();
+		break;
+	case HIT_MASTER_MUTE:
+		Mix.SetMasterMute(!Mix.MasterMute());
+		Invalidate();
+		break;
+	case HIT_MASTER_FX:
+		FxWindow::Open(MIX_MASTER, Window());
+		break;
+	case HIT_MASTER_VOL:
+		if (clicks >= 2){				// двойной клик - 0 дБ
+			Mix.SetMasterGain(1.0f);
+			Invalidate();
+			break;
+		}
+		fDragWhat = what;
+		fDragIndex = MIX_MASTER;
+		SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+		SetFromMouse(what, MIX_MASTER, p);
 		break;
 	case HIT_SOLO:
 		Mix.SetSolo(index, !Mix.Track(index)->solo);
@@ -529,4 +660,91 @@ void TrackPanelView::Pulse()
 		fLastHeight = Bounds().Height();
 		Invalidate();
 	}
+}
+
+
+// ---------------------------------------------------------------- мастер-дорожка (полоса справа от панели)
+
+MasterLaneView::MasterLaneView(BRect r)
+	: BView(r, "Master lane", B_FOLLOW_BOTTOM | B_FOLLOW_LEFT_RIGHT, B_WILL_DRAW | B_PULSE_NEEDED | B_FULL_UPDATE_ON_RESIZE),
+	  fL(0), fR(0), fClipHold(0), fLastL(-1), fLastR(-1)
+{
+	SetViewColor(B_TRANSPARENT_COLOR);
+}
+
+static float PeakToPos(float peak)
+{
+	if (peak <= 0.001f) return 0;
+	float db = 20.0f * log10f(peak);
+	float p = (db - DB_MIN) / (0.0f - DB_MIN);
+	return p < 0 ? 0 : (p > 1 ? 1 : p);
+}
+
+void MasterLaneView::Draw(BRect)
+{
+	rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
+	BRect b = Bounds();
+	SetHighColor(tint_color(base, B_DARKEN_1_TINT));
+	FillRect(b);
+	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+	StrokeLine(BPoint(b.left, b.top), BPoint(b.right, b.top));
+	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	StrokeLine(BPoint(b.left, b.top + 1), BPoint(b.right, b.top + 1));
+
+	SetFont(be_plain_font);
+	SetFontSize(9);
+	const float x0 = 36, x1 = b.right - 40;
+	if (x1 - x0 < 40) return;
+	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
+	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
+	DrawString("Master", BPoint(6, b.top + 14));
+
+	const float h = 11;
+	const float ys[2] = { b.top + 20, b.top + 20 + h + 3 };
+	const float vals[2] = { fL, fR };
+	for (int ch = 0; ch < 2; ch++){
+		BRect bar(x0, ys[ch], x1, ys[ch] + h);
+		SetHighColor(52, 73, 94);
+		FillRect(bar);
+		SetHighColor(0, 0, 0);
+		StrokeRect(bar);
+		const float w = (bar.Width() - 2) * PeakToPos(vals[ch]);
+		if (w >= 1){
+			SetHighColor(fClipHold > 0 ? make_color(255, 60, 40) : make_color(40, 210, 70));
+			FillRect(BRect(bar.left + 1, bar.top + 1, bar.left + w, bar.bottom - 1));
+		}
+		SetHighColor(tint_color(base, B_DARKEN_4_TINT));
+		DrawString(ch == 0 ? "L" : "R", BPoint(x0 - 10, ys[ch] + h - 2));
+	}
+	// шкала, дБ
+	const int marks[] = { -48, -36, -24, -12, -6, 0 };
+	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
+	for (size_t k = 0; k < sizeof(marks) / sizeof(marks[0]); k++){
+		const float x = floorf(x0 + 1 + (x1 - x0 - 2) * (marks[k] - DB_MIN) / (0.0f - DB_MIN));
+		StrokeLine(BPoint(x, ys[1] + h + 2), BPoint(x, ys[1] + h + 5));
+		char s[8];
+		snprintf(s, sizeof(s), "%d", marks[k]);
+		DrawString(s, BPoint(x - StringWidth(s) / 2, b.bottom - 1));
+	}
+}
+
+void MasterLaneView::Pulse()
+{
+	float l = Pool.IsPlaying() ? Mix.MasterPeakL() : 0, r = Pool.IsPlaying() ? Mix.MasterPeakR() : 0;
+	fL = l > fL ? l : fL * 0.85f;			// быстрый подъём, плавный спад
+	fR = r > fR ? r : fR * 0.85f;
+	if (fL < 0.001f) fL = 0;
+	if (fR < 0.001f) fR = 0;
+	if (l >= 1.0f || r >= 1.0f) fClipHold = 20;
+	else if (fClipHold > 0) fClipHold--;
+	if (fL != fLastL || fR != fLastR || fClipHold == 19){
+		fLastL = fL; fLastR = fR;
+		Invalidate();
+	}
+}
+
+void MasterLaneView::MouseDown(BPoint)
+{
+	fClipHold = 0;				// клик по полосе сбрасывает красную отметку перегрузки
+	Invalidate();
 }

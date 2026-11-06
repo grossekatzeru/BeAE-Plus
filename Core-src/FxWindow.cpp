@@ -25,7 +25,7 @@
 #define FX_PARAM		'fxPm'
 #define FX_DEFAULTS		'fxDf'
 
-static FxWindow *sOpen[MIX_MAX_TRACKS];
+static FxWindow *sOpen[MIX_MAX_TRACKS + 1];		// последняя - мастер-шина
 
 // ---- VST2: список плагинов (без синтезаторов), ищется при первом обращении ----
 static std::vector<Vst2::Info> sVst;
@@ -76,7 +76,7 @@ private:
 
 void FxWindow::Open(int track, BWindow *near)
 {
-	if (track < 0 || track >= MIX_MAX_TRACKS || !Mix.Track(track)) return;
+	if (track != MIX_MASTER && (track < 0 || track >= MIX_MAX_TRACKS || !Mix.Track(track))) return;
 	if (sOpen[track]){
 		sOpen[track]->Activate();
 		return;
@@ -90,8 +90,8 @@ FxWindow::FxWindow(int track, BWindow *near)
 		B_NOT_ZOOMABLE | B_ASYNCHRONOUS_CONTROLS),
 	  fTrack(track)
 {
-	MixTrack *t = Mix.Track(track);
-	BString title(t ? t->name : "Track");
+	MixTrack *t = (track == MIX_MASTER) ? NULL : Mix.Track(track);
+	BString title(track == MIX_MASTER ? "Master" : (t ? t->name : "Track"));
 	title << " - " << Language.get("FX_TITLE");
 	SetTitle(title.String());
 
@@ -127,7 +127,7 @@ FxWindow::FxWindow(int track, BWindow *near)
 
 bool FxWindow::QuitRequested()
 {
-	if (fTrack >= 0 && fTrack < MIX_MAX_TRACKS && sOpen[fTrack] == this) sOpen[fTrack] = NULL;
+	if (fTrack >= 0 && fTrack <= MIX_MAX_TRACKS && sOpen[fTrack] == this) sOpen[fTrack] = NULL;
 	return true;
 }
 
@@ -314,7 +314,7 @@ void FxWindow::ShowAddMenu()
 
 void FxWindow::MessageReceived(BMessage *msg)
 {
-	if (!Mix.Track(fTrack)){ PostMessage(B_QUIT_REQUESTED); return; }
+	if (fTrack != MIX_MASTER && !Mix.Track(fTrack)){ PostMessage(B_QUIT_REQUESTED); return; }
 	FxChain &fx = Mix.Fx(fTrack);
 	switch (msg->what){
 	case FX_ADD_BTN:

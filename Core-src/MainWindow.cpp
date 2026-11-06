@@ -525,7 +525,7 @@ MainWindow::MainWindow(BRect frame)
 
 	r = sv;							// wave display
 	r.left += VALUEBAR_WIDTH;
-	r.bottom -= TIMEBAR_HEIGHT;
+	r.bottom -= TIMEBAR_HEIGHT + MASTER_STRIP_H;		// ниже - мастер-дорожка
 	r.top += INDEXVIEW_HEIGHT;
 	LanesView *lanes_view = new LanesView(r);		// стопка полос; в полосе активной дорожки - SampleView
 	AddChild(lanes_view);
@@ -539,6 +539,12 @@ MainWindow::MainWindow(BRect frame)
 	r.right = r.left + VALUEBAR_WIDTH-1;
 	AddChild(new ValuesView(r));
 	
+	r = sv;							// мастер-дорожка (под полосами, над шкалой времени)
+	r.left += VALUEBAR_WIDTH;
+	r.bottom -= TIMEBAR_HEIGHT;
+	r.top = r.bottom - MASTER_STRIP_H + 1;
+	AddChild(new MasterLaneView(r));
+
 	r = sv;							// bottom timescale
 	r.left += VALUEBAR_WIDTH;
 	r.top = r.bottom - TIMEBAR_HEIGHT+1;

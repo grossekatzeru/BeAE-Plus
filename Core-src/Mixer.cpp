@@ -22,6 +22,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 
 Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
+	fMasterGain = 1.0f; fMasterMute = false; fMasterPeakL = fMasterPeakR = 0;
 	fLock.clear();
 	fNextNow = 0; fHaveNext = false;
 	memset(fTmp, 0, sizeof(fTmp));
@@ -90,7 +91,8 @@ void Mixer::ResetAll()
 	fActive = 0;
 	fBpm = 120.0; fGridDiv = 4; fMeter = Metronome::M44; fMetroVol = 0.7f;
 	Unlock();
-	for (int i=0; i<MIX_MAX_TRACKS; i++) fFx[i].Clear();
+	for (int i=0; i<=MIX_MAX_TRACKS; i++) fFx[i].Clear();
+	fMasterGain = 1.0f; fMasterMute = false;
 	fRevision++;
 }
 
@@ -311,8 +313,10 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	// перемотка (скачок позиции): плагинам сбрасываем состояние, иначе из буферов задержки
 	// и хвостов прозвучит то, что было до скачка
 	if (mixExtras) {
-		if (fHaveNext && fabs(now - fNextNow) > 2.0 * frames / sysRate + 0.05)
+		if (fHaveNext && fabs(now - fNextNow) > 2.0 * frames / sysRate + 0.05) {
 			for (int i=0; i<fCount; i++) fFx[i].Reset();
+			fFx[MIX_MASTER].Reset();
+		}
 		fNextNow = now + tstep * frames;
 		fHaveNext = true;
 	}
@@ -340,11 +344,14 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		fPeakL[act] = pl; fPeakR[act] = pr;
 	}
 
-	if (fMetroOn && mixExtras && dir > 0)
-		fMetro.Render(buf, frames, now - tstep * latAct, sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
+	// метроном идёт после мастера и сдвигается на задержки активной дорожки и мастера
+	const int latMaster = fFx[MIX_MASTER].Latency();
+	const bool metro = fMetroOn && mixExtras && dir > 0;
 
 	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;
+		ApplyMaster(buf, frames, sysRate);
+		if (metro) fMetro.Render(buf, frames, now - tstep * (latAct + latMaster), sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 		return;
 	}
 	for (int i=0; i<fCount; i++) {
@@ -383,5 +390,23 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		}
 		fPeakL[i] = pl; fPeakR[i] = pr;
 	}
+	ApplyMaster(buf, frames, sysRate);
+	if (metro) fMetro.Render(buf, frames, now - tstep * (latAct + latMaster), sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 	Unlock();
+}
+
+// Мастер-шина: эффекты, громкость, mute, индикатор уровня.
+void Mixer::ApplyMaster(float *buf, int frames, double sysRate)
+{
+	FxChain &fx = fFx[MIX_MASTER];
+	if (fx.HasEffects()) fx.Process(buf, frames, (float)sysRate);
+	const float g = fMasterMute ? 0.0f : fMasterGain;
+	float pl = 0, pr = 0;
+	for (int k=0; k<frames; k++) {
+		float l = buf[2*k] * g, r = buf[2*k+1] * g;
+		buf[2*k] = l; buf[2*k+1] = r;
+		if (fabsf(l) > pl) pl = fabsf(l);
+		if (fabsf(r) > pr) pr = fabsf(r);
+	}
+	fMasterPeakL = pl; fMasterPeakR = pr;
 }

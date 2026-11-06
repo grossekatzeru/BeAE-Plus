@@ -24,6 +24,7 @@
 #include "Metronome.h"
 
 #define MIX_MAX_TRACKS	16
+#define MIX_MASTER		MIX_MAX_TRACKS		// номер мастер-шины для Fx(): не дорожка, удалить нельзя
 
 // Неизменяемый кусок звука (interleaved float, 1 или 2 канала).
 struct MixSource {
@@ -126,7 +127,16 @@ public:
 	float	MetroVolume() const { return fMetroVol; }			// t притянуто к сетке, если у дорожки она включена
 
 	void	SetArmed(int i, bool a);			// armed только у одной дорожки
-	FxChain	&Fx(int i) { return fFx[(i>=0 && i<MIX_MAX_TRACKS) ? i : 0]; }	// цепочка эффектов дорожки
+	FxChain	&Fx(int i) { return fFx[i == MIX_MASTER ? MIX_MASTER : ((i>=0 && i<MIX_MAX_TRACKS) ? i : 0)]; }	// цепочка эффектов дорожки (MIX_MASTER - мастер-шины)
+
+	// Мастер-шина: последняя в цепи, после сложения всех дорожек. Громкость, mute и цепочка эффектов (Fx(MIX_MASTER)).
+	// Метроном идёт мимо мастера (это подсказка для слуха, в Mixdown его нет).
+	float	MasterGain() const { return fMasterGain; }
+	bool	MasterMute() const { return fMasterMute; }
+	void	SetMasterGain(float g) { fMasterGain = g<0?0:(g>2?2:g); fRevision++; }
+	void	SetMasterMute(bool m) { fMasterMute = m; fRevision++; }
+	float	MasterPeakL() const { return fMasterPeakL; }
+	float	MasterPeakR() const { return fMasterPeakR; }
 
 	// Конец самого дальнего клипа, лежащего в микшере (сек); 0, если клипов нет
 	double	EndTimeExtras() const;
@@ -153,15 +163,19 @@ private:
 	void	Lock();
 	void	Unlock();
 	bool	TryLock();
+	void	ApplyMaster(float *buf, int frames, double sysRate);
 	static void Gains(const MixTrack &t, bool anySolo, float &gl, float &gr);
 
 	MixTrack	fTracks[MIX_MAX_TRACKS];
-	FxChain		fFx[MIX_MAX_TRACKS];
+	FxChain		fFx[MIX_MAX_TRACKS + 1];		// последняя - мастер
 	float		fTmp[2 * 4096];			// буфер одной дорожки при обработке эффектами
 	int			fCount;
 	int64_t		fRecordOffset;
 	std::atomic_flag fLock;
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
+	float		fMasterGain;
+	bool		fMasterMute;
+	float		fMasterPeakL, fMasterPeakR;
 	int			fActive;
 	std::atomic<int> fRevision;
 	double		fBpm;

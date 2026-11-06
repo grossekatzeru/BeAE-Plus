@@ -70,6 +70,26 @@ static bool WriteText(const BString &path, const BString &text)
 	return f.Write(text.String(), text.Length()) == (ssize_t)text.Length();
 }
 
+// Цепочка эффектов в JSON (элементы массива, без скобок); indent - отступ закрывающей скобки
+static void FxToJson(FxChain &fx, BString &trk, const char *indent)
+{
+	for (int e = 0; e < fx.Count(); e++){
+		const FxChain::Slot *s = fx.At(e);
+		trk << (e ? ",\n" : "\n") << "        {\"type\": \"" << (s->kind == FxChain::KIND_VST2 ? "vst2" : "ladspa") << "\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
+			<< "\", \"file\": \"" << JsonEscape(s->plugin.file).c_str()
+			<< "\", \"label\": \"" << JsonEscape(s->plugin.label).c_str()
+			<< "\", \"enabled\": " << (s->enabled ? "true" : "false") << ", \"values\": {";
+		bool fv = true;
+		for (Ladspa::Values::const_iterator it = s->values.begin(); it != s->values.end(); ++it){
+			if (!fv) trk << ", ";
+			fv = false;
+			trk << "\"" << it->first << "\": " << Num(it->second);
+		}
+		trk << "}}";
+	}
+	if (fx.Count() > 0) trk << "\n" << indent;
+}
+
 static bool DoSave(const BPath &parent, const char *name, BString &err)
 {
 	BString proj = Sanitize(name);
@@ -139,24 +159,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		if (clips.size() > 0) trk << "\n      ";
 		trk << "],\n";
 		trk << "      \"effects\": [";
-		{
-			FxChain &fx = Mix.Fx(i);
-			for (int e = 0; e < fx.Count(); e++){
-				const FxChain::Slot *s = fx.At(e);
-				trk << (e ? ",\n" : "\n") << "        {\"type\": \"" << (s->kind == FxChain::KIND_VST2 ? "vst2" : "ladspa") << "\", \"name\": \"" << JsonEscape(s->plugin.name).c_str()
-					<< "\", \"file\": \"" << JsonEscape(s->plugin.file).c_str()
-					<< "\", \"label\": \"" << JsonEscape(s->plugin.label).c_str()
-					<< "\", \"enabled\": " << (s->enabled ? "true" : "false") << ", \"values\": {";
-				bool fv = true;
-				for (Ladspa::Values::const_iterator it = s->values.begin(); it != s->values.end(); ++it){
-					if (!fv) trk << ", ";
-					fv = false;
-					trk << "\"" << it->first << "\": " << Num(it->second);
-				}
-				trk << "}}";
-			}
-			if (fx.Count() > 0) trk << "\n      ";
-		}
+		FxToJson(Mix.Fx(i), trk, "      ");
 		trk << "]\n";
 		trk << "    }";
 	}
@@ -166,6 +169,9 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	json << "  \"active\": " << Mix.Active() << ",\n";
 	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"meter\": \"" << Metronome::MeterName(Mix.Meter()) << "\",\n  \"grid_div\": " << Mix.GridDiv() << ",\n  \"metro_volume\": " << Num(Mix.MetroVolume()) << ",\n";
 	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
+	json << "  \"master\": {\"gain\": " << Num(Mix.MasterGain()) << ", \"mute\": " << (Mix.MasterMute() ? "true" : "false") << ", \"effects\": [";
+	FxToJson(Mix.Fx(MIX_MASTER), json, "  ");
+	json << "]},\n";
 	json << "  \"tracks\": [\n" << trk << "\n  ]\n}\n";
 
 	BString descName(proj);
@@ -194,6 +200,42 @@ bool Project_SaveAgain(BString &err)
 	BPath parent;
 	if (folder.GetParent(&parent) != B_OK){ err = "Bad project folder"; return false; }
 	return DoSave(parent, gName.String(), err);
+}
+
+// Эффекты из JSON (массив jfx) в цепочку fx; ошибки и ненайденные плагины - в warnings
+static void LoadFx(FxChain &fx, const JValue *jfx, BString &warnings)
+{
+	if (!jfx || jfx->type != JValue::Arr) return;
+	const float sysRate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
+	for (size_t e = 0; e < jfx->a.size(); e++){
+		const JValue &je = jfx->a[e];
+		std::string file = je.String("file"), label = je.String("label"), pname = je.String("name");
+		const bool isVst = je.String("type") == "vst2";
+		const Ladspa::Plugin *pl = NULL;
+		if (!isVst){
+			pl = LadspaFind(file.c_str(), label.c_str());
+			if (!pl){		// файл мог переехать: ищем по метке
+				const std::vector<Ladspa::Plugin> &all = LadspaList();
+				for (size_t q = 0; q < all.size() && !pl; q++)
+					if (all[q].label == label && all[q].name == pname) pl = &all[q];
+			}
+			if (!pl){
+				warnings << Language.get("FX_NOT_FOUND") << " " << pname.c_str() << "\n";
+				continue;
+			}
+		}
+		Ladspa::Values vals;
+		const JValue *jv = je.Get("values");
+		if (jv && jv->type == JValue::Obj)
+			for (size_t q = 0; q < jv->o.size(); q++)
+				if (jv->o[q].second.type == JValue::Num)
+					vals[atoi(jv->o[q].first.c_str())] = (float)jv->o[q].second.n;
+		std::string ferr;
+		bool added = isVst ? fx.AddVst(file, sysRate, &ferr, &vals, je.Boolean("enabled", true))
+			: fx.Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true));
+		if (!added)
+			warnings << pname.c_str() << ": " << ferr.c_str() << "\n";
+	}
 }
 
 bool Project_Open(const char *bemixPath, BString &err)
@@ -283,41 +325,18 @@ bool Project_Open(const char *bemixPath, BString &err)
 				}
 			}
 		}
-		// эффекты дорожки
-		const JValue *jfx = jt.Get("effects");
-		if (jfx && jfx->type == JValue::Arr){
-			const float sysRate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
-			for (size_t e = 0; e < jfx->a.size(); e++){
-				const JValue &je = jfx->a[e];
-				std::string file = je.String("file"), label = je.String("label"), pname = je.String("name");
-				const bool isVst = je.String("type") == "vst2";
-				const Ladspa::Plugin *pl = NULL;
-				if (!isVst){
-					pl = LadspaFind(file.c_str(), label.c_str());
-					if (!pl){		// файл мог переехать: ищем по метке
-						const std::vector<Ladspa::Plugin> &all = LadspaList();
-						for (size_t q = 0; q < all.size() && !pl; q++)
-							if (all[q].label == label && all[q].name == pname) pl = &all[q];
-					}
-					if (!pl){
-						warnings << Language.get("FX_NOT_FOUND") << " " << pname.c_str() << "\n";
-						continue;
-					}
-				}
-				Ladspa::Values vals;
-				const JValue *jv = je.Get("values");
-				if (jv && jv->type == JValue::Obj)
-					for (size_t q = 0; q < jv->o.size(); q++)
-						if (jv->o[q].second.type == JValue::Num)
-							vals[atoi(jv->o[q].first.c_str())] = (float)jv->o[q].second.n;
-				std::string ferr;
-				bool added = isVst ? Mix.Fx(slot).AddVst(file, sysRate, &ferr, &vals, je.Boolean("enabled", true))
-					: Mix.Fx(slot).Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true));
-				if (!added)
-					warnings << pname.c_str() << ": " << ferr.c_str() << "\n";
-			}
-		}
+		LoadFx(Mix.Fx(slot), jt.Get("effects"), warnings);
 		slot++;
+	}
+
+	// мастер-дорожка (в старых проектах её нет)
+	{
+		const JValue *jm = doc.Get("master");
+		if (jm && jm->type == JValue::Obj){
+			Mix.SetMasterGain((float)jm->Number("gain", 1.0));
+			Mix.SetMasterMute(jm->Boolean("mute", false));
+			LoadFx(Mix.Fx(MIX_MASTER), jm->Get("effects"), warnings);
+		}
 	}
 
 	BString name(doc.String("name", "").c_str());
@@ -398,6 +417,8 @@ bool Project_Mixdown(const char *path, BString &err)
 		lanes.push_back(l);
 	}
 	if (lanes.empty() || outRate <= 0){ err = Language.get("MIXDOWN_EMPTY"); return false; }
+	const bool masterFx = Mix.Fx(MIX_MASTER).HasEffects();
+	if (masterFx) endTime += 4.0;			// хвост эффектов мастера
 
 	const int64 total = (int64)(endTime * outRate + 0.5) + 1;
 	if (total * 8 > 0xFFFFFF00LL){ err = "The mixdown is too long for a WAV file"; return false; }
@@ -441,6 +462,35 @@ bool Project_Mixdown(const char *path, BString &err)
 			out[(size_t)n*2]   += tmp[(size_t)n*2]   * l.gl;
 			out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * l.gr;
 		}
+	}
+
+	// мастер-дорожка: эффекты, затем громкость (при mute мастера сведение будет тихим, как и воспроизведение)
+	if (masterFx){
+		FxChain local;
+		FxChain &live = Mix.Fx(MIX_MASTER);
+		for (int e = 0; e < live.Count(); e++){
+			const FxChain::Slot *sl = live.At(e);
+			std::string ferr;
+			if (!sl->enabled) continue;
+			if (!local.AddCopyOf(*sl, outRate, &ferr)){
+				err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
+				return false;
+			}
+		}
+		for (int64 from = 0; from < total; from += 4096){
+			int nfr = (int)((total - from < 4096) ? total - from : 4096);
+			local.Process(&out[(size_t)from * 2], nfr, outRate);
+		}
+		const int64 lat = local.Latency();
+		if (lat > 0 && lat < total){
+			memmove(&out[0], &out[(size_t)lat * 2], sizeof(float) * 2 * (size_t)(total - lat));
+			memset(&out[(size_t)(total - lat) * 2], 0, sizeof(float) * 2 * (size_t)lat);
+		}
+	}
+	{
+		const float g = Mix.MasterMute() ? 0.0f : Mix.MasterGain();
+		if (g != 1.0f)
+			for (size_t n = 0; n < (size_t)total * 2; n++) out[n] *= g;
 	}
 	if (!WavWriteFloat(path, &out[0], total, 2, outRate)){
 		err = "Cannot write "; err << path;
