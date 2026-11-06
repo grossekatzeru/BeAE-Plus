@@ -24,6 +24,7 @@ static float gScroll = 0;
 static bool		gHasOrigin = false;
 static MixClip	gOrigin;
 static bool		gActiveLocked = false;		// активный клип закреплён во времени (флаг живёт, пока клип в Pool)
+static int		gActiveGroup = 0;			// группа активного клипа (0 - нет)
 
 // Буфер обмена клипов: ссылка на источник, остальное - как в клипе
 static MixClip	gClipboard;
@@ -112,8 +113,11 @@ static int StashActive()
 	}
 	if (idx >= 0 && gActiveLocked)
 		Mix.SetClipLocked(a, idx, true);
+	if (idx >= 0 && gActiveGroup > 0)
+		Mix.SetClipGroup(a, idx, gActiveGroup);
 	gHasOrigin = false;
 	gActiveLocked = false;
+	gActiveGroup = 0;
 	return idx;
 }
 
@@ -148,6 +152,7 @@ static bool Load(int lane, int clipIdx)
 		Pool.pad_lead = Pool.pad_tail = 0;
 		gHasOrigin = false;
 		gActiveLocked = false;
+		gActiveGroup = 0;
 		return true;
 	}
 
@@ -167,9 +172,11 @@ static bool Load(int lane, int clipIdx)
 		gOrigin = clip;
 		gHasOrigin = (len == clip.len);
 		gActiveLocked = clip.locked;
+		gActiveGroup = clip.group;
 	}else{
 		gHasOrigin = false;
 		gActiveLocked = false;
+		gActiveGroup = 0;
 	}
 
 	free(Pool.sample_memory);
@@ -399,6 +406,7 @@ void Tracks_PlaceActive(double offsetSeconds)
 		return;
 	gHasOrigin = false;				// в Pool свежий звук, прежний активный клип заменён
 	gActiveLocked = false;
+	gActiveGroup = 0;
 	SourceRef src = MakeSource(Pool.sample_memory, Pool.size, Pool.sample_type, Pool.frequency);
 	if (!src)
 		return;
@@ -495,7 +503,84 @@ bool Tracks_ToggleClipSelected(int lane, int clip)
 {
 	const MixClip *c = Mix.Clip(lane, clip);
 	if (!c) return false;
-	Mix.SetClipSelected(lane, clip, !c->selected);
+	const bool on = !c->selected;
+	if (c->group > 0){							// клип в группе: выделяется и снимается вся группа целиком
+		if (gActiveGroup == c->group && ActiveClipExists())
+			return false;						// в группе активный клип: он выделен всегда, группу не снять
+		const int g = c->group;
+		for (int i = 0; i < MIX_MAX_TRACKS; i++)
+			for (int k = 0; k < Mix.ClipCount(i); k++)
+				if (Mix.Clip(i, k)->group == g) Mix.SetClipSelected(i, k, on);
+		return true;
+	}
+	Mix.SetClipSelected(lane, clip, on);
+	return true;
+}
+
+int Tracks_ActiveClipGroup()
+{
+	return ActiveClipExists() ? gActiveGroup : 0;
+}
+
+void Tracks_SelectGroupOf(int lane, int clip)
+{
+	const MixClip *c = Mix.Clip(lane, clip);
+	if (!c || c->group <= 0) return;
+	const int g = c->group;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->group == g) Mix.SetClipSelected(i, k, true);
+}
+
+void Tracks_SelectActiveGroup()
+{
+	if (!ActiveClipExists() || gActiveGroup <= 0) return;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->group == gActiveGroup) Mix.SetClipSelected(i, k, true);
+}
+
+// выделенные клипы образуют одну группу
+bool Tracks_SelectionGrouped()
+{
+	if (Tracks_SelectedCount() < 2) return false;
+	int g = ActiveClipExists() ? gActiveGroup : -1;
+	if (ActiveClipExists() && g <= 0) return false;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++){
+			const MixClip *c = Mix.Clip(i, k);
+			if (!c->selected) continue;
+			if (c->group <= 0) return false;
+			if (g < 0) g = c->group;
+			else if (c->group != g) return false;
+		}
+	return g > 0;
+}
+
+// «Group»: сгруппировать выделенные клипы (не меньше двух) в новую группу, а если они уже группа - разгруппировать
+bool Tracks_ToggleSelectionGroup()
+{
+	if (Tracks_SelectedCount() < 2 || Recorder.IsRecording())
+		return false;
+	int target = 0;
+	if (!Tracks_SelectionGrouped()){
+		for (int g = 1; target == 0; g++){			// наименьший свободный номер: цвета не расходуются зря
+			bool used = (ActiveClipExists() && gActiveGroup == g);
+			for (int i = 0; i < MIX_MAX_TRACKS && !used; i++)
+				for (int k = 0; k < Mix.ClipCount(i) && !used; k++)
+					if (Mix.Clip(i, k)->group == g) used = true;
+			if (!used) target = g;
+		}
+	}
+	if (ActiveClipExists()){
+		gActiveGroup = target;
+		gOrigin.group = target;
+	}
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		for (int k = 0; k < Mix.ClipCount(i); k++)
+			if (Mix.Clip(i, k)->selected)
+				Mix.SetClipGroup(i, k, target);
+	Mix.Touch();
 	return true;
 }
 
@@ -579,6 +664,7 @@ bool Tracks_MoveClipToLane(int from, int clip, int to, double seconds)
 			// закреплённый во времени клип меняет дорожку, но остаётся в том же моменте и закреплённым
 			const int ni = Mix.AddClip(to, mc.src, mc.start, mc.len, mc.locked ? mc.pos : seconds);
 			if (ni >= 0 && mc.locked) Mix.SetClipLocked(to, ni, true);
+			if (ni >= 0 && mc.group > 0) Mix.SetClipGroup(to, ni, mc.group);
 		}
 		return stashed;
 	});
@@ -598,6 +684,7 @@ bool Tracks_MoveActiveClipToLane(int to, double seconds)
 		if (mc.locked) placed = mc.pos;				// закреплённый во времени клип остаётся в том же моменте
 		newIdx = Mix.AddClip(to, mc.src, mc.start, mc.len, placed);
 		if (newIdx >= 0 && mc.locked) Mix.SetClipLocked(to, newIdx, true);
+		if (newIdx >= 0 && mc.group > 0) Mix.SetClipGroup(to, newIdx, mc.group);
 		return ChooseClip(lane, view.tp);			// на прежней дорожке остаётся другой клип или пусто
 	});
 	if (ok && newIdx >= 0)
@@ -708,6 +795,7 @@ std::vector<MixClip> Tracks_LaneClips(int lane)
 		if (PoolMatchesOrigin()){
 			MixClip o = gOrigin;
 			o.locked = gActiveLocked;
+			o.group = gActiveGroup;
 			out.push_back(o);
 		}else{
 			int64 first = 0, last = 0;
@@ -718,6 +806,7 @@ std::vector<MixClip> Tracks_LaneClips(int lane)
 					MixClip c;
 					c.src = src; c.start = 0; c.len = last - first + 1; c.pos = (double)first / Pool.frequency;
 					c.locked = gActiveLocked;
+					c.group = gActiveGroup;
 					out.push_back(c);
 				}
 			}
@@ -780,9 +869,11 @@ bool Tracks_SplitAtCursor()
 		const int64 start = c->start, len = c->len;
 		const double pos = c->pos;
 		const bool locked = c->locked;
+		const int grp = c->group;
 		Mix.SetClipRange(lane, stashed, start, k);		// левая часть остаётся
 		int right = Mix.AddClip(lane, src, start + k, len - k, pos + (double)k / src->rate);
 		if (right >= 0 && locked) Mix.SetClipLocked(lane, right, true);	// закрепление наследуют обе части
+		if (right >= 0 && grp > 0) Mix.SetClipGroup(lane, right, grp);	// и группу тоже
 		done = (right >= 0);
 		return right >= 0 ? right : stashed;			// правая часть становится активной
 	});
@@ -803,6 +894,7 @@ static bool ApplyLayout(const LayoutSnap &s, std::vector<LayoutSnap> &to)
 				const MixClip &c = s.lane[i][k];
 				const int ni = Mix.AddClip(i, c.src, c.start, c.len, c.pos);
 				if (ni >= 0 && c.locked) Mix.SetClipLocked(i, ni, true);
+				if (ni >= 0 && c.group > 0) Mix.SetClipGroup(i, ni, c.group);
 			}
 		}
 		return ChooseClip(lane, view.tp);
@@ -882,6 +974,9 @@ bool Tracks_DeleteClip()
 		return false;
 	return Restructure([&](int lane, int stashed, const ViewState&){
 		if (stashed >= 0) Mix.RemoveClip(lane, stashed);
+		for (int i = 0; i < MIX_MAX_TRACKS; i++)		// выделенные (в том числе вся группа) удаляются вместе с активным
+			for (int k = Mix.ClipCount(i) - 1; k >= 0; k--)
+				if (Mix.Clip(i, k)->selected) Mix.RemoveClip(i, k);
 		return ChooseClip(lane, (double)Pool.pointer / Pool.frequency);
 	});
 }

@@ -113,6 +113,7 @@ enum {MONO=1, STEREO=2};
 #define CLIP_DELETE			'cDel'
 #define CLIP_SAVE			'cSav'
 #define CLIP_LOCK			'cLck'
+#define CLIP_GROUP			'cGrp'
 #define OPEN_MIX			'opnM'
 #define HELP				'help'
 #define ABOUT				'bout'

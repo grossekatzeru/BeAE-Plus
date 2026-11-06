@@ -62,6 +62,31 @@ void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W
 	v->SetDrawingMode(B_OP_COPY);
 }
 
+// 16 пастельных цветов для групп клипов; группа n красится цветом (n-1) % 16, после 16-й - снова с первого
+rgb_color GroupColor(int group)
+{
+	static const rgb_color kPalette[16] = {
+		{255, 173, 173, 255}, {255, 214, 165, 255}, {253, 255, 182, 255}, {202, 255, 191, 255},
+		{155, 246, 255, 255}, {160, 196, 255, 255}, {189, 178, 255, 255}, {255, 198, 255, 255},
+		{230, 190, 150, 255}, {190, 225, 150, 255}, {150, 225, 200, 255}, {170, 210, 230, 255},
+		{215, 170, 200, 255}, {240, 170, 130, 255}, {210, 210, 120, 255}, {175, 175, 215, 255}
+	};
+	return kPalette[((group > 0 ? group : 1) - 1) % 16];
+}
+
+// Полупрозрачная пастельная заливка поверх клипа группы (фон под волной подкрашивается, волна остаётся читаемой)
+void LanesTintGroup(BView *v, BRect r, int group)
+{
+	if (group <= 0 || !r.IsValid()) return;
+	rgb_color col = GroupColor(group);
+	col.alpha = 85;
+	v->SetDrawingMode(B_OP_ALPHA);
+	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	v->SetHighColor(col);
+	v->FillRect(r);
+	v->SetDrawingMode(B_OP_COPY);
+}
+
 // Клипы дорожки: у каждого светлая подложка, центральные линии, огибающая волны и белые границы.
 void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W)
 {
@@ -110,6 +135,8 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 				v->StrokeLine(BPoint(body.left + x, mid - mx * amp), BPoint(body.left + x, mid - mn * amp));
 			}
 		}
+		if (c->group > 0)
+			LanesTintGroup(v, BRect(body.left + x0, body.top, body.left + x1, body.bottom), c->group);
 		v->SetHighColor(make_color(255, 255, 255));
 		if (xs >= 0 && xs < W) v->StrokeLine(BPoint(body.left + (float)xs, body.top), BPoint(body.left + (float)xs, body.bottom));
 		if (xe >= 0 && xe < W) v->StrokeLine(BPoint(body.left + (float)xe, body.top), BPoint(body.left + (float)xe, body.bottom));
@@ -305,6 +332,8 @@ void LanesView::MouseDown(BPoint p)
 			const MixClip *c0 = Mix.Clip(slot, clip);
 			if (!(Pool.tool_mode == MOVE_TOOL && c0 && c0->selected))	// щелчок по выделенному клипу в «Перемещении» - тянуть всех
 				Tracks_ClearClipSelection();
+			if (Pool.tool_mode == MOVE_TOOL)
+				Tracks_SelectGroupOf(slot, clip);		// клип в группе: выделяется вся группа
 		}
 		if (Pool.tool_mode == MOVE_TOOL){			// тянем клип по ленте, не делая его активным
 			const MixClip *mc = Mix.Clip(slot, clip);
@@ -328,6 +357,7 @@ void LanesView::MouseDown(BPoint p)
 			return;
 		}
 		Tracks_Activate(slot, t, clip);
+		Tracks_SelectActiveGroup();					// остальные клипы группы выделяются вместе с активным
 		Relayout();
 		Invalidate();
 		return;

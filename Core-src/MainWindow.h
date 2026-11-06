@@ -49,6 +49,7 @@ class MainWindow : public BWindow {
 	
  private:
 	void StartRecording();
+	BMenuItem	*fGroupItem;		// «Group» в меню Clip
 	BMenuItem	*fLockItem;			// «Закрепить во времени» в меню Clip (галочка = активный клип закреплён)
 	void HandleDrop(BMessage *message);	// файлы, брошенные в окно: клипами на дорожки, проект - открыть
 	void StopRecording();		// остановить и превратить запись в новый файл

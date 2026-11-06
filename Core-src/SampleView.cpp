@@ -323,6 +323,20 @@ void SampleView::Draw(BRect rect)
 			tl, (tr - tl) / W, W);
 		ConstrainClippingRegion(NULL);
 	}
+	if (Tracks_ActiveClipGroup() > 0 && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){	// активный клип в группе: пастельный цвет группы
+		double cs = 0, ce = 0;
+		if (Tracks_ActiveClipSpan(cs, ce)){
+			const double tl = (double)Pool.l_pointer / Pool.frequency;
+			const double tr = (double)Pool.r_pointer / Pool.frequency;
+			const float W = Bounds().Width() + 1;
+			const float gx0 = (float)((cs - tl) / (tr - tl) * W), gx1 = (float)((ce - tl) / (tr - tl) * W);
+			BRect g(MAX(gx0, 0.0f), POINTER_BAR_HEIGHT, MIN(gx1, Bounds().right), Bounds().bottom);
+			BRegion clip(rect);
+			ConstrainClippingRegion(&clip);
+			LanesTintGroup(this, g, Tracks_ActiveClipGroup());
+			ConstrainClippingRegion(NULL);
+		}
+	}
 	if (Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){		// сетка активной дорожки
 		const double tl = (double)Pool.l_pointer / Pool.frequency;
 		const double tr = (double)Pool.r_pointer / Pool.frequency;
@@ -420,8 +434,10 @@ void SampleView::MouseDown(BPoint p)
 
 	const bool ctrl = (modifiers() & (B_COMMAND_KEY | B_CONTROL_KEY)) != 0;
 	// обычный щелчок (не правой кнопкой, не Ctrl, не в «Перемещении») снимает выделение нескольких клипов
-	if (button != B_SECONDARY_MOUSE_BUTTON && !ctrl && Pool.tool_mode != MOVE_TOOL)
+	if (button != B_SECONDARY_MOUSE_BUTTON && !ctrl && Pool.tool_mode != MOVE_TOOL){
 		Tracks_ClearClipSelection();
+		Tracks_SelectActiveGroup();					// клип в группе: вся группа остаётся выделенной
+	}
 
 	// клик по другому клипу этой же дорожки делает его активным (правая кнопка - меню как обычно);
 	// Ctrl+щелчок добавляет его в выделение или убирает
@@ -438,6 +454,7 @@ void SampleView::MouseDown(BPoint p)
 		}
 		if (!inActive && other >= 0 && !Recorder.IsRecording()){
 			Tracks_Activate(Mix.Active(), t, other);
+			Tracks_SelectActiveGroup();				// остальные клипы группы выделяются вместе с активным
 			if (Pool.tool_mode != MOVE_TOOL)
 				return;
 		}
@@ -445,6 +462,7 @@ void SampleView::MouseDown(BPoint p)
 
 	if (Pool.tool_mode == MOVE_TOOL){			// тянем звук дорожки по ленте времени
 		if (Pool.frequency > 1.0f && Tracks_ActiveRange(move_first, move_last)){
+			Tracks_SelectActiveGroup();					// клип в группе: двигается вся группа
 			move_drag = true;
 			move_x0 = p.x;
 			move_delta = 0;
@@ -497,6 +515,9 @@ void SampleView::MouseDown(BPoint p)
 				menu->AddSeparatorItem();
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
 				menuItem->SetMarked(Tracks_SelectionLocked());
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_GROUP"), new BMessage(CLIP_GROUP)));
+				menuItem->SetEnabled(Tracks_SelectedCount() >= 2);
+				menuItem->SetMarked(Tracks_SelectionGrouped());
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
 				menuItem->SetMarked(Pool.tool_mode == MOVE_TOOL);
 				menu->AddSeparatorItem();

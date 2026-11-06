@@ -432,7 +432,7 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 
 MainWindow::MainWindow(BRect frame)
 	:BWindow(frame, NULL ,B_TITLED_WINDOW,B_ASYNCHRONOUS_CONTROLS),
-	rec_runner(NULL), fLockItem(NULL)
+	rec_runner(NULL), fGroupItem(NULL), fLockItem(NULL)
 {
 	Looper()->SetName("BeAE");
 
@@ -719,6 +719,7 @@ void MainWindow::AddMenu()
 	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 	sub->AddSeparatorItem();
 	sub->AddItem(fLockItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
+	sub->AddItem(fGroupItem = new BMenuItem(Language.get("CLIP_GROUP"), new BMessage(CLIP_GROUP)));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
 	sub->AddSeparatorItem();
 	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
@@ -768,6 +769,10 @@ void MainWindow::MenusBeginning()
 {
 	Pool.UpdateMenu();
 	if (fLockItem) fLockItem->SetMarked(Tracks_SelectionLocked());
+	if (fGroupItem){
+		fGroupItem->SetMarked(Tracks_SelectionGrouped());
+		fGroupItem->SetEnabled(Tracks_SelectedCount() >= 2);
+	}
 }
 
 void MainWindow::UpdateRecent()
@@ -1481,6 +1486,13 @@ void MainWindow::MessageReceived(BMessage *message)
 		break;
 	case CLIP_DELETE:
 		if (Tracks_DeleteClip()) Pool.changed = true;
+		break;
+	case CLIP_GROUP:
+		if (!Recorder.IsRecording() && Tracks_ToggleSelectionGroup()){
+			Pool.changed = true;
+			Pool.sample_view_dirty = true;
+			Pool.RedrawWindow();
+		}
 		break;
 	case CLIP_LOCK:
 		if (Pool.sample_type != NONE && !Recorder.IsRecording()){

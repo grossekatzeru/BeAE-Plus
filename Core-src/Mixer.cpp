@@ -169,6 +169,16 @@ bool Mixer::SetClipLocked(int lane, int idx, bool locked)
 	return true;
 }
 
+bool Mixer::SetClipGroup(int lane, int idx, int group)
+{
+	if (!Clip(lane, idx)) return false;
+	Lock();
+	fTracks[lane].clips[idx].group = group < 0 ? 0 : group;
+	Unlock();
+	fRevision++;
+	return true;
+}
+
 bool Mixer::SetClipSelected(int lane, int idx, bool selected)
 {
 	if (!Clip(lane, idx)) return false;

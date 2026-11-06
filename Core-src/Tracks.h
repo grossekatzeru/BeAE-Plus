@@ -32,6 +32,11 @@ bool	Tracks_ToggleClipSelected(int lane, int clip);	// добавить / убр
 int		Tracks_SelectedCount();					// число выделенных клипов, включая активный
 bool	Tracks_SelectionLocked();				// все выделенные клипы закреплены во времени
 void	Tracks_ToggleSelectionLock();			// закрепить все выделенные (если не все закреплены) или освободить все
+int		Tracks_ActiveClipGroup();				// номер группы активного клипа (0 - нет)
+void	Tracks_SelectGroupOf(int lane, int clip);	// выделить всю группу, к которой относится клип микшера
+void	Tracks_SelectActiveGroup();				// выделить остальные клипы группы активного клипа
+bool	Tracks_SelectionGrouped();				// выделенные клипы образуют одну группу
+bool	Tracks_ToggleSelectionGroup();			// «Group»: сгруппировать выделенные (2 и более) или разгруппировать
 bool	Tracks_MoveSelectionBy(double delta, bool includeActive);	// сдвинуть выделенные незакреплённые клипы на delta секунд (одна правка в отмене)
 bool	Tracks_MoveClipToLane(int fromLane, int clip, int toLane, double seconds);	// перенести клип (не активный) на другую дорожку в момент seconds
 bool	Tracks_MoveActiveClipToLane(int toLane, double seconds);	// перенести активный клип на другую дорожку; она становится активной

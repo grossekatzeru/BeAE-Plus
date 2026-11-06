@@ -141,8 +141,10 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 					<< "\", \"channels\": " << c.src->channels << ", \"rate\": " << Num(c.src->rate)
 					<< ", \"frames\": " << (int)c.src->frames << "}";
 			}
+			BString grp;
+			if (c.group > 0) grp << ", \"group\": " << c.group;
 			clipsJson << (k ? ",\n" : "\n") << "        {\"source\": " << id << ", \"start\": " << (int)c.start
-				<< ", \"length\": " << (int)c.len << ", \"pos\": " << Num(c.pos) << (c.locked ? ", \"locked\": true" : "") << "}";
+				<< ", \"length\": " << (int)c.len << ", \"pos\": " << Num(c.pos) << (c.locked ? ", \"locked\": true" : "") << grp.String() << "}";
 		}
 
 		if (!firstTrack) trk << ",\n";
@@ -312,6 +314,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 				if (start + len > it->second->frames) len = it->second->frames - start;
 				const int ci = Mix.AddClip(slot, it->second, start, len, cj.Number("pos", 0.0));
 				if (ci >= 0 && cj.Boolean("locked", false)) Mix.SetClipLocked(slot, ci, true);
+				if (ci >= 0 && cj.Number("group", 0.0) >= 1.0) Mix.SetClipGroup(slot, ci, (int)cj.Number("group", 0.0));
 			}
 		}else{
 			const JValue *jf = jt.Get("file");

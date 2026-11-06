@@ -16,6 +16,10 @@ struct ClipRef { int slot; int idx; double pos0; };		// клип группы п
 // пиксель, W - ширина в пикселях. skipFill: не заливать фон клипа (используется поверх уже нарисованной волны).
 void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W);
 
+// Цвет группы клипов (16 пастельных, дальше по кругу) и полупрозрачная заливка клипа этим цветом.
+rgb_color GroupColor(int group);
+void LanesTintGroup(BView *v, BRect r, int group);
+
 // Линии сетки дорожки slot (если Grid включён) - тот же масштаб, что и у LanesDrawClips.
 void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W);
 

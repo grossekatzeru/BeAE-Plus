@@ -109,7 +109,11 @@ static void TestMaster(int &fails){
 		CHECK(m.SetClipLocked(s,c0,true) && m.SetClipSelected(s,c0,true));
 		CHECK(m.Clip(s,c0)->locked && m.Clip(s,c0)->selected);
 		CHECK(!m.Clip(s,c1)->locked && !m.Clip(s,c1)->selected);	// «дубликат» рядом не закреплён и не выделен
-		MixClip tk; CHECK(m.TakeClip(s,c0,tk) && tk.locked && tk.selected);
+		CHECK(m.Clip(s,c0)->group==0 && m.SetClipGroup(s,c0,3) && m.SetClipGroup(s,c1,3));
+		CHECK(m.Clip(s,c0)->group==3 && m.Clip(s,c1)->group==3);
+		CHECK(m.SetClipGroup(s,c1,-5) && m.Clip(s,c1)->group==0);	// отрицательный номер = нет группы
+		m.SetClipGroup(s,c1,3);
+		MixClip tk; CHECK(m.TakeClip(s,c0,tk) && tk.locked && tk.selected && tk.group==3);
 	}
 	{	// ResetAll очищает мастер
 		Mixer m; m.SetMasterGain(0.3f); m.SetMasterMute(true); m.Fx(MIX_MASTER).Add(*dp,44100,&err);
