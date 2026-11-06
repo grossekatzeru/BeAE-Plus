@@ -119,7 +119,7 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -278,6 +278,7 @@ void LanesView::MouseDown(BPoint p)
 				fDragClip = clip;
 				fDragX0 = p.x;
 				fDragPos0 = mc->pos;
+				fDropLane = -1;
 				SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
 			}
 			return;
@@ -302,6 +303,8 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 		pos = Mix.Snap(fDragSlot, pos);				// липкая сетка
 		if (pos < 0) pos = 0;
 		Mix.SetClipPos(fDragSlot, fDragClip, pos);	// живой сдвиг: звук клипа не копируется
+		const int target = SlotAtY(p.y);			// курсор над другой дорожкой: при отпускании клип уйдёт туда
+		SetDropLane((target >= 0 && target != fDragSlot) ? target : -1);
 		Invalidate();
 	}
 }
@@ -310,18 +313,66 @@ void LanesView::MouseUp(BPoint)
 {
 	if (fDragSlot >= 0){
 		const int slot = fDragSlot, clip = fDragClip;
+		const int drop = fDropLane;
 		fDragSlot = -1;
 		fDragClip = -1;
+		fDropLane = -1;
 		const MixClip *mc = Mix.Clip(slot, clip);
 		if (mc){
-			const double np = mc->pos;
+			double np = mc->pos;
 			if (np != fDragPos0) Mix.SetClipPos(slot, clip, fDragPos0);	// вернуть старое: так в отмену попадёт исходная раскладка
-			Tracks_MoveClip(slot, clip, np);		// лента могла удлиниться: пересобрать активный клип
+			if (drop >= 0 && Mix.Track(drop)){
+				np = Mix.Snap(drop, np);			// на новой дорожке своя сетка
+				Tracks_MoveClipToLane(slot, clip, drop, np);
+			}else{
+				Tracks_MoveClip(slot, clip, np);	// лента могла удлиниться: пересобрать активный клип
+			}
 			Pool.changed = true;
 		}
 		Relayout();
 		Invalidate();
 	}
+}
+
+int LanesView::SlotAtY(float y) const
+{
+	const float area = Bounds().Height() + 1;
+	const int n = Tracks_Count();
+	for (int rank=0; rank<n; rank++){
+		float top, bottom;
+		Tracks_LaneSpan(rank, area, top, bottom);
+		if (y >= top && y <= bottom && y < area)
+			return Tracks_SlotAt(rank);
+	}
+	return -1;
+}
+
+void LanesView::SetDropLane(int slot)
+{
+	if (slot == fDropLane) return;
+	fDropLane = slot;
+	Invalidate();
+}
+
+// полупрозрачная подсветка полосы-цели поверх всего (в том числе поверх SampleView активной дорожки)
+void LanesView::DrawAfterChildren(BRect)
+{
+	if (fDropLane < 0 || !Mix.Track(fDropLane)) return;
+	const int rank = Tracks_Rank(fDropLane);
+	if (rank < 0) return;
+	const float area = Bounds().Height() + 1;
+	float top, bottom;
+	Tracks_LaneSpan(rank, area, top, bottom);
+	BRect r(0, top, Bounds().right, bottom);
+	SetDrawingMode(B_OP_ALPHA);
+	SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	SetHighColor(70, 130, 255, 70);
+	FillRect(r);
+	SetDrawingMode(B_OP_COPY);
+	SetHighColor(70, 130, 255);
+	SetPenSize(2);
+	StrokeRect(r.InsetByCopy(1, 1));
+	SetPenSize(1);
 }
 
 void LanesView::Draw(BRect update)

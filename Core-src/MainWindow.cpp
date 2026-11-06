@@ -62,6 +62,8 @@
 #include "Tracks.h"
 #include "TrackPanelView.h"
 #include "LanesView.h"
+#include "FileImport.h"
+#include <strings.h>
 #include "Project.h"
 
 #define MIXDOWN_AS			'mixA'
@@ -565,6 +567,65 @@ MainWindow::MainWindow(BRect frame)
 	Pool.SetLoop(  (transport_view->loop->Value() == B_CONTROL_ON) );
 	SetSizeLimits(MIN_W ,MAX_W, MIN_H , MAX_H);
 	SetPulseRate(50000);
+}
+
+// Файлы, брошенные в окно. Звук ложится клипом на дорожку под курсором (в момент, где бросили, с липкой сеткой);
+// брошенный мимо дорожек, а также несколько файлов сразу - на первые пустые или новые дорожки. Файл .bemix - открыть как проект.
+void MainWindow::HandleDrop(BMessage *message)
+{
+	if (Recorder.IsRecording())
+		return;
+
+	int lane = -1;
+	double t = 0;
+	LanesView *lanes = dynamic_cast<LanesView*>(FindView("Lanes view"));
+	if (lanes && message->WasDropped()){
+		BPoint lp = message->DropPoint();			// экранные координаты
+		lanes->ConvertFromScreen(&lp);
+		if (lanes->Bounds().Contains(lp)){
+			lane = lanes->SlotAtY(lp.y);
+			if (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
+				const double frame = Pool.l_pointer + lp.x * (double)(Pool.r_pointer - Pool.l_pointer) / (lanes->Bounds().Width() + 1);
+				t = frame / Pool.frequency;
+				if (t < 0) t = 0;
+				if (lane >= 0) t = Mix.Snap(lane, t);
+			}
+		}
+	}
+
+	int count = 0;
+	entry_ref ref;
+	while (message->FindRef("refs", count, &ref) == B_OK)
+		count++;
+
+	for (int32 i = 0; i < count && message->FindRef("refs", i, &ref) == B_OK; i++){
+		BString leaf(ref.name);
+		if (leaf.Length() > 6 && strcasecmp(leaf.String() + leaf.Length() - 6, ".bemix") == 0){
+			BMessage open(MSG_PROJECT_FILE);			// проект открывается целиком
+			open.AddRef("refs", &ref);
+			PostMessage(&open);
+			return;
+		}
+		SourceRef src;
+		const int status = ImportAudioFile(ref, src);
+		if (status == IMPORT_NO_MEMORY){
+			(new BAlert(NULL, Language.get("MEM_ERROR"), Language.get("OK")))->Go();
+			break;
+		}
+		if (status != IMPORT_OK){
+			(new BAlert(NULL, Language.get("LOADING_NO_AUDIO"), Language.get("OK")))->Go();
+			continue;
+		}
+		BString name(leaf);
+		const int32 dot = name.FindLast('.');
+		if (dot > 0) name.Truncate(dot);
+		if (Tracks_ImportClip(count == 1 ? lane : -1, src, t, name.String()) < 0){
+			(new BAlert(NULL, Language.get("DROP_NO_TRACKS"), Language.get("OK")))->Go();
+			break;
+		}
+		Pool.changed = true;
+	}
+	Pool.UpdateToolBar();
 }
 
 void MainWindow::AddMenu()
@@ -1706,6 +1767,10 @@ void MainWindow::MessageReceived(BMessage *message)
 
 	case B_MIME_DATA:			// let the app parse drops
 	case B_SIMPLE_DATA:
+		if (message->HasRef("refs")){
+			HandleDrop(message);
+			break;
+		}
 		be_app->PostMessage(message);
 //		message->PrintToStream();
 		break;				

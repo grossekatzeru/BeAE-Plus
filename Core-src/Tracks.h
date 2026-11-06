@@ -24,6 +24,11 @@ void	Tracks_Stash();							// сохранить содержимое Pool в а
 void	Tracks_PlaceActive(double offsetSeconds);	// Pool содержит свежий звук (файл, запись): положить на ленту
 bool	Tracks_SetOffset(int index, double seconds);	// сдвинуть клип: активный (если дорожка активна) или первый клип дорожки
 bool	Tracks_MoveClip(int lane, int clip, double seconds);	// сдвинуть клип из микшера (не активный)
+bool	Tracks_MoveClipToLane(int fromLane, int clip, int toLane, double seconds);	// перенести клип (не активный) на другую дорожку в момент seconds
+bool	Tracks_MoveActiveClipToLane(int toLane, double seconds);	// перенести активный клип на другую дорожку; она становится активной
+// Положить звук (из файла) клипом на дорожку lane (-1: на первую пустую, иначе на новую) в момент seconds.
+// name - имя файла: берётся как имя дорожки, если дорожка была пустой и называлась по умолчанию. Возвращает слот дорожки или -1.
+int		Tracks_ImportClip(int lane, const SourceRef &src, double seconds, const char *name = NULL);
 double	Tracks_Offset(int index);				// положение начала клипа на ленте, сек
 bool	Tracks_ActiveRange(int64 &first, int64 &last);	// где в окне волны лежит звук активной дорожки (без тишины по краям)
 int		Tracks_Add();							// добавить пустую дорожку, вернуть индекс или -1

@@ -449,6 +449,76 @@ bool Tracks_MoveClip(int lane, int clip, double seconds)
 	});
 }
 
+bool Tracks_MoveClipToLane(int from, int clip, int to, double seconds)
+{
+	if (from == to) return Tracks_MoveClip(from, clip, seconds);
+	if (!Mix.Clip(from, clip) || !Mix.Track(to) || Recorder.IsRecording())
+		return false;
+	if (from == Mix.Active())
+		return false;					// активный клип лежит в Pool: для него Tracks_MoveActiveClipToLane
+	if (seconds < 0) seconds = 0;
+	return Restructure([&](int, int stashed, const ViewState&){
+		MixClip mc;
+		if (Mix.TakeClip(from, clip, mc))
+			Mix.AddClip(to, mc.src, mc.start, mc.len, seconds);
+		return stashed;
+	});
+}
+
+bool Tracks_MoveActiveClipToLane(int to, double seconds)
+{
+	if (!Mix.Track(to) || to == Mix.Active() || !PoolHasSound() || Recorder.IsRecording())
+		return false;
+	if (seconds < 0) seconds = 0;
+	int newIdx = -1;
+	bool ok = Restructure([&](int lane, int stashed, const ViewState &view){
+		if (stashed < 0) return stashed;
+		MixClip mc;
+		if (!Mix.TakeClip(lane, stashed, mc)) return stashed;
+		newIdx = Mix.AddClip(to, mc.src, mc.start, mc.len, seconds);
+		return ChooseClip(lane, view.tp);			// на прежней дорожке остаётся другой клип или пусто
+	});
+	if (ok && newIdx >= 0)
+		Tracks_Activate(to, seconds, newIdx);		// идём за клипом
+	return ok;
+}
+
+// дорожка пуста: нет клипов в микшере и в Pool (если она активна) нет звука
+static bool LaneIsEmpty(int i)
+{
+	if (!Mix.Track(i) || Mix.ClipCount(i) > 0) return false;
+	int64 first = 0, last = 0;
+	return !(i == Mix.Active() && Tracks_ActiveRange(first, last));
+}
+
+int Tracks_ImportClip(int lane, const SourceRef &src, double seconds, const char *name)
+{
+	if (!src || src->frames <= 0 || Recorder.IsRecording())
+		return -1;
+	if (seconds < 0) seconds = 0;
+	if (lane < 0 || !Mix.Track(lane)){
+		lane = -1;
+		for (int i = 0; i < MIX_MAX_TRACKS && lane < 0; i++)	// первая пустая дорожка
+			if (LaneIsEmpty(i))
+				lane = i;
+		if (lane < 0) lane = Tracks_Add();
+		if (lane < 0) return -1;
+	}
+	MixTrack *t = Mix.Track(lane);
+	const bool wasEmpty = t && LaneIsEmpty(lane);
+	int newIdx = -1;
+	if (!Restructure([&](int, int stashed, const ViewState&){
+			newIdx = Mix.AddClip(lane, src, 0, src->frames, seconds);
+			return stashed;
+		}))
+		return -1;
+	if (wasEmpty && name && *name && t && strncmp(t->name, "Track ", 6) == 0)
+		Tracks_SetName(lane, name);
+	if (newIdx >= 0)
+		Tracks_Activate(lane, seconds, newIdx);
+	return lane;
+}
+
 bool Tracks_ActiveRange(int64 &first, int64 &last)
 {
 	if (!PoolHasSound())

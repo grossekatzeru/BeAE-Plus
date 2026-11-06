@@ -24,11 +24,14 @@ public:
 	virtual void MouseDown(BPoint);
 	virtual void MouseMoved(BPoint, uint32, const BMessage *);
 	virtual void MouseUp(BPoint);
+	virtual void DrawAfterChildren(BRect);
 	virtual void FrameResized(float width, float height);
 	virtual void MessageReceived(BMessage *msg);
 	virtual void Pulse();
 
 	void	Relayout();				// поставить SampleView в полосу активной дорожки
+	int		SlotAtY(float y) const;		// слот дорожки, чья полоса лежит на высоте y (в координатах вида), или -1
+	void	SetDropLane(int slot);		// подсветка полосы, на которую переносят клип (-1 - нет)
 
 private:
 	void	DrawLane(int slot, BRect lane);
@@ -45,6 +48,7 @@ private:
 	int			fDragClip;
 	float		fDragX0;
 	double		fDragPos0;
+	int			fDropLane;			// при переносе клипа на другую дорожку: куда (или -1)
 };
 
 #endif

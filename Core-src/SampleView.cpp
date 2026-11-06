@@ -431,6 +431,7 @@ void SampleView::MouseDown(BPoint p)
 			move_drag = true;
 			move_x0 = p.x;
 			move_delta = 0;
+			SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);	// чтобы довести клип до другой дорожки
 		}
 		return;
 	}
@@ -703,6 +704,10 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 		if (d < minD) d = minD;
 		move_delta = d;
 		SetViewCursor( Pool.mouseMove );
+		if (LanesView *lanes = dynamic_cast<LanesView*>(Parent())){		// курсор над другой дорожкой - подсветить её
+			const int target = lanes->SlotAtY(ConvertToParent(p).y);
+			lanes->SetDropLane((target >= 0 && target != Mix.Active()) ? target : -1);
+		}
 		Invalidate();
 		return;
 	}
@@ -862,7 +867,17 @@ void SampleView::MouseUp(BPoint p)
 		double off = (double)move_first / Pool.frequency + move_delta;
 		if (off < 0) off = 0;
 		move_delta = 0;
-		Tracks_SetOffset(Mix.Active(), off);			// пересобирает активную дорожку под новое положение
+		int target = -1;
+		if (LanesView *lanes = dynamic_cast<LanesView*>(Parent())){
+			target = lanes->SlotAtY(ConvertToParent(p).y);
+			lanes->SetDropLane(-1);
+		}
+		if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
+			Tracks_MoveActiveClipToLane(target, Mix.Snap(target, off));
+			Pool.changed = true;
+		}else{
+			Tracks_SetOffset(Mix.Active(), off);		// пересобирает активную дорожку под новое положение
+		}
 		Invalidate();
 		return;
 	}
