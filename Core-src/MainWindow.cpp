@@ -432,7 +432,7 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 
 MainWindow::MainWindow(BRect frame)
 	:BWindow(frame, NULL ,B_TITLED_WINDOW,B_ASYNCHRONOUS_CONTROLS),
-	rec_runner(NULL)
+	rec_runner(NULL), fLockItem(NULL)
 {
 	Looper()->SetName("BeAE");
 
@@ -718,6 +718,9 @@ void MainWindow::AddMenu()
 	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N), KeyBind.GetKey("CLIP_PASTE_N"), KeyBind.GetMod("CLIP_PASTE_N")));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 	sub->AddSeparatorItem();
+	sub->AddItem(fLockItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
+	sub->AddSeparatorItem();
 	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
 	menu->AddItem(sub);
 	
@@ -764,6 +767,7 @@ MainWindow::~MainWindow()
 void MainWindow::MenusBeginning()
 {
 	Pool.UpdateMenu();
+	if (fLockItem) fLockItem->SetMarked(Tracks_ActiveClipLocked());
 }
 
 void MainWindow::UpdateRecent()
@@ -1477,6 +1481,14 @@ void MainWindow::MessageReceived(BMessage *message)
 		break;
 	case CLIP_DELETE:
 		if (Tracks_DeleteClip()) Pool.changed = true;
+		break;
+	case CLIP_LOCK:
+		if (Pool.sample_type != NONE && !Recorder.IsRecording()){
+			Tracks_ToggleActiveClipLock();
+			Pool.changed = true;
+			Pool.sample_view_dirty = true;
+			Pool.RedrawWindow();
+		}
 		break;
 
 	case PROJECT_NEW:

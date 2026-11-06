@@ -253,6 +253,14 @@ void LanesView::MessageReceived(BMessage *msg)
 
 void LanesView::MouseDown(BPoint p)
 {
+	uint32 buttons = 0;
+	if (Window() && Window()->CurrentMessage())
+		Window()->CurrentMessage()->FindInt32("buttons", (int32 *)&buttons);
+	if ((buttons & B_SECONDARY_MOUSE_BUTTON) && Pool.tool_mode == MOVE_TOOL){	// правая кнопка: из «Перемещения» обратно в выделение
+		Pool.tool_mode = SELECT_TOOL;
+		Pool.UpdateToolBar();
+	}
+
 	const float area = Bounds().Height() + 1;
 	const int n = Tracks_Count();
 	for (int rank=0; rank<n; rank++){

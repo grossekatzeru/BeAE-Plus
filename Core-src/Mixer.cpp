@@ -159,6 +159,16 @@ bool Mixer::SetClipPos(int lane, int idx, double pos)
 	return true;
 }
 
+bool Mixer::SetClipLocked(int lane, int idx, bool locked)
+{
+	if (!Clip(lane, idx)) return false;
+	Lock();
+	fTracks[lane].clips[idx].locked = locked;
+	Unlock();
+	fRevision++;
+	return true;
+}
+
 bool Mixer::SetClipRange(int lane, int idx, int64_t start, int64_t len)
 {
 	const MixClip *c = Clip(lane, idx);

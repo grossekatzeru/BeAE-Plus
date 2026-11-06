@@ -412,6 +412,12 @@ void SampleView::MouseDown(BPoint p)
 		return;
 	}
 
+	// правая кнопка в режиме «Перемещение» переключает на выделение (и показывает обычное меню клипа)
+	if (button == B_SECONDARY_MOUSE_BUTTON && Pool.tool_mode == MOVE_TOOL){
+		Pool.tool_mode = SELECT_TOOL;
+		Pool.UpdateToolBar();
+	}
+
 	// клик по другому клипу этой же дорожки делает его активным (правая кнопка - меню как обычно)
 	if (button != B_SECONDARY_MOUSE_BUTTON && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f
 		&& Mix.ClipCount(Mix.Active()) > 0){
@@ -477,6 +483,12 @@ void SampleView::MouseDown(BPoint p)
 				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N), KeyBind.GetKey("CLIP_PASTE_N"), KeyBind.GetMod("CLIP_PASTE_N")));
 				menuItem->SetEnabled(Tracks_HasClipboard());
 				menu->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
+				menu->AddSeparatorItem();
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
+				menuItem->SetMarked(Tracks_ActiveClipLocked());
+				menu->AddItem(menuItem = new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
+				menuItem->SetMarked(Pool.tool_mode == MOVE_TOOL);
+				menu->AddSeparatorItem();
 				menu->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
 				#ifdef __SAMPLE_STUDIO_LE
 					menu->AddItem(menuItem = new BMenuItem(Language.get("EDIT_PASTE_MIX"), new BMessage(PASTE_MIXED), KeyBind.GetKey("EDIT_PASTE_MIX"), KeyBind.GetMod("EDIT_PASTE_MIX")));

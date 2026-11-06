@@ -22,8 +22,10 @@ void	Tracks_Init();							// создать DEFAULT_TRACKS пустых доро
 bool	Tracks_Activate(int lane, double cursorTime = -1.0, int clip = -1);	// сделать активным клип дорожки (clip<0 - тот, что под курсором); курсор - на ленте, сек; false - нельзя
 void	Tracks_Stash();							// сохранить содержимое Pool в активную дорожку (без тишины по краям)
 void	Tracks_PlaceActive(double offsetSeconds);	// Pool содержит свежий звук (файл, запись): положить на ленту
-bool	Tracks_SetOffset(int index, double seconds);	// сдвинуть клип: активный (если дорожка активна) или первый клип дорожки
+bool	Tracks_SetOffset(int index, double seconds);	// false, если клип закреплён во времени	// сдвинуть клип: активный (если дорожка активна) или первый клип дорожки
 bool	Tracks_MoveClip(int lane, int clip, double seconds);	// сдвинуть клип из микшера (не активный)
+bool	Tracks_ActiveClipLocked();				// активный клип закреплён во времени (его нельзя сдвигать)
+void	Tracks_ToggleActiveClipLock();			// закрепить / освободить активный клип
 bool	Tracks_MoveClipToLane(int fromLane, int clip, int toLane, double seconds);	// перенести клип (не активный) на другую дорожку в момент seconds
 bool	Tracks_MoveActiveClipToLane(int toLane, double seconds);	// перенести активный клип на другую дорожку; она становится активной
 // Положить звук (из файла) клипом на дорожку lane (-1: на первую пустую, иначе на новую) в момент seconds.
