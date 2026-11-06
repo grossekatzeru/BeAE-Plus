@@ -104,6 +104,32 @@ int main()
 		CHECK(fabs(d) < 0.3, "transparency noise: %.2f dB", d);
 	}
 
+	// ---- прозрачность при крайних значениях начала ВЧ (1000 и 16000 Гц) ----
+	for (int e = 0; e < 2; e++) {
+		std::vector<float> c = Defaults(); c[Sadp::P_DEPTH] = 0; c[Sadp::P_HF_EDGE] = e ? 16000.0f : 1000.0f;
+		const float freqs[] = { 80, 300, 900, 1500, 3000, 6000, 10000, 15000, 18000 };
+		for (size_t k = 0; k < sizeof(freqs) / sizeof(freqs[0]); k++) {
+			std::vector<float> in((int)(kRate * 1.5));
+			for (size_t i = 0; i < in.size(); i++) in[i] = 0.3f * sinf(2 * kPi * freqs[k] * i / kRate);
+			std::vector<float> out = Process(in, c);
+			double d = Db(Rms(out, 0.5, 1.4) / Rms(in, 0.5, 1.4));
+			CHECK(fabs(d) < 0.4, "edge %g: transparency %g Hz: %.2f dB", c[Sadp::P_HF_EDGE], freqs[k], d);
+		}
+	}
+
+	// ---- с началом ВЧ на 1000 Гц шипение выше 1 кГц убирается сильнее, чем с 4000 Гц ----
+	{
+		const int N = (int)(kRate * 4);
+		std::vector<float> in(N);
+		for (int i = 0; i < N; i++) in[i] = 0.1f * sinf(2 * kPi * 200.0f * i / kRate) + Hiss(0.0005f);
+		std::vector<float> a = Defaults(), b = Defaults(); b[Sadp::P_HF_EDGE] = 1000;
+		std::vector<float> oa = Process(in, a), ob = Process(in, b);
+		std::vector<float> ha = HighPass(oa, 1500), hb = HighPass(ob, 1500), hi_ = HighPass(in, 1500);
+		double da = Db(Rms(ha, 2.0, 3.9) / Rms(hi_, 2.0, 3.9)), db = Db(Rms(hb, 2.0, 3.9) / Rms(hi_, 2.0, 3.9));
+		printf("hiss above 1.5 kHz: edge 4000 -> %.1f dB, edge 1000 -> %.1f dB\n", da, db);
+		CHECK(db < da - 2.0, "edge 1000 should reduce more: %.1f vs %.1f", db, da);
+	}
+
 	// ---- громкий широкополосный сигнал: все полосы открыты, ослабления нет ----
 	{
 		std::vector<float> c = Defaults();
@@ -198,8 +224,8 @@ int main()
 
 	// ---- крайние значения параметров и моно-буфер: всё конечно ----
 	{
-		const float lo[Sadp::P_IN_L] = { -80, 20, 20, 30, 1, 20, 50, 2000, 0 };
-		const float hi[Sadp::P_IN_L] = { -30, 60, 60, 0, 20, 1000, 400, 8000, 1 };
+		const float lo[Sadp::P_IN_L] = { -80, 20, 20, 30, 1, 20, 50, 1000, 0 };
+		const float hi[Sadp::P_IN_L] = { -30, 60, 60, 0, 20, 1000, 400, 16000, 1 };
 		for (int v = 0; v < 2; v++) {
 			std::vector<float> c(Sadp::P_COUNT, 0.0f);
 			for (int i = 0; i < Sadp::P_IN_L; i++) c[i] = v ? hi[i] : lo[i];

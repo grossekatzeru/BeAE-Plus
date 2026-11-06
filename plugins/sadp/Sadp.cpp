@@ -125,14 +125,17 @@ static void Run(void *h, unsigned long n)
 	const float attackMs = Clamp(*s->port[P_ATTACK], 1.0f, 20.0f);
 	const float releaseMs = Clamp(*s->port[P_RELEASE], 20.0f, 1000.0f);
 	const float lfEdge = Clamp(*s->port[P_LF_EDGE], 50.0f, 400.0f);
-	float hfEdge = Clamp(*s->port[P_HF_EDGE], 2000.0f, 8000.0f);
+	float hfEdge = Clamp(*s->port[P_HF_EDGE], 1000.0f, 16000.0f);
 	const bool listen = *s->port[P_LISTEN] > 0.5f;
 
-	// границы полос; верхние ограничены частотой дискретизации
+	// границы полос; верхние ограничены частотой дискретизации (при совпадении граней полоса между ними пустая,
+	// но сумма полос остаётся без искажений: каждое разделение дополняет друг друга)
 	const float nyq = fs * 0.45f;
 	float f[4] = { lfEdge, hfEdge, hfEdge * 2.0f, hfEdge * 3.5f };
-	for (int i = 1; i < 4; i++) { if (f[i] > nyq) f[i] = nyq; if (f[i] <= f[i - 1]) f[i] = f[i - 1] * 1.05f; }
-	if (f[3] > nyq * 1.1f) f[3] = nyq * 1.1f;
+	for (int i = 0; i < 4; i++) {
+		if (f[i] > nyq) f[i] = nyq;
+		if (i > 0 && f[i] < f[i - 1]) f[i] = f[i - 1];
+	}
 	if (lfEdge != s->lastEdges[0] || hfEdge != s->lastEdges[1]) {
 		s->ch[0].Design(f, fs); s->ch[1].Design(f, fs);
 		s->lastEdges[0] = lfEdge; s->lastEdges[1] = hfEdge;
@@ -200,7 +203,7 @@ const Ladspa::Descriptor *Descriptor()
 		hints[P_ATTACK]		  = { B | Ladspa::HINT_DEFAULT_LOW, 1.0f, 20.0f };						// около 5,8
 		hints[P_RELEASE]	  = { B | Ladspa::HINT_LOGARITHMIC | Ladspa::HINT_DEFAULT_MIDDLE, 20.0f, 1000.0f };		// около 141
 		hints[P_LF_EDGE]	  = { B | Ladspa::HINT_LOGARITHMIC | Ladspa::HINT_DEFAULT_MIDDLE, 50.0f, 400.0f };		// около 141
-		hints[P_HF_EDGE]	  = { B | Ladspa::HINT_LOGARITHMIC | Ladspa::HINT_DEFAULT_MIDDLE, 2000.0f, 8000.0f };	// 4000
+		hints[P_HF_EDGE]	  = { B | Ladspa::HINT_LOGARITHMIC | Ladspa::HINT_DEFAULT_MIDDLE, 1000.0f, 16000.0f };	// 4000
 		hints[P_LISTEN]		  = { Ladspa::HINT_TOGGLED | Ladspa::HINT_DEFAULT_0, 0.0f, 1.0f };
 		desc[P_IN_L] = desc[P_IN_R] = Ladspa::PORT_INPUT | Ladspa::PORT_AUDIO;
 		desc[P_OUT_L] = desc[P_OUT_R] = Ladspa::PORT_OUTPUT | Ladspa::PORT_AUDIO;
