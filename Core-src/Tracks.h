@@ -61,6 +61,7 @@ bool	Tracks_SplitAtCursor();
 bool	Tracks_CopyClip();
 bool	Tracks_HasClipboard();
 bool	Tracks_PasteClip(double timePos, int count);
+bool	Tracks_PasteFits();						// дорожек хватает для вставки (иначе вставка не выполняется)
 bool	Tracks_DeleteClip();
 bool	Tracks_CanUndo();						// есть что отменить (операции с клипами)
 bool	Tracks_CanRedo();

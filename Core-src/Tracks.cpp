@@ -1049,6 +1049,26 @@ bool Tracks_HasClipboard()
 	return !gClip.empty() && gClip[0].clip.src && gClip[0].clip.len > 0;
 }
 
+// Дорожки для вставки: набор встаёт от активной дорожки (сдвигаясь вниз, если часть клипов лежала выше её)
+static int PasteBaseRank(int &maxRel)
+{
+	int minRel = 0;
+	maxRel = 0;
+	for (size_t i = 0; i < gClip.size(); i++){
+		minRel = std::min(minRel, gClip[i].rank);
+		maxRel = std::max(maxRel, gClip[i].rank);
+	}
+	return std::max(Tracks_Rank(Mix.Active()), -minRel);
+}
+
+bool Tracks_PasteFits()
+{
+	if (!Tracks_HasClipboard()) return true;
+	int maxRel = 0;
+	const int base = PasteBaseRank(maxRel);
+	return Tracks_Count() > base + maxRel;
+}
+
 bool Tracks_PasteClip(double timePos, int count)
 {
 	if (!Tracks_HasClipboard() || count < 1 || count > 1000 || Recorder.IsRecording())
@@ -1059,15 +1079,10 @@ bool Tracks_PasteClip(double timePos, int count)
 	const bool grouped = gClipGrouped;
 	const double step = items.size() == 1 ? items[0].clip.Length() : gClipSpan;
 
-	// дорожки: набор встаёт от активной дорожки; недостающие дорожки добавляются снизу
-	int minRel = 0, maxRel = 0;
-	for (size_t i = 0; i < items.size(); i++){
-		minRel = std::min(minRel, items[i].rank);
-		maxRel = std::max(maxRel, items[i].rank);
-	}
-	const int baseRank = std::max(Tracks_Rank(Mix.Active()), -minRel);
-	while (Tracks_Count() <= baseRank + maxRel)
-		if (Tracks_Add() < 0) return false;				// предел числа дорожек
+	// дорожки не добавляются сами: если их не хватает, вставки нет (окно сообщает об этом)
+	int maxRel = 0;
+	const int baseRank = PasteBaseRank(maxRel);
+	if (Tracks_Count() <= baseRank + maxRel) return false;
 	return Restructure([&](int lane, int stashed, const ViewState&){
 		for (int n = 0; n < count; n++){
 			const int g = grouped ? FreeGroupId() : 0;	// каждая вставленная группа - новый номер и цвет

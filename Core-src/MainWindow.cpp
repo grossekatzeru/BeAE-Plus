@@ -1449,6 +1449,10 @@ void MainWindow::MessageReceived(BMessage *message)
 			if (count > 200) count = 200;
 		}
 		const double at = (Pool.sample_type != NONE && Pool.frequency > 1.0f) ? (double)Pool.pointer / Pool.frequency : 0.0;
+		if (!Tracks_PasteFits()){
+			(new BAlert(NULL, Language.get("CLIP_PASTE_NO_TRACKS"), Language.get("OK")))->Go();
+			break;
+		}
 		if (Tracks_PasteClip(at, count)) Pool.changed = true;
 		Pool.UpdateToolBar();
 		break;

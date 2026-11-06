@@ -340,3 +340,4 @@ DROP_NO_TRACKS = "No free track for the dropped file (the project has the maximu
 CLIP_LOCK = "Lock in time"
 CLIP_MOVE = "Move"
 CLIP_GROUP = "Group"
+CLIP_PASTE_NO_TRACKS = "Prepare enough tracks before pasting"
