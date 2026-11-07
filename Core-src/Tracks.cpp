@@ -1066,7 +1066,7 @@ bool Tracks_PasteFits()
 	if (!Tracks_HasClipboard()) return true;
 	int maxRel = 0;
 	const int base = PasteBaseRank(maxRel);
-	return Tracks_Count() > base + maxRel;
+	return base + maxRel < MIX_MAX_TRACKS;			// недостающие дорожки добавятся сами, пока не упрёмся в предел
 }
 
 bool Tracks_PasteClip(double timePos, int count)
@@ -1079,10 +1079,12 @@ bool Tracks_PasteClip(double timePos, int count)
 	const bool grouped = gClipGrouped;
 	const double step = items.size() == 1 ? items[0].clip.Length() : gClipSpan;
 
-	// дорожки не добавляются сами: если их не хватает, вставки нет (окно сообщает об этом)
+	// недостающие дорожки добавляются снизу; на пределе числа дорожек вставки нет (окно сообщает об этом)
 	int maxRel = 0;
 	const int baseRank = PasteBaseRank(maxRel);
-	if (Tracks_Count() <= baseRank + maxRel) return false;
+	if (baseRank + maxRel >= MIX_MAX_TRACKS) return false;
+	while (Tracks_Count() <= baseRank + maxRel)
+		if (Tracks_Add() < 0) return false;
 	return Restructure([&](int lane, int stashed, const ViewState&){
 		for (int n = 0; n < count; n++){
 			const int g = grouped ? FreeGroupId() : 0;	// каждая вставленная группа - новый номер и цвет
