@@ -23,7 +23,7 @@
 #include "FxChain.h"
 #include "Metronome.h"
 
-#define MIX_MAX_TRACKS	16
+#define MIX_MAX_TRACKS	64		// не жёсткий предел: при необходимости можно увеличить (см. TODO.md)
 #define MIX_MASTER		MIX_MAX_TRACKS		// номер мастер-шины для Fx(): не дорожка, удалить нельзя
 
 // Неизменяемый кусок звука (interleaved float, 1 или 2 канала).
