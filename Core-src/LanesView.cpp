@@ -163,7 +163,7 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1), fGroupDelta(0)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1), fScrollBar(NULL), fGroupDelta(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -228,10 +228,43 @@ void LanesView::DrawPlayLine()
 	SetDrawingMode(B_OP_COPY);
 }
 
+LanesScrollBar::LanesScrollBar(BRect r, LanesView *lanes)
+	: BScrollBar(r, "Lanes scroll bar", NULL, 0, 0, B_VERTICAL), fLanes(lanes), fSyncing(false)
+{
+	SetResizingMode(B_FOLLOW_RIGHT | B_FOLLOW_TOP_BOTTOM);
+}
+
+void LanesScrollBar::ValueChanged(float newValue)
+{
+	if (fSyncing || !fLanes) return;
+	Tracks_SetScroll(newValue, fLanes->Bounds().Height() + 1);
+	fLanes->Relayout();
+	fLanes->Invalidate();					// панель дорожек и шкала значений подтянутся по пульсу
+}
+
+void LanesScrollBar::Sync()
+{
+	if (!fLanes) return;
+	const float area = fLanes->Bounds().Height() + 1;
+	const float total = Tracks_LaneHeight(area) * Tracks_Count();
+	float max = total - area;
+	if (max < 0) max = 0;
+	float lo, hi;
+	GetRange(&lo, &hi);
+	fSyncing = true;
+	if (hi != max) SetRange(0, max);
+	const float prop = (total > 0 && max > 0) ? area / total : 1.0f;
+	if (Proportion() != prop) SetProportion(prop);
+	SetSteps(MIN_LANE_HEIGHT / 4.0f, area * 0.9f);
+	if (Value() != Tracks_Scroll()) SetValue(Tracks_Scroll());
+	fSyncing = false;
+}
+
 void LanesView::Pulse()
 {
 	// SampleView на месте?
 	Relayout();
+	if (fScrollBar) fScrollBar->Sync();			// колесо мыши и смена числа дорожек двигают и полосу прокрутки
 
 	// перерисовка только когда что-то поменялось
 	const long long l = Pool.l_pointer, r = Pool.r_pointer, p = Pool.pointer;

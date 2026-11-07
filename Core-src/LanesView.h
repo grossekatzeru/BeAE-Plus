@@ -7,8 +7,24 @@
 #ifndef LANES_VIEW_H
 #define LANES_VIEW_H
 
+#include <ScrollBar.h>
 #include <View.h>
 #include <vector>
+
+#define LANES_SCROLLBAR_WIDTH	14		// вертикальная полоса прокрутки дорожек справа от полос
+
+class LanesView;
+
+// Вертикальная прокрутка стопки дорожек: во всю высоту области полос; диапазон и положение берутся из Tracks_*
+class LanesScrollBar : public BScrollBar {
+public:
+	LanesScrollBar(BRect r, LanesView *lanes);
+	virtual void ValueChanged(float newValue);
+	void	Sync();					// подогнать диапазон, размер ползунка и положение под число дорожек и высоту области
+private:
+	LanesView	*fLanes;
+	bool		fSyncing;
+};
 
 struct ClipRef { int slot; int idx; double pos0; };		// клип группы при переносе: дорожка, номер, исходное положение
 
@@ -37,6 +53,7 @@ public:
 	virtual void Pulse();
 
 	void	Relayout();				// поставить SampleView в полосу активной дорожки
+	void	SetScrollBar(LanesScrollBar *bar) { fScrollBar = bar; }
 	int		SlotAtY(float y) const;		// слот дорожки, чья полоса лежит на высоте y (в координатах вида), или -1
 	void	SetDropLane(int slot);		// подсветка полосы, на которую переносят клип (-1 - нет)
 
@@ -56,6 +73,7 @@ private:
 	float		fDragX0;
 	double		fDragPos0;
 	int			fDropLane;			// при переносе клипа на другую дорожку: куда (или -1)
+	LanesScrollBar	*fScrollBar;
 	std::vector<ClipRef>	fGroup;		// выделенные клипы, едущие вместе с перетаскиваемым (пусто - одиночный перенос)
 	double		fGroupDelta;		// на сколько секунд сдвинута группа
 };

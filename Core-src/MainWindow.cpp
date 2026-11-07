@@ -527,10 +527,17 @@ MainWindow::MainWindow(BRect frame)
 
 	r = sv;							// wave display
 	r.left += VALUEBAR_WIDTH;
+	r.right -= LANES_SCROLLBAR_WIDTH;				// справа - полоса прокрутки дорожек
 	r.bottom -= TIMEBAR_HEIGHT + MASTER_STRIP_H;		// ниже - мастер-дорожка
 	r.top += INDEXVIEW_HEIGHT;
 	LanesView *lanes_view = new LanesView(r);		// стопка полос; в полосе активной дорожки - SampleView
 	AddChild(lanes_view);
+	{
+		BRect sb(r.right + 1, r.top, r.right + LANES_SCROLLBAR_WIDTH, r.bottom);	// во всю высоту области дорожек
+		LanesScrollBar *bar = new LanesScrollBar(sb, lanes_view);
+		AddChild(bar);
+		lanes_view->SetScrollBar(bar);
+	}
 	sample_view = new SampleView(BRect(0, 0, r.Width(), r.Height()));
 	lanes_view->AddChild(sample_view);
 	Pool.m_SampleView = sample_view;	// for the player
@@ -543,17 +550,20 @@ MainWindow::MainWindow(BRect frame)
 	
 	r = sv;							// мастер-дорожка (под полосами, над шкалой времени)
 	r.left += VALUEBAR_WIDTH;
+	r.right -= LANES_SCROLLBAR_WIDTH;
 	r.bottom -= TIMEBAR_HEIGHT;
 	r.top = r.bottom - MASTER_STRIP_H + 1;
 	AddChild(new MasterLaneView(r));
 
 	r = sv;							// bottom timescale
 	r.left += VALUEBAR_WIDTH;
+	r.right -= LANES_SCROLLBAR_WIDTH;
 	r.top = r.bottom - TIMEBAR_HEIGHT+1;
 	AddChild(new TimeBarView(r));
 
 	r = sv;							// scroll_view / overview
 	r.left += VALUEBAR_WIDTH;
+	r.right -= LANES_SCROLLBAR_WIDTH;
 	r.bottom = r.top + INDEXVIEW_HEIGHT-1;
 	AddChild(index_view = new IndexView(r));
 	
