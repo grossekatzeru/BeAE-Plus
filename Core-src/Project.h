@@ -4,6 +4,7 @@
 #ifndef PROJECT_H
 #define PROJECT_H
 
+#include <vector>
 #include <String.h>
 #include <Window.h>
 #include <Path.h>
@@ -20,6 +21,9 @@ BString	Project_Title(const char *item = NULL);	// заголовок окна: 
 // Свести все дорожки в один WAV (громкость, панорама, mute/solo, смещения учитываются).
 bool	Project_Mixdown(const char *path, BString &err);
 bool	Project_MixdownDefault(BPath &out);	// <папка проекта>/<Имя>.wav; false, если проект ещё не на диске
+
+// Моно-сумма всех слышимых дорожек без эффектов (до 3 минут) для анализа; false, если звука нет.
+bool	Project_AnalysisMix(std::vector<float> &mono, float &rate);
 
 // Окно запроса имени проекта; результат уходит окну target сообщением msgWhat с полем "name".
 class ProjectNameWindow : public BWindow {

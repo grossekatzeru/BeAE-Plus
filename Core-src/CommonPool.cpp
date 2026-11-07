@@ -429,6 +429,7 @@ void CommonPool::CreateMenu()
 	
 	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("SPECTRUM_ANALYZER"), new BMessage(SPECTRUM), KeyBind.GetKey("SPECTRUM_ANALYZER"), KeyBind.GetMod("SPECTRUM_ANALYZER")));
 	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("SAMPLE_SCOPE"), new BMessage(SAMPLE_SCOPE), KeyBind.GetKey("SAMPLE_SCOPE"), KeyBind.GetMod("SAMPLE_SCOPE")));
+	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("TEMPO_ANALYZER"), new BMessage(TEMPO_ANALYZER), KeyBind.GetKey("TEMPO_ANALYZER"), KeyBind.GetMod("TEMPO_ANALYZER")));
 	mainWindow->Unlock();
 }
 

@@ -391,6 +391,40 @@ static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float o
 	}
 }
 
+bool Project_AnalysisMix(std::vector<float> &mono, float &rate)
+{
+	bool anySolo = false;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		MixTrack *t = Mix.Track(i);
+		if (t && t->solo) anySolo = true;
+	}
+	std::vector<std::pair<int, std::vector<MixClip> > > lanes;
+	rate = 0;
+	double endTime = 0;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++){
+		MixTrack *t = Mix.Track(i);
+		if (!t || t->mute || (anySolo && !t->solo)) continue;
+		std::vector<MixClip> cl = Tracks_LaneClips(i);
+		if (cl.empty()) continue;
+		for (size_t k = 0; k < cl.size(); k++){
+			if (cl[k].Rate() > rate) rate = cl[k].Rate();
+			if (cl[k].End() > endTime) endTime = cl[k].End();
+		}
+		lanes.push_back(std::make_pair(i, cl));
+	}
+	if (lanes.empty() || rate <= 0) return false;
+	if (endTime > 180.0) endTime = 180.0;
+	const int64 total = (int64)(endTime * rate + 0.5) + 1;
+	std::vector<float> st;
+	try { st.assign((size_t)total * 2, 0.0f); } catch (...) { return false; }
+	for (size_t k = 0; k < lanes.size(); k++)
+		for (size_t q = 0; q < lanes[k].second.size(); q++)
+			RenderClipOffline(lanes[k].second[q], &st[0], total, rate, 1.0f, 1.0f);
+	mono.resize((size_t)total);
+	for (int64 n = 0; n < total; n++) mono[(size_t)n] = 0.5f * (st[(size_t)n*2] + st[(size_t)n*2+1]);
+	return true;
+}
+
 bool Project_Mixdown(const char *path, BString &err)
 {
 	struct Lane { int idx; std::vector<MixClip> clips; float gl, gr; bool fx; };

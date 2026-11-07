@@ -55,6 +55,7 @@
 #include "Shortcut.h"
 #include "FilterDialogs.h"
 #include "Analyzers.h"
+#include "TempoAnalyzer.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
 #include "LadspaFilter.h"
@@ -1684,6 +1685,10 @@ void MainWindow::MessageReceived(BMessage *message)
 		(new SampleScopeWindow());
 		break;
 		
+	case TEMPO_ANALYZER:
+		(new TempoAnalyzerWindow(BPoint((Frame().left+Frame().right)/2, (Frame().top+Frame().bottom)/2)));
+		break;
+
 	case SET_FREQUENCY:
 		(new FreqWindow(BPoint( (Frame().left+Frame().right)/2, (Frame().top+Frame().bottom)/2)));
 		break;

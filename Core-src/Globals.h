@@ -182,7 +182,7 @@ enum {MONO=1, STEREO=2};
 
 #define SPECTRUM			'spct'
 #define SAMPLE_SCOPE		'spls'
-
+#define TEMPO_ANALYZER		'tmpA'
 #define CHANGE_LANGUAGE		'chgL'
 #define SET_TIME			'setT'
 
