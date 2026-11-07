@@ -5,12 +5,15 @@
 #include <stdio.h>
 #include <algorithm>
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 
 #include "CommonPool.h"
 #include "Globals.h"
 #include "Mixer.h"
 #include "LadspaFilter.h"
 #include "LadspaSlider.h"
+#include "ParamSlider.h"
 #include "Vst2Host.h"
 #include "FxWindow.h"
 
@@ -53,25 +56,82 @@ static const std::vector<Vst2::Info> &VstList()
 }
 
 // ползунок параметра VST2 (0..1); подпись показывает текст значения от самого плагина
-class VstSlider : public BSlider {
+class VstSlider : public ParamSlider {
 public:
 	VstSlider(const char *label, BMessage *msg, Vst2::Instance *vst, int param, float v)
-		: BSlider(NULL, label, msg, 0, 1000, B_HORIZONTAL), fVst(vst), fParam(param)
+		: ParamSlider(label, msg, 0, 1000), fVst(vst), fParam(param), fHasExact(false), fExact(0), fExactPos(0)
 	{
-		SetModificationMessage(new BMessage(*msg));
-		SetValue((int32)(v * 1000.0f + 0.5f));
+		SetNormalized(v);
 	}
-	float ValueF() const { return (float)Value() / 1000.0f; }
-	virtual const char *UpdateText() const
+	float ValueF() const
+	{
+		if (fHasExact && Pos() == fExactPos) return fExact;
+		return (float)Pos() / 1000.0f;
+	}
+protected:
+	void SetNormalized(float v)
+	{
+		if (!(v >= 0)) v = 0;
+		if (v > 1) v = 1;
+		fExact = v;
+		fExactPos = (int32)(v * 1000.0f + 0.5f);
+		fHasExact = true;
+		SetPos(fExactPos);
+	}
+	virtual BString FormatText() const
 	{
 		std::string d = fVst->ParamDisplay(fParam), u = fVst->ParamUnit(fParam);
-		snprintf(fText, sizeof(fText), "%s%s%s", d.c_str(), u.empty() ? "" : " ", u.c_str());
-		return fText;
+		BString s(d.c_str());
+		if (!u.empty()) s << " " << u.c_str();
+		return s;
 	}
+	// число в единицах плагина (например -6 дБ): ищем положение 0..1 делением пополам по тексту плагина;
+	// если плагин показывает не числа, ввод считается положением 0..1
+	virtual bool ApplyText(const char *text)
+	{
+		char buf[64];
+		strncpy(buf, text, sizeof(buf) - 1);
+		buf[sizeof(buf) - 1] = 0;
+		for (char *c = buf; *c; c++) if (*c == ',') *c = '.';
+		char *end = NULL;
+		const double target = strtod(buf, &end);
+		if (end == buf) return false;
+		const float keep = fExact;
+		const float v0 = ProbeDisplay(0.0f), v1 = ProbeDisplay(1.0f);
+		float t;
+		if (v0 != v0 || v1 != v1 || v0 == v1){
+			t = (float)target;					// не числовой параметр
+		}else{
+			const bool up = v1 > v0;
+			double lo = 0, hi = 1;
+			for (int i = 0; i < 24; i++){
+				double mid = (lo + hi) / 2;
+				double d = ProbeDisplay((float)mid);
+				if (d != d) break;
+				if ((d < target) == up) lo = mid; else hi = mid;
+			}
+			t = (float)((lo + hi) / 2);
+		}
+		(void)keep;
+		fVst->SetParam(fParam, t);
+		SetNormalized(t);
+		return true;
+	}
+	virtual void SliderMoved() { fHasExact = false; }
 private:
+	double ProbeDisplay(float t) const
+	{
+		fVst->SetParam(fParam, t);
+		std::string d = fVst->ParamDisplay(fParam);
+		char *end = NULL;
+		double v = strtod(d.c_str(), &end);
+		return end == d.c_str() ? NAN : v;
+	}
 	Vst2::Instance	*fVst;
 	int				fParam;
-	mutable char	fText[96];
+	bool			fHasExact;
+	float			fExact;
+	int32			fExactPos;
 };
 
 void FxWindow::Open(int track, BWindow *near)
@@ -404,7 +464,7 @@ void FxWindow::MessageReceived(BMessage *msg)
 		if (!fVstSliders.empty()){
 			for (size_t i = 0; i < fVstSliders.size(); i++){
 				fx.SetValue(sel, fPorts[i], fVstSliders[i]->ValueF());
-				fVstSliders[i]->Invalidate();		// обновить текст значения
+				fVstSliders[i]->RefreshText();		// обновить текст значения
 			}
 			break;
 		}
