@@ -663,7 +663,6 @@ void MainWindow::AddMenu()
 //	openitem->SetShortcut('O', 0);
 
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_INSERT"), new BMessage(MIDI_IMPORT), KeyBind.GetKey("FILE_INSERT"), KeyBind.GetMod("FILE_INSERT")));
-	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_APPEND"), new BMessage(APPEND), KeyBind.GetKey("FILE_APPEND"), KeyBind.GetMod("FILE_APPEND")));
 	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
