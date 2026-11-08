@@ -54,8 +54,8 @@ void TempoAnalyzerView::Draw(BRect)
 			DrawBitmap(back, BPoint(x, 0));
 	}
 	// надпись «Темп» слева от ЖК-окошка
-	SetHighColor(make_color(237, 237, 237));
-	SetLowColor(make_color(60, 62, 66));
+	SetHighColor(make_color(30, 32, 36));		// фон Box.png светлый, поэтому текст тёмный
+	SetDrawingMode(B_OP_OVER);
 	SetFont(be_bold_font);
 	SetFontSize(16);
 	DrawString(Language.get("TEMPO_LABEL"), BPoint(10, 38));
@@ -87,6 +87,7 @@ void TempoAnalyzerView::Draw(BRect)
 	}
 	SetFontSize(be_plain_font->Size());
 	SetFont(be_plain_font);
+	SetDrawingMode(B_OP_COPY);
 }
 
 TempoAnalyzerWindow::TempoAnalyzerWindow(BPoint c)
