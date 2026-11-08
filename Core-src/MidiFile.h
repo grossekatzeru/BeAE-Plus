@@ -30,6 +30,8 @@ struct MidiTrackData {
 
 struct MidiSong {
 	int							format;
+	double						bpm;			// начальный темп (четвертей в минуту), 120 если в файле не задан
+	bool						tempoVaries;	// темп в файле меняется
 	std::vector<MidiTrackData>	tracks;		// только дорожки с нотами; в формате 0 разбито по каналам
 };
 

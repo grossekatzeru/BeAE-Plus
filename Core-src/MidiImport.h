@@ -14,34 +14,47 @@
 #include <vector>
 #include <OS.h>
 #include "Mixer.h"
+#include "MidiFile.h"
 
 struct MidiImportResult {
 	struct Item { std::string name; SourceRef src; };
 	std::vector<Item>	items;
-	std::string			error;			// не пусто - не получилось
+	std::string			error;			// не пусто - не получилось (ключ языка)
+	double				setBpm;			// > 0 - установить этот темп проекта (Grid и метроном)
 };
 
 class BListView;
 class BButton;
+class BRadioButton;
 class BStringView;
 class BFilePanel;
 
 class MidiImportWindow : public BWindow {
 public:
-	MidiImportWindow(BMessenger target);
+	// projectEmpty/projectBpm - состояние проекта на момент вызова: в пустой проект темп берётся из MIDI сам,
+	// в непустой при расхождении окно предлагает выбор
+	MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm);
 	virtual ~MidiImportWindow();
 	virtual void MessageReceived(BMessage *msg);
 	virtual bool QuitRequested();
 private:
 	void	Scan();
-	void	StartRender(const entry_ref &midi);
+	void	LoadMidiFile(const entry_ref &midi);
+	void	UpdateTempoUi();
+	void	StartRender();
 	static int32 Worker(void *arg);
 
 	BMessenger		fTarget;
 	BListView		*fList;
 	BButton			*fChoose;
-	BStringView		*fStatus;
+	BStringView		*fStatus, *fTempoInfo;
+	BRadioButton	*fOption[3];			// 0 - темп проекта по MIDI, 1 - подогнать MIDI, 2 - не менять
+	BButton			*fInsert;
 	BFilePanel		*fPanel;
+	bool			fProjectEmpty;
+	double			fProjectBpm;
+	bool			fHaveSong;
+	MidiSong		fSong;
 	std::vector<std::string>	fPaths;
 	thread_id		fThread;
 	bool			fBusy;

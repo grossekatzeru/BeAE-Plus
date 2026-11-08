@@ -19,6 +19,7 @@
 #define TIMELINE_MARGIN	10.0		// секунд запаса после самой дальней дорожки
 
 void	Tracks_Init();							// создать DEFAULT_TRACKS пустых дорожек (один раз при старте)
+bool	Tracks_IsEmpty();						// в проекте нет ни одного клипа и звука
 void	Tracks_PublishActiveSpan();		// сообщить микшеру, где на ленте лежит активный клип (для кроссфейда); перед запуском воспроизведения
 bool	Tracks_Activate(int lane, double cursorTime = -1.0, int clip = -1);	// сделать активным клип дорожки (clip<0 - тот, что под курсором); курсор - на ленте, сек; false - нельзя
 void	Tracks_Stash();							// сохранить содержимое Pool в активную дорожку (без тишины по краям)

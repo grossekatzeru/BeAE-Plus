@@ -23,6 +23,7 @@ struct RawTrack { std::string name; std::vector<RawEv> ev; };
 bool LoadMidi(const uint8_t *data, size_t size, MidiSong &song, std::string &err)
 {
 	song = MidiSong();
+	song.format = 0; song.bpm = 120.0; song.tempoVaries = false;
 	Reader r = { data, size, 0 };
 	if (size < 14 || memcmp(data, "MThd", 4) != 0) { err = "not a MIDI file"; return false; }
 	r.i = 4;
@@ -92,6 +93,9 @@ bool LoadMidi(const uint8_t *data, size_t size, MidiSong &song, std::string &err
 			else { Seg ns = { tempos[k].tick, sec, tempos[k].us }; segs.push_back(ns); }
 		}
 	}
+	song.bpm = 60000000.0 / segs[0].us;
+	song.tempoVaries = false;
+	for (size_t k = 1; k < segs.size(); k++) if (segs[k].us != segs[0].us) song.tempoVaries = true;
 	auto toSec = [&](uint64_t tick) {
 		size_t k = segs.size() - 1;
 		while (k > 0 && segs[k].tick > tick) k--;

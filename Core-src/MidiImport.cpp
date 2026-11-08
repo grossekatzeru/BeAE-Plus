@@ -6,6 +6,9 @@
 #include <FilePanel.h>
 #include <FindDirectory.h>
 #include <ListView.h>
+#include <RadioButton.h>
+#include <String.h>
+#include <math.h>
 #include <Path.h>
 #include <ScrollView.h>
 #include <StringItem.h>
@@ -22,14 +25,24 @@
 
 #define MSG_MIDI_CHOOSE		'mdCh'
 #define MSG_MIDI_FINISHED	'mdFn'
+#define MSG_MIDI_INSERT		'mdIn'
 #define MIDI_RATE			44100.0f
 
 namespace {
 struct Job {
-	entry_ref		midi;
+	MidiSong		song;
 	std::string		sf2;
+	double			scale;			// множитель времени событий (подгонка MIDI под темп проекта)
+	double			setBpm;			// > 0 - сообщить, какой темп установить в проекте
 	BMessenger		target, window;
 };
+
+BString Bpm(double v)
+{
+	BString s;
+	s << (int)floor(v + 0.5);
+	return s;
+}
 
 bool EndsWithSf2(const char *name)
 {
@@ -38,10 +51,11 @@ bool EndsWithSf2(const char *name)
 }
 }
 
-MidiImportWindow::MidiImportWindow(BMessenger target)
-	: BWindow(BRect(120, 120, 540, 340), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
+MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm)
+	: BWindow(BRect(120, 120, 540, 330), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
 		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_ASYNCHRONOUS_CONTROLS),
-	fTarget(target), fPanel(NULL), fThread(-1), fBusy(false)
+	fTarget(target), fPanel(NULL), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
+	fThread(-1), fBusy(false)
 {
 	BView *back = new BView(Bounds(), "back", B_FOLLOW_ALL, B_WILL_DRAW);
 	back->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
@@ -49,15 +63,28 @@ MidiImportWindow::MidiImportWindow(BMessenger target)
 
 	BStringView *label = new BStringView(BRect(12, 8, 408, 24), NULL, Language.get("MIDI_SOUNDFONT"));
 	back->AddChild(label);
-	fList = new BListView(BRect(12, 28, 392, 140), "fonts", B_SINGLE_SELECTION_LIST);
+	fList = new BListView(BRect(12, 28, 392, 106), "fonts", B_SINGLE_SELECTION_LIST);
 	back->AddChild(new BScrollView("fontsScroll", fList, B_FOLLOW_ALL, 0, false, true));
-	fStatus = new BStringView(BRect(12, 150, 408, 166), NULL, "");
-	back->AddChild(fStatus);
-	fChoose = new BButton(BRect(12, 176, 232, 204), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
+	fChoose = new BButton(BRect(12, 118, 232, 146), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
 	back->AddChild(fChoose);
-	BButton *cancel = new BButton(BRect(300, 176, 408, 204), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
+	fTempoInfo = new BStringView(BRect(12, 152, 408, 168), NULL, "");
+	back->AddChild(fTempoInfo);
+	const char *keys[3] = { "MIDI_OPT_SET_PROJECT", "MIDI_OPT_FIT_MIDI", "MIDI_OPT_KEEP" };
+	for (int i = 0; i < 3; i++) {
+		fOption[i] = new BRadioButton(BRect(24, 170 + i * 20, 408, 188 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
+		back->AddChild(fOption[i]);
+		fOption[i]->Hide();
+	}
+	fOption[0]->SetValue(B_CONTROL_ON);
+	fStatus = new BStringView(BRect(12, 234, 408, 250), NULL, "");
+	back->AddChild(fStatus);
+	fInsert = new BButton(BRect(190, 262, 300, 290), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
+	back->AddChild(fInsert);
+	fInsert->SetEnabled(false);
+	fInsert->MakeDefault(true);
+	BButton *cancel = new BButton(BRect(308, 262, 408, 290), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
 	back->AddChild(cancel);
-	fChoose->MakeDefault(true);
+	ResizeTo(420, 300);
 
 	Scan();
 	Show();
@@ -111,10 +138,6 @@ void MidiImportWindow::MessageReceived(BMessage *msg)
 	switch (msg->what) {
 	case MSG_MIDI_CHOOSE:
 		if (fBusy) break;
-		if (fList->CurrentSelection() < 0) {
-			fStatus->SetText(Language.get("MIDI_NO_SELECTION"));
-			break;
-		}
 		if (!fPanel) {
 			BMessenger me(this);
 			fPanel = new BFilePanel(B_OPEN_PANEL, &me, NULL, B_FILE_NODE, false, NULL, NULL, true, true);
@@ -124,9 +147,12 @@ void MidiImportWindow::MessageReceived(BMessage *msg)
 	case B_REFS_RECEIVED:
 	{
 		entry_ref ref;
-		if (msg->FindRef("refs", &ref) == B_OK) StartRender(ref);
+		if (msg->FindRef("refs", &ref) == B_OK) LoadMidiFile(ref);
 		break;
 	}
+	case MSG_MIDI_INSERT:
+		if (!fBusy) StartRender();
+		break;
 	case MSG_MIDI_FINISHED:
 		fBusy = false;
 		PostMessage(B_QUIT_REQUESTED);
@@ -136,18 +162,76 @@ void MidiImportWindow::MessageReceived(BMessage *msg)
 	}
 }
 
-void MidiImportWindow::StartRender(const entry_ref &midi)
+// Файл читается сразу: после выбора видно темп MIDI, и окно предлагает, что делать с темпом проекта.
+void MidiImportWindow::LoadMidiFile(const entry_ref &midi)
+{
+	fHaveSong = false;
+	fInsert->SetEnabled(false);
+	std::string err;
+	BFile file(&midi, B_READ_ONLY);
+	off_t size = 0;
+	std::vector<uint8_t> data;
+	if (file.InitCheck() != B_OK || file.GetSize(&size) != B_OK || size < 14 || size > 32 * 1024 * 1024
+		|| (data.resize((size_t)size), file.Read(&data[0], (size_t)size) != size)
+		|| !LoadMidi(&data[0], data.size(), fSong, err)) {
+		fStatus->SetText(Language.get("MIDI_ERROR"));
+		UpdateTempoUi();
+		return;
+	}
+	fHaveSong = true;
+	fStatus->SetText(midi.name);
+	UpdateTempoUi();
+	fInsert->SetEnabled(true);
+}
+
+// пустой проект - темп возьмётся из MIDI сам; иначе при расхождении (> 0.5 BPM) выбор из трёх вариантов
+void MidiImportWindow::UpdateTempoUi()
+{
+	for (int i = 0; i < 3; i++) if (!fOption[i]->IsHidden()) fOption[i]->Hide();
+	if (!fHaveSong) { fTempoInfo->SetText(""); return; }
+	BString s;
+	if (fProjectEmpty) {
+		s = Language.get("MIDI_TEMPO_SET_EMPTY");
+		s.ReplaceFirst("%s", Bpm(fSong.bpm).String());
+	} else if (fabs(fSong.bpm - fProjectBpm) <= 0.5) {
+		s = Language.get("MIDI_TEMPO_SAME");
+	} else {
+		s = Language.get("MIDI_TEMPO_INFO");
+		s.ReplaceFirst("%s", Bpm(fSong.bpm).String());
+		s.ReplaceFirst("%s", Bpm(fProjectBpm).String());
+		for (int i = 0; i < 3; i++) fOption[i]->Show();
+	}
+	if (fSong.tempoVaries) s << Language.get("MIDI_TEMPO_VARIES");
+	fTempoInfo->SetText(s.String());
+}
+
+void MidiImportWindow::StartRender()
 {
 	const int32 sel = fList->CurrentSelection();
-	if (sel < 0 || (size_t)sel >= fPaths.size()) return;
+	if (!fHaveSong) return;
+	if (sel < 0 || (size_t)sel >= fPaths.size()) {
+		fStatus->SetText(Language.get("MIDI_NO_SELECTION"));
+		return;
+	}
 	Job *job = new (std::nothrow) Job;
 	if (!job) return;
-	job->midi = midi;
+	job->song = fSong;
 	job->sf2 = fPaths[sel];
+	job->scale = 1.0;
+	job->setBpm = 0;
+	if (fProjectEmpty) {
+		job->setBpm = fSong.bpm;
+	} else if (fabs(fSong.bpm - fProjectBpm) > 0.5) {
+		if (fOption[0]->Value() == B_CONTROL_ON)
+			job->setBpm = fSong.bpm;						// темп проекта - как в MIDI
+		else if (fOption[1]->Value() == B_CONTROL_ON)
+			job->scale = fSong.bpm / fProjectBpm;			// MIDI играет в темпе проекта: времена укорачиваются/растягиваются
+	}
 	job->target = fTarget;
 	job->window = BMessenger(this);
 	fBusy = true;
 	fChoose->SetEnabled(false);
+	fInsert->SetEnabled(false);
 	fStatus->SetText(Language.get("MIDI_RENDERING"));
 	fThread = spawn_thread(Worker, "MIDI render", B_NORMAL_PRIORITY, job);
 	if (fThread < 0) {
@@ -163,33 +247,26 @@ int32 MidiImportWindow::Worker(void *arg)
 	Job *job = (Job *)arg;
 	MidiImportResult *res = new (std::nothrow) MidiImportResult;
 	if (res) {
+		res->setBpm = job->setBpm;
 		std::string err;
 		SoundFont sf;
-		MidiSong song;
-		BFile file(&job->midi, B_READ_ONLY);
-		off_t size = 0;
-		std::vector<uint8_t> data;
-		if (file.InitCheck() != B_OK || file.GetSize(&size) != B_OK || size < 14 || size > 32 * 1024 * 1024) {
+		if (!sf.LoadFile(job->sf2.c_str(), err)) {
 			res->error = "MIDI_ERROR";
 		} else {
-			data.resize((size_t)size);
-			if (file.Read(&data[0], (size_t)size) != size || !LoadMidi(&data[0], data.size(), song, err))
-				res->error = "MIDI_ERROR";
-		}
-		if (res->error.empty() && !sf.LoadFile(job->sf2.c_str(), err))
-			res->error = "MIDI_ERROR";
-		if (res->error.empty()) {
 			int index = 0;
-			for (size_t t = 0; t < song.tracks.size(); t++) {
+			for (size_t t = 0; t < job->song.tracks.size(); t++) {
+				MidiTrackData td = job->song.tracks[t];
+				if (job->scale != 1.0)
+					for (size_t k = 0; k < td.ev.size(); k++) td.ev[k].t *= job->scale;
 				std::vector<float> pcm;
-				if (!RenderMidiTrack(song.tracks[t], sf, MIDI_RATE, pcm)) continue;
+				if (!RenderMidiTrack(td, sf, MIDI_RATE, pcm)) continue;
 				SourceRef src = MakeSource(&pcm[0], (int64_t)(pcm.size() / 2), 2, MIDI_RATE);
 				if (!src) {
 					res->error = "MEM_ERROR";
 					break;
 				}
 				MidiImportResult::Item item;
-				item.name = MidiTrackTitle(song.tracks[t], ++index);
+				item.name = MidiTrackTitle(job->song.tracks[t], ++index);
 				item.src = src;
 				res->items.push_back(item);
 			}

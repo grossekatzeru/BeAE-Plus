@@ -168,6 +168,7 @@ int main()
 		m.insert(m.end(), { 'M','T','r','k', 0,0,0,(uint8_t)t1.size() }); m.insert(m.end(), t1.begin(), t1.end());
 		MidiSong song; CHECK(LoadMidi(m.data(), m.size(), song, err));
 		CHECK(song.tracks.size() == 1 && song.tracks[0].name == "Bass");
+		CHECK(fabs(song.bpm - 120.0) < 1e-9 && !song.tempoVaries);
 		CHECK(song.tracks[0].notes == 1 && song.tracks[0].program == 0x20 && song.tracks[0].channel == 0);
 		bool ok = false; for (auto &e : song.tracks[0].ev) if (e.type == ME_NOTE_ON) ok = fabs(e.t - 0.5) < 1e-9;
 		CHECK(ok);
@@ -187,7 +188,23 @@ int main()
 		MidiSong song; CHECK(LoadMidi(m.data(), m.size(), song, err));
 		CHECK(song.tracks.size() == 2);
 		CHECK(song.tracks[0].channel == 0 && song.tracks[1].channel == 1);
+		CHECK(fabs(song.bpm - 120.0) < 1e-9);			// темп не задан - 120
 		CHECK(song.tracks[0].notes == 2 && song.tracks[1].notes == 1);
+	}
+	{
+		// темп: 250000 мкс -> 240 BPM; затем 500000 на тике 480 - темп меняется
+		Bytes m;
+		const uint8_t hd[] = { 'M','T','h','d', 0,0,0,6, 0,1, 0,2, 0x01,0xE0 };
+		m.insert(m.end(), hd, hd + sizeof hd);
+		Bytes t0 = { 0x00,0xFF,0x51,0x03,0x03,0xD0,0x90, 0x83,0x60,0xFF,0x51,0x03,0x07,0xA1,0x20, 0x00,0xFF,0x2F,0x00 };
+		m.insert(m.end(), { 'M','T','r','k', 0,0,0,(uint8_t)t0.size() }); m.insert(m.end(), t0.begin(), t0.end());
+		Bytes t1 = { 0x00,0x90,0x40,0x64, 0x87,0x40,0x80,0x40,0x00, 0x00,0xFF,0x2F,0x00 };		// конец на тике 960
+		m.insert(m.end(), { 'M','T','r','k', 0,0,0,(uint8_t)t1.size() }); m.insert(m.end(), t1.begin(), t1.end());
+		MidiSong song; CHECK(LoadMidi(m.data(), m.size(), song, err));
+		CHECK(fabs(song.bpm - 240.0) < 1e-9 && song.tempoVaries);
+		// тики 0..480 по 0.25 c, 480..960 по 0.5 c: конец на 0.25 + 0.5 = 0.75 c
+		double tOff = -1; for (auto &e : song.tracks[0].ev) if (e.type == ME_NOTE_OFF) tOff = e.t;
+		CHECK(fabs(tOff - 0.75) < 1e-9);
 	}
 	{ MidiSong s; CHECK(!LoadMidi((const uint8_t *)"garbage garbage!", 16, s, err)); }
 

@@ -1686,7 +1686,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		break;
 		
 	case MIDI_IMPORT:
-		new MidiImportWindow(BMessenger(this));
+		new MidiImportWindow(BMessenger(this), Tracks_IsEmpty(), Mix.Bpm());
 		break;
 
 	case MIDI_IMPORT_DONE:
@@ -1696,6 +1696,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		if (!res->error.empty()) {
 			(new BAlert(NULL, Language.get(res->error.c_str()), Language.get("OK")))->Go();
 		} else {
+			if (res->setBpm > 0) Mix.SetBpm(res->setBpm);		// темп проекта (Grid и метроном) по MIDI
 			for (size_t i = 0; i < res->items.size(); i++) {		// каждая MIDI-дорожка - на первую свободную дорожку (при нехватке добавляются)
 				if (Tracks_ImportClip(-1, res->items[i].src, 0.0, res->items[i].name.c_str()) < 0) {
 					(new BAlert(NULL, Language.get("DROP_NO_TRACKS"), Language.get("OK")))->Go();

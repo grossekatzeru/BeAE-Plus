@@ -427,6 +427,14 @@ static double ActiveClipStart()
 	return 0;
 }
 
+bool Tracks_IsEmpty()
+{
+	if (PoolHasSound()) return false;
+	for (int i = 0; i < MIX_MAX_TRACKS; i++)
+		if (Mix.Track(i) && Mix.ClipCount(i) > 0) return false;
+	return true;
+}
+
 void Tracks_PublishActiveSpan()
 {
 	double s = 0, e = 0;
