@@ -7,6 +7,7 @@
 #include <FindDirectory.h>
 #include <ListView.h>
 #include <RadioButton.h>
+#include <CheckBox.h>
 #include <String.h>
 #include <math.h>
 #include <Path.h>
@@ -22,6 +23,8 @@
 #include "MidiSynth.h"
 #include "MidiImport.h"
 #include "main.h"
+#include "LadspaFilter.h"
+#include "FxChain.h"
 
 #define MSG_MIDI_CHOOSE		'mdCh'
 #define MSG_MIDI_FINISHED	'mdFn'
@@ -34,6 +37,7 @@ struct Job {
 	std::string		sf2;
 	double			scale;			// множитель времени событий (подгонка MIDI под темп проекта)
 	double			setBpm;			// > 0 - сообщить, какой темп установить в проекте
+	bool			effects;		// передать значения эффектных контроллеров (панорама, реверб, хорус)
 	BMessenger		target, window;
 };
 
@@ -76,15 +80,17 @@ MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double 
 		fOption[i]->Hide();
 	}
 	fOption[0]->SetValue(B_CONTROL_ON);
-	fStatus = new BStringView(BRect(12, 234, 408, 250), NULL, "");
+	fEffects = new BCheckBox(BRect(12, 236, 408, 254), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
+	back->AddChild(fEffects);
+	fStatus = new BStringView(BRect(12, 262, 408, 278), NULL, "");
 	back->AddChild(fStatus);
-	fInsert = new BButton(BRect(190, 262, 300, 290), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
+	fInsert = new BButton(BRect(190, 290, 300, 318), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
 	back->AddChild(fInsert);
 	fInsert->SetEnabled(false);
 	fInsert->MakeDefault(true);
-	BButton *cancel = new BButton(BRect(308, 262, 408, 290), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
+	BButton *cancel = new BButton(BRect(308, 290, 408, 318), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
 	back->AddChild(cancel);
-	ResizeTo(420, 300);
+	ResizeTo(420, 328);
 
 	Scan();
 	Show();
@@ -218,6 +224,7 @@ void MidiImportWindow::StartRender()
 	job->song = fSong;
 	job->sf2 = fPaths[sel];
 	job->scale = 1.0;
+	job->effects = fEffects->Value() == B_CONTROL_ON;
 	job->setBpm = 0;
 	if (fProjectEmpty) {
 		job->setBpm = fSong.bpm;
@@ -268,6 +275,10 @@ int32 MidiImportWindow::Worker(void *arg)
 				MidiImportResult::Item item;
 				item.name = MidiTrackTitle(job->song.tracks[t], ++index);
 				item.src = src;
+				if (job->effects) {
+					const MidiEffects fx = MidiTrackEffects(job->song.tracks[t]);
+					item.pan = fx.pan; item.reverb = fx.reverb; item.chorus = fx.chorus;
+				}
 				res->items.push_back(item);
 			}
 			if (res->error.empty() && res->items.empty()) res->error = "MIDI_ERROR";
@@ -280,4 +291,33 @@ int32 MidiImportWindow::Worker(void *arg)
 	job->window.SendMessage(&fin);
 	delete job;
 	return 0;
+}
+
+// Соответствие «эффект MIDI -> плагин»: метка плагина, номер порта «Смесь, %», процент смеси при значении 127.
+namespace {
+struct FxRole { const char *label; int mixPort; float maxPercent; };
+const FxRole kReverbRole = { "beae_reverb", 2, 50.0f };
+const FxRole kChorusRole = { "beae_chorus", 2, 100.0f };
+
+bool AddRole(int lane, const FxRole &role, int cc, std::string &warn)
+{
+	if (cc <= 0) return true;							// 0 - эффекта нет
+	const Ladspa::Plugin *plugin = NULL;
+	const std::vector<Ladspa::Plugin> &all = LadspaList();
+	for (size_t i = 0; i < all.size() && !plugin; i++)
+		if (all[i].label == role.label) plugin = &all[i];
+	if (!plugin) { warn += role.label; warn += " "; return false; }
+	Ladspa::Values values;
+	values[role.mixPort] = (cc > 127 ? 127 : cc) / 127.0f * role.maxPercent;
+	std::string err;
+	const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
+	return Mix.Fx(lane).Add(*plugin, rate, &err, &values);
+}
+}
+
+void MidiApplyEffects(int lane, int pan, int reverb, int chorus, std::string &warn)
+{
+	if (pan >= 0) Mix.SetPan(lane, (float)(pan - 64) / 63.0f);		// 0 - лево, 64 - центр, 127 - право
+	AddRole(lane, kReverbRole, reverb, warn);
+	AddRole(lane, kChorusRole, chorus, warn);
 }

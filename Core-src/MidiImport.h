@@ -16,16 +16,28 @@
 #include "Mixer.h"
 #include "MidiFile.h"
 
+// Эффекты MIDI, для которых в BeAE есть подходящие плагины. Название плагина не содержит слова MIDI: это обычные
+// плагины для любой дорожки, а здесь только записано, какой контроллер MIDI им соответствует.
+//   CC10 (панорама)        -> баланс дорожки
+//   CC91 (реверберация)    -> плагин beae_reverb, порт «Смесь, %» (CC 127 = 50 %)
+//   CC93 (хорус)           -> плагин beae_chorus, порт «Смесь, %» (CC 127 = 100 %)
+// Применяет MidiApplyEffects (вызывается главным окном после вставки дорожки).
+
 struct MidiImportResult {
-	struct Item { std::string name; SourceRef src; };
+	// pan/reverb/chorus: значения контроллеров CC10/CC91/CC93 из MIDI (-1 - не заданы или эффекты не просили)
+	struct Item { std::string name; SourceRef src; int pan, reverb, chorus; Item() : pan(-1), reverb(-1), chorus(-1) {} };
 	std::vector<Item>	items;
 	std::string			error;			// не пусто - не получилось (ключ языка)
 	double				setBpm;			// > 0 - установить этот темп проекта (Grid и метроном)
 };
 
+// Применить эффекты MIDI к дорожке lane: баланс и плагины. warn - что не удалось (например, не найден плагин), пусто - всё хорошо.
+void MidiApplyEffects(int lane, int pan, int reverb, int chorus, std::string &warn);
+
 class BListView;
 class BButton;
 class BRadioButton;
+class BCheckBox;
 class BStringView;
 class BFilePanel;
 
@@ -50,6 +62,7 @@ private:
 	BStringView		*fStatus, *fTempoInfo;
 	BRadioButton	*fOption[3];			// 0 - темп проекта по MIDI, 1 - подогнать MIDI, 2 - не менять
 	BButton			*fInsert;
+	BCheckBox		*fEffects;			// добавить эффекты MIDI (панорама, реверб, хорус) как параметры дорожки/плагинов
 	BFilePanel		*fPanel;
 	bool			fProjectEmpty;
 	double			fProjectBpm;

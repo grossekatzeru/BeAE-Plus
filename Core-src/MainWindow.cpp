@@ -1697,12 +1697,19 @@ void MainWindow::MessageReceived(BMessage *message)
 			(new BAlert(NULL, Language.get(res->error.c_str()), Language.get("OK")))->Go();
 		} else {
 			if (res->setBpm > 0) Mix.SetBpm(res->setBpm);		// темп проекта (Grid и метроном) по MIDI
+			std::string fxWarn;
 			for (size_t i = 0; i < res->items.size(); i++) {		// каждая MIDI-дорожка - на первую свободную дорожку (при нехватке добавляются)
-				if (Tracks_ImportClip(-1, res->items[i].src, 0.0, res->items[i].name.c_str()) < 0) {
+				const int lane = Tracks_ImportClip(-1, res->items[i].src, 0.0, res->items[i].name.c_str());
+				if (lane < 0) {
 					(new BAlert(NULL, Language.get("DROP_NO_TRACKS"), Language.get("OK")))->Go();
 					break;
 				}
+				MidiApplyEffects(lane, res->items[i].pan, res->items[i].reverb, res->items[i].chorus, fxWarn);
 				Pool.changed = true;
+			}
+			if (!fxWarn.empty()) {									// не найден плагин реверба/хоруса
+				BString msg = Language.get("MIDI_FX_MISSING");
+				(new BAlert(NULL, msg.String(), Language.get("OK")))->Go();
 			}
 			Pool.UpdateToolBar();
 		}

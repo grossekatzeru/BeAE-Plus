@@ -206,6 +206,14 @@ int main()
 		double tOff = -1; for (auto &e : song.tracks[0].ev) if (e.type == ME_NOTE_OFF) tOff = e.t;
 		CHECK(fabs(tOff - 0.75) < 1e-9);
 	}
+	{
+		// контроллеры до первой ноты: pan 20, reverb 90; после ноты не учитываются
+		MidiTrackData t = Track({ E(0, ME_CC, 0, 10, 20), E(0, ME_CC, 0, 91, 90), E(0.1, ME_NOTE_ON, 0, 60, 100), E(0.5, ME_CC, 0, 93, 50) });
+		MidiEffects fx = MidiTrackEffects(t);
+		CHECK(fx.pan == 20 && fx.reverb == 90 && fx.chorus == -1);
+		MidiEffects none = MidiTrackEffects(Track({ E(0, ME_NOTE_ON, 0, 60, 100) }));
+		CHECK(none.pan == -1 && none.reverb == -1 && none.chorus == -1);
+	}
 	{ MidiSong s; CHECK(!LoadMidi((const uint8_t *)"garbage garbage!", 16, s, err)); }
 
 	printf(fails ? "FAILED %d\n" : "all ok\n", fails);

@@ -149,3 +149,17 @@ std::string MidiTrackTitle(const MidiTrackData &t, int index)
 	if (t.program >= 0 && t.program < 128) return family[t.program / 8];
 	return "MIDI " + std::to_string(index);
 }
+
+MidiEffects MidiTrackEffects(const MidiTrackData &t)
+{
+	MidiEffects e = { -1, -1, -1 };
+	for (size_t k = 0; k < t.ev.size(); k++) {
+		const MidiEvent &m = t.ev[k];
+		if (m.type == ME_NOTE_ON) break;				// берём то, что установлено до первой ноты
+		if (m.type != ME_CC) continue;
+		if (m.a == 10) e.pan = m.b;
+		else if (m.a == 91) e.reverb = m.b;
+		else if (m.a == 93) e.chorus = m.b;
+	}
+	return e;
+}

@@ -365,3 +365,5 @@ MIDI_TEMPO_VARIES = " (в MIDI темп меняется, берётся нач�
 MIDI_OPT_SET_PROJECT = "Установить темп проекта как в MIDI"
 MIDI_OPT_FIT_MIDI = "Подогнать MIDI под темп проекта"
 MIDI_OPT_KEEP = "Не менять (MIDI играет в своём темпе)"
+MIDI_OPT_EFFECTS = "Добавить эффекты MIDI: панорама, реверб, хорус"
+MIDI_FX_MISSING = "Плагины «Реверберация» и/или «Хорус» не найдены (папка plugins, make install): эффекты MIDI не добавлены."

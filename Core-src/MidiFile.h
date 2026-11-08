@@ -35,6 +35,11 @@ struct MidiSong {
 	std::vector<MidiTrackData>	tracks;		// только дорожки с нотами; в формате 0 разбито по каналам
 };
 
+// Значения «эффектных» контроллеров дорожки на момент первой ноты (-1 - не заданы):
+// панорама CC10 (0..127, 64 - центр), посыл на реверберацию CC91, посыл на хорус CC93.
+struct MidiEffects { int pan, reverb, chorus; };
+MidiEffects MidiTrackEffects(const MidiTrackData &t);
+
 // Название дорожки для проекта: имя из файла, иначе семейство инструмента General MIDI / «Drums» / «MIDI N» (index с 1)
 std::string MidiTrackTitle(const MidiTrackData &t, int index);
 
