@@ -93,6 +93,8 @@ enum {MONO=1, STEREO=2};
 #define SAVE				'Bsav'
 #define SAVE_SELECTION		'Bsva'
 #define INSERT				'Bins'
+#define MIDI_IMPORT			'mdIm'		// Файл → Вставить из MIDI
+#define MIDI_IMPORT_DONE	'mdDn'		// результат рендера MIDI (указатель "result" на MidiImportResult)
 #define APPEND				'apnd'
 #define UNDO				'undo'
 #define UNDO_ENABLE			'undE'

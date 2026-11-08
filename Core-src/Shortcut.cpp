@@ -312,7 +312,7 @@ void Shortcut::InstallDefaults(){
 	Install(0,"FILE_MENU2",	  		  0, 0,								  0, 0,							SPLITTER		);
 	Install(1,"FILE_NEW",			'N', B_COMMAND_KEY,					  0, 0,							NEW				);
 	Install(1,"FILE_OPEN",			'O', B_COMMAND_KEY,					'O', 0,							OPEN			);
-	Install(1,"FILE_INSERT",   	    'I', B_COMMAND_KEY,			   B_INSERT, B_SHIFT_KEY,				INSERT			);
+	Install(1,"FILE_INSERT",   	    'I', B_COMMAND_KEY,			   B_INSERT, B_SHIFT_KEY,				MIDI_IMPORT		);
 	Install(1,"FILE_APPEND",		  0, 0,								  0, 0,							APPEND			);
 	Install(1,"FILE_MIX",			'M', B_COMMAND_KEY,					  0, 0,							OPEN_MIX		);
 	Install(1,"FILE_SAVE",			'S', B_COMMAND_KEY,					  0, 0,							SAVE			);

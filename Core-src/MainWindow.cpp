@@ -56,6 +56,7 @@
 #include "FilterDialogs.h"
 #include "Analyzers.h"
 #include "TempoAnalyzer.h"
+#include "MidiImport.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
 #include "LadspaFilter.h"
@@ -661,7 +662,7 @@ void MainWindow::AddMenu()
 	openitem->SetMessage(new BMessage(OPEN));
 //	openitem->SetShortcut('O', 0);
 
-	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_INSERT"), new BMessage(INSERT), KeyBind.GetKey("FILE_INSERT"), KeyBind.GetMod("FILE_INSERT")));
+	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_INSERT"), new BMessage(MIDI_IMPORT), KeyBind.GetKey("FILE_INSERT"), KeyBind.GetMod("FILE_INSERT")));
 	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_APPEND"), new BMessage(APPEND), KeyBind.GetKey("FILE_APPEND"), KeyBind.GetMod("FILE_APPEND")));
 	menuItem->SetEnabled(false);
@@ -1685,6 +1686,30 @@ void MainWindow::MessageReceived(BMessage *message)
 		(new SampleScopeWindow());
 		break;
 		
+	case MIDI_IMPORT:
+		new MidiImportWindow(BMessenger(this));
+		break;
+
+	case MIDI_IMPORT_DONE:
+	{
+		MidiImportResult *res = NULL;
+		if (message->FindPointer("result", (void **)&res) != B_OK || !res) break;
+		if (!res->error.empty()) {
+			(new BAlert(NULL, Language.get(res->error.c_str()), Language.get("OK")))->Go();
+		} else {
+			for (size_t i = 0; i < res->items.size(); i++) {		// каждая MIDI-дорожка - на первую свободную дорожку (при нехватке добавляются)
+				if (Tracks_ImportClip(-1, res->items[i].src, 0.0, res->items[i].name.c_str()) < 0) {
+					(new BAlert(NULL, Language.get("DROP_NO_TRACKS"), Language.get("OK")))->Go();
+					break;
+				}
+				Pool.changed = true;
+			}
+			Pool.UpdateToolBar();
+		}
+		delete res;
+		break;
+	}
+
 	case TEMPO_ANALYZER:
 		(new TempoAnalyzerWindow(BPoint((Frame().left+Frame().right)/2, (Frame().top+Frame().bottom)/2)));
 		break;
