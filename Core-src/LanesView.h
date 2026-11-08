@@ -72,6 +72,7 @@ private:
 	int			fDragClip;
 	float		fDragX0;
 	double		fDragPos0;
+	double		fStickTol;		// допуск притяжки краёв клипов, секунды (последнее перетаскивание)
 	int			fDropLane;			// при переносе клипа на другую дорожку: куда (или -1)
 	LanesScrollBar	*fScrollBar;
 	std::vector<ClipRef>	fGroup;		// выделенные клипы, едущие вместе с перетаскиваемым (пусто - одиночный перенос)

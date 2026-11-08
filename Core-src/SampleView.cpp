@@ -745,6 +745,12 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 		if (Tracks_ActiveClipLocked()) d = 0;			// закреплённый во времени клип не едет по горизонтали, но может уйти на другую дорожку
 		const double first = (double)move_first / Pool.frequency;
 		d = Mix.Snap(Mix.Active(), first + d) - first;			// липкая сетка: начало звука к линии
+		if (!Tracks_ActiveClipLocked() && Pool.r_pointer > Pool.l_pointer && Bounds().Width() > 0){
+			// «липкие» дорожки: края клипа притягиваются к краям соседей (8 пикселей), дальше - наплыв
+			const double tol = 8.0 * ((double)(Pool.r_pointer - Pool.l_pointer) / Bounds().Width()) / Pool.frequency;
+			const double len = (double)(move_last - move_first + 1) / Pool.frequency;
+			d = Mix.StickPos(Mix.Active(), first + d, len, tol, -1, Tracks_SelectedCount() > 1) - first;
+		}
 		double minD = -first;									// левее нуля ленты звук не уйдёт
 		if (d < minD) d = minD;
 		move_delta = d;
@@ -926,7 +932,17 @@ void SampleView::MouseUp(BPoint p)
 			Tracks_MoveSelection(off - (double)move_first / Pool.frequency, dr);
 			Pool.changed = true;
 		}else if (target >= 0 && target != Mix.Active()){		// отпустили над другой дорожкой: клип уходит туда
-			Tracks_MoveActiveClipToLane(target, Tracks_ActiveClipLocked() ? off : Mix.Snap(target, off));
+			{
+				double np = off;
+				if (!Tracks_ActiveClipLocked()){
+					np = Mix.Snap(target, off);
+					const double len = (double)(move_last - move_first + 1) / Pool.frequency;
+					const double tol = (Pool.r_pointer > Pool.l_pointer && Bounds().Width() > 0)
+						? 8.0 * ((double)(Pool.r_pointer - Pool.l_pointer) / Bounds().Width()) / Pool.frequency : 0.0;
+					np = Mix.StickPos(target, np, len, tol);
+				}
+				Tracks_MoveActiveClipToLane(target, np);
+			}
 			Pool.changed = true;
 		}else{
 			Tracks_SetOffset(Mix.Active(), off);		// пересобирает активную дорожку под новое положение

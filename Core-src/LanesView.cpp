@@ -163,7 +163,7 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fDropLane(-1), fScrollBar(NULL), fGroupDelta(0)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fStickTol(0), fDropLane(-1), fScrollBar(NULL), fGroupDelta(0)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -408,6 +408,10 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 		const double dt = ((double)(Pool.r_pointer - Pool.l_pointer) / Pool.frequency) / Bounds().Width();
 		double pos = fDragPos0 + (p.x - fDragX0) * dt;
 		pos = Mix.Snap(fDragSlot, pos);				// липкая сетка
+		fStickTol = dt * 8.0;						// притяжка к краям соседей: 8 пикселей
+		const MixClip *dc0 = Mix.Clip(fDragSlot, fDragClip);
+		if (dc0 && !dc0->locked)
+			pos = Mix.StickPos(fDragSlot, pos, dc0->Length(), fStickTol, fDragClip, !fGroup.empty());
 		if (pos < 0) pos = 0;
 		const MixClip *dc = Mix.Clip(fDragSlot, fDragClip);
 		if (dc && dc->locked) pos = fDragPos0;		// закреплённый во времени клип не едет по горизонтали
@@ -465,7 +469,10 @@ void LanesView::MouseUp(BPoint)
 			double np = mc->pos;
 			if (np != fDragPos0) Mix.SetClipPos(slot, clip, fDragPos0);	// вернуть старое: так в отмену попадёт исходная раскладка
 			if (drop >= 0 && Mix.Track(drop)){
-				if (!mc->locked) np = Mix.Snap(drop, np);	// на новой дорожке своя сетка (закреплённый остаётся в том же моменте)
+				if (!mc->locked){							// на новой дорожке своя сетка и свои края (закреплённый остаётся в том же моменте)
+					np = Mix.Snap(drop, np);
+					np = Mix.StickPos(drop, np, mc->Length(), fStickTol);
+				}
 				Tracks_MoveClipToLane(slot, clip, drop, np);
 			}else{
 				Tracks_MoveClip(slot, clip, np);	// лента могла удлиниться: пересобрать активный клип

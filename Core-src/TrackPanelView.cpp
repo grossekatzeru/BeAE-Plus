@@ -134,6 +134,12 @@ BRect TrackPanelView::XfadeRect(int index) const
 	return BRect(g.left, g.top + 17, g.right, g.bottom + 17);
 }
 
+BRect TrackPanelView::StickyRect(int index) const
+{
+	BRect g = GridRect(index);
+	return BRect(g.left, g.top + 34, g.right, g.bottom + 34);
+}
+
 BRect TrackPanelView::VolRect(int index) const
 {
 	BRect s = StripRect(index);
@@ -314,12 +320,12 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
 		// под регулировкой баланса - строки «подпись + чекбокс»: Grid (липкая сетка) и Xfade (кроссфейд перекрытий)
-		for (int row = 0; row < 2; row++){
-			BRect g = (row == 0) ? GridRect(i) : XfadeRect(i);
-			const bool on = (row == 0) ? t->grid : t->xfade;
+		for (int row = 0; row < 3; row++){
+			BRect g = (row == 0) ? GridRect(i) : (row == 1 ? XfadeRect(i) : StickyRect(i));
+			const bool on = (row == 0) ? t->grid : (row == 1 ? t->xfade : t->sticky);
 			BRect box(g.right - 11, g.top + 1, g.right, g.top + 12);
 			SetHighColor(text);
-			DrawString(row == 0 ? "Grid" : "Xfade", BPoint(g.left, g.bottom - 3));
+			DrawString(row == 0 ? "Grid" : (row == 1 ? "Xfade" : Language.get("TRACK_STICKY")), BPoint(g.left, g.bottom - 3));
 			SetHighColor(make_color(255, 255, 255));
 			FillRect(box);
 			SetHighColor(make_color(0, 0, 0));
@@ -461,6 +467,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (ButtonRect(i, 3).Contains(p)) return HIT_FX;
 		if (GridRect(i).Contains(p)) return HIT_GRID;
 		if (XfadeRect(i).Contains(p)) return HIT_XFADE;
+		if (StickyRect(i).Contains(p)) return HIT_STICKY;
 		if (NameRect(i).Contains(p)) return HIT_NAMEBOX;
 		BRect v = VolRect(i), a = PanRect(i);
 		v.InsetBy(-KNOB_W / 2 - 1, -2); a.InsetBy(-KNOB_W / 2 - 1, -2);
@@ -590,6 +597,11 @@ void TrackPanelView::MouseDown(BPoint p)
 		break;
 	case HIT_XFADE:
 		Mix.SetCrossfade(index, !Mix.Track(index)->xfade);
+		Pool.changed = true;
+		Invalidate();
+		break;
+	case HIT_STICKY:
+		Mix.SetSticky(index, !Mix.Track(index)->sticky);
 		Pool.changed = true;
 		Invalidate();
 		break;

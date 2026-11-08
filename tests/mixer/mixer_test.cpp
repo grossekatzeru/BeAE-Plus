@@ -100,6 +100,21 @@ static void TestCrossfade(int &fails){
 		CHECK(fabsf(o[1100*2]-1.0f)<1e-4);
 	}
 }
+static void TestSticky(int &fails){
+	Mixer m;
+	int t=m.AddTrack("s",NULL,0,1);
+	m.AddClip(t,ConstSrc(1.0f,44100),0,44100,2.0);			// сосед: 2.0 .. 3.0
+	// выключено: позиция не меняется
+	CHECK(m.StickPos(t,3.02,0.5,0.05)==3.02);
+	m.SetSticky(t,true);
+	CHECK(fabs(m.StickPos(t,3.02,0.5,0.05)-3.0)<1e-9);		// начало прилипает к концу соседа
+	CHECK(fabs(m.StickPos(t,1.53,0.5,0.05)-1.5)<1e-9);		// конец прилипает к началу соседа
+	CHECK(m.StickPos(t,3.2,0.5,0.05)==3.2);					// далеко - свободно (наплыв возможен)
+	CHECK(m.StickPos(t,2.5,0.5,0.05)==2.5);					// поверх соседа - не мешает
+	CHECK(m.StickPos(t,3.02,0.5,0.05,0)==3.02);				// сам себя клип не притягивает
+	CHECK(m.StickPos(t,0.02,0.5,0.05)==0.02);
+	CHECK(m.StickPos(t,3.02,0.5,0.0)==3.02);				// нулевой допуск - нет притяжки
+}
 static void TestMaster(int &fails){
 	std::vector<Ladspa::Plugin> all=Ladspa::Scan(std::vector<std::string>());
 	const Ladspa::Plugin *dp=NULL; for(size_t i=0;i<all.size();i++) if(all[i].label=="test_delay") dp=&all[i];
@@ -165,6 +180,7 @@ static void TestMaster(int &fails){
 int main(int argc,char**argv){
 	int fails=0;
 	TestCrossfade(fails);
+	TestSticky(fails);
 	Mixer m;
 	CHECK(m.TrackCount()==1);
 	// основная дорожка по умолчанию не меняет буфер

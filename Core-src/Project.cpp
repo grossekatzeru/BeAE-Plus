@@ -156,6 +156,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		trk << "      \"mute\": " << (t->mute ? "true" : "false") << ",\n";
 		trk << "      \"solo\": " << (t->solo ? "true" : "false") << ",\n";
 		trk << "      \"grid\": " << (t->grid ? "true" : "false") << ",\n";
+		trk << "      \"sticky\": " << (t->sticky ? "true" : "false") << ",\n";
 		trk << "      \"xfade\": " << (t->xfade ? "true" : "false") << ",\n";
 		trk << "      \"color\": null,\n";
 		trk << "      \"clips\": [" << clipsJson;
@@ -302,6 +303,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetSolo(slot, jt.Boolean("solo", false));
 		Mix.SetGrid(slot, jt.Boolean("grid", false));
 		Mix.SetCrossfade(slot, jt.Boolean("xfade", false));
+		Mix.SetSticky(slot, jt.Boolean("sticky", false));
 
 		// клипы: версия 2 - список клипов со ссылками на источники; версия 1 - один файл и смещение
 		const JValue *jc = jt.Get("clips");

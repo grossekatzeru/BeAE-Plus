@@ -77,6 +77,7 @@ struct MixTrack {
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
 	bool	grid;			// у дорожки включена липкая сетка
+	bool	sticky;			// «липкие»: края клипов притягиваются друг к другу при перетаскивании (но можно наплыть)
 	bool	xfade;			// перекрывающиеся клипы: false - микшируются, true - кроссфейд
 	char	name[64];
 	std::vector<MixClip>	clips;
@@ -84,7 +85,7 @@ struct MixTrack {
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = grid = xfade = false; name[0] = 0; clips.clear();
+		mute = solo = armed = grid = xfade = sticky = false; name[0] = 0; clips.clear();
 	}
 };
 
@@ -127,6 +128,11 @@ public:
 	void	SetSolo(int i, bool s);
 	void	SetGrid(int i, bool g);
 	void	SetCrossfade(int i, bool x);
+	void	SetSticky(int i, bool s);
+	// Притяжка к краям соседних клипов дорожки: начало клипа - к концу соседа, конец клипа - к началу соседа,
+	// если до края не дальше tol секунд; дальше клип свободно наплывает. skipClip - номер двигаемого клипа в
+	// микшере (-1 - нет), skipSelected - не считать соседями выделенные (они едут вместе с клипом).
+	double	StickPos(int lane, double pos, double len, double tol, int skipClip = -1, bool skipSelected = false) const;
 	// Отрезок на ленте (сек), который занимает активный клип в Pool; нужен кроссфейду. start >= end - нет клипа.
 	void	SetActiveSpan(double start, double end) { fActiveStart = start; fActiveEnd = end; }
 

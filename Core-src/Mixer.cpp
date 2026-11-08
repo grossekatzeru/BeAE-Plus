@@ -235,6 +235,24 @@ void Mixer::SetPan(int i, float p)	{ if (Track(i)) { fTracks[i].pan = p<-1?-1:(p
 void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevision++; } }
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
 void Mixer::SetGrid(int i, bool g)	{ if (Track(i)) { fTracks[i].grid = g; fRevision++; } }
+void Mixer::SetSticky(int i, bool s)	{ if (Track(i)) { fTracks[i].sticky = s; fRevision++; } }
+double Mixer::StickPos(int lane, double pos, double len, double tol, int skipClip, bool skipSelected) const
+{
+	const MixTrack *t = Track(lane);
+	if (!t || !t->sticky || tol <= 0) return pos;
+	double best = pos, bestD = tol;
+	for (size_t k = 0; k < t->clips.size(); k++) {
+		const MixClip &c = t->clips[k];
+		if ((int)k == skipClip || !c.src || c.len <= 0) continue;
+		if (skipSelected && c.selected) continue;
+		const double cand[2] = { c.End(), c.pos - len };		// начало к концу соседа; конец к началу соседа
+		for (int q = 0; q < 2; q++) {
+			const double d = fabs(cand[q] - pos);
+			if (d <= bestD && cand[q] >= 0) { bestD = d; best = cand[q]; }
+		}
+	}
+	return best;
+}
 void Mixer::SetCrossfade(int i, bool x)	{ if (Track(i)) { fTracks[i].xfade = x; fRevision++; } }
 void Mixer::SetBpm(double bpm)
 {
