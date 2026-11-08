@@ -57,6 +57,18 @@ struct MixClip {
 	double	End() const { return pos + Length(); }
 };
 
+// Перекрытие клипов одной дорожки при включённом кроссфейде: когда следующий клип начинается внутри
+// предыдущего и заканчивается позже него, предыдущий затухает, а следующий нарастает на участке
+// от начала следующего до конца предыдущего. Вложенные клипы (целиком внутри другого) просто микшируются.
+struct ClipSpan { double start, end; };
+struct ClipFade {
+	double inEnd;		// нарастание от начала клипа до этого времени (<= начала клипа - нет)
+	double outStart;	// затухание от этого времени до конца клипа (>= конца клипа - нет)
+};
+// Время начала/конца k-го клипа дорожки; номер clips.size() - дополнительный отрезок extra (активный клип в Pool), если haveExtra.
+ClipFade ComputeClipFade(const std::vector<struct MixClip> &clips, bool haveExtra, const ClipSpan &extra, size_t i);
+float	ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t);	// множитель 0..1 в момент t (равномощный)
+
 struct MixTrack {
 	bool	used;
 	int		channels;		// формат по умолчанию для пустой дорожки (1 или 2)
@@ -65,13 +77,14 @@ struct MixTrack {
 	float	pan;			// -1 (лево) .. +1 (право)
 	bool	mute, solo, armed;
 	bool	grid;			// у дорожки включена липкая сетка
+	bool	xfade;			// перекрывающиеся клипы: false - микшируются, true - кроссфейд
 	char	name[64];
 	std::vector<MixClip>	clips;
 	MixTrack() { Reset(); }
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = grid = false; name[0] = 0; clips.clear();
+		mute = solo = armed = grid = xfade = false; name[0] = 0; clips.clear();
 	}
 };
 
@@ -113,6 +126,9 @@ public:
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
 	void	SetGrid(int i, bool g);
+	void	SetCrossfade(int i, bool x);
+	// Отрезок на ленте (сек), который занимает активный клип в Pool; нужен кроссфейду. start >= end - нет клипа.
+	void	SetActiveSpan(double start, double end) { fActiveStart = start; fActiveEnd = end; }
 
 	// Темп проекта и сетка. Проект к тактам не привязан: темп нужен только для шага сетки.
 	// Глубина: 1 = целая нота (4 удара), 2, 4 (= удар), 8, 16, 32.
@@ -183,6 +199,7 @@ private:
 	bool		fMasterMute;
 	float		fMasterPeakL, fMasterPeakR;
 	int			fActive;
+	volatile double	fActiveStart, fActiveEnd;
 	std::atomic<int> fRevision;
 	double		fBpm;
 	int			fGridDiv;

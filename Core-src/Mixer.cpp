@@ -20,7 +20,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 	return SourceRef(s);
 }
 
-Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
+Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fActiveStart(0), fActiveEnd(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
 	fMasterGain = 1.0f; fMasterMute = false; fMasterPeakL = fMasterPeakR = 0;
 	fLock.clear();
@@ -235,6 +235,7 @@ void Mixer::SetPan(int i, float p)	{ if (Track(i)) { fTracks[i].pan = p<-1?-1:(p
 void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevision++; } }
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
 void Mixer::SetGrid(int i, bool g)	{ if (Track(i)) { fTracks[i].grid = g; fRevision++; } }
+void Mixer::SetCrossfade(int i, bool x)	{ if (Track(i)) { fTracks[i].xfade = x; fRevision++; } }
 void Mixer::SetBpm(double bpm)
 {
 	fBpm = bpm < 20.0 ? 20.0 : (bpm > 300.0 ? 300.0 : bpm);
@@ -294,9 +295,53 @@ void Mixer::Gains(const MixTrack &t, bool anySolo, float &gl, float &gr)
 	gr = t.gain * (p < 0 ? 1.0f + p : 1.0f);
 }
 
+ClipFade ComputeClipFade(const std::vector<MixClip> &clips, bool haveExtra, const ClipSpan &extra, size_t i)
+{
+	const size_t n = clips.size() + (haveExtra ? 1 : 0);
+	auto span = [&](size_t k) {
+		ClipSpan s;
+		if (k < clips.size()) { s.start = clips[k].pos; s.end = clips[k].End(); }
+		else s = extra;
+		return s;
+	};
+	const ClipSpan me = span(i);
+	ClipFade f;
+	f.inEnd = me.start;
+	f.outStart = me.end;
+	for (size_t j = 0; j < n; j++) {
+		if (j == i) continue;
+		const ClipSpan o = span(j);
+		if (o.end <= o.start) continue;
+		const bool later = (o.start > me.start) || (o.start == me.start && j > i);
+		if (later) {
+			if (o.start < me.end && o.end > me.end && o.start < f.outStart) f.outStart = o.start;
+		} else {
+			if (o.end > me.start && o.end < me.end && o.end > f.inEnd) f.inEnd = o.end;
+		}
+	}
+	return f;
+}
+
+float ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t)
+{
+	float g = 1.0f;
+	if (t < f.inEnd && f.inEnd > s.start) {
+		double u = (t - s.start) / (f.inEnd - s.start);
+		u = u < 0 ? 0 : (u > 1 ? 1 : u);
+		g *= (float)sin(u * 1.5707963267948966);
+	}
+	if (t > f.outStart && s.end > f.outStart) {
+		double u = (t - f.outStart) / (s.end - f.outStart);
+		u = u < 0 ? 0 : (u > 1 ? 1 : u);
+		g *= (float)cos(u * 1.5707963267948966);
+	}
+	return g;
+}
+
 // Добавляет звук всех клипов дорожки в стерео-буфер dst (n кадров). t0 - время первого кадра (сек),
 // tstep - шаг времени на кадр (отрицательный при обратном проигрывании). Линейная интерполяция.
-static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double tstep)
+static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double tstep,
+	bool haveExtra = false, ClipSpan extra = ClipSpan())
 {
 	for (size_t ci = 0; ci < t.clips.size(); ci++) {
 		const MixClip &c = t.clips[ci];
@@ -309,17 +354,25 @@ static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double 
 		if (hi < 0 || lo >= (double)c.len) continue;
 		const float *d = c.src->data + c.start * c.src->channels;
 		const int ch = c.src->channels;
+		ClipSpan me; ClipFade fade;
+		bool fading = false;
+		if (t.xfade) {
+			me.start = c.pos; me.end = c.End();
+			fade = ComputeClipFade(t.clips, haveExtra, extra, ci);
+			fading = fade.inEnd > me.start || fade.outStart < me.end;
+		}
 		for (int k=0; k<n; k++, p += pstep) {
 			if (p < 0 || p >= (double)c.len) continue;
+			const float fg = fading ? ClipFadeGain(me, fade, c.pos + p / rate) : 1.0f;
 			int64_t i0 = (int64_t)p;
 			int64_t i1 = (i0 + 1 < c.len) ? i0 + 1 : i0;
 			float fr = (float)(p - (double)i0);
 			if (ch == 1) {
-				float v = d[i0] + (d[i1] - d[i0]) * fr;
+				float v = (d[i0] + (d[i1] - d[i0]) * fr) * fg;
 				dst[2*k] += v; dst[2*k+1] += v;
 			} else {
-				dst[2*k]   += d[2*i0]   + (d[2*i1]   - d[2*i0])   * fr;
-				dst[2*k+1] += d[2*i0+1] + (d[2*i1+1] - d[2*i0+1]) * fr;
+				dst[2*k]   += (d[2*i0]   + (d[2*i1]   - d[2*i0])   * fr) * fg;
+				dst[2*k+1] += (d[2*i0+1] + (d[2*i1+1] - d[2*i0+1]) * fr) * fg;
 			}
 		}
 	}
@@ -356,8 +409,21 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	// активная дорожка: активный клип уже в буфере; остальные её клипы добавляем, затем эффекты и канал
 	{
 		const MixTrack &t = fTracks[act];
+		// активный клип в Pool: при кроссфейде гасим его на перекрытиях с остальными клипами дорожки
+		const double aStart = fActiveStart, aEnd = fActiveEnd;
+		const bool haveAct = aEnd > aStart;
+		ClipSpan actSpan; actSpan.start = aStart; actSpan.end = aEnd;
+		if (extras && t.xfade && haveAct && !t.clips.empty()) {
+			const ClipFade f = ComputeClipFade(t.clips, true, actSpan, t.clips.size());
+			if (f.inEnd > aStart || f.outStart < aEnd) {
+				for (int k=0; k<frames; k++) {
+					const float g = ClipFadeGain(actSpan, f, now + tstep * k);
+					buf[2*k] *= g; buf[2*k+1] *= g;
+				}
+			}
+		}
 		if (extras && !t.clips.empty())
-			RenderClips(t, buf, frames, now, tstep);
+			RenderClips(t, buf, frames, now, tstep, haveAct, actSpan);
 		fFx[act].Process(buf, frames, (float)sysRate);
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);

@@ -128,6 +128,12 @@ BRect TrackPanelView::GridRect(int index) const
 	return BRect(s.left + CONTENT_X, s.top + 80, PanRect(index).right + KNOB_W / 2, s.top + 93);
 }
 
+BRect TrackPanelView::XfadeRect(int index) const
+{
+	BRect g = GridRect(index);
+	return BRect(g.left, g.top + 17, g.right, g.bottom + 17);
+}
+
 BRect TrackPanelView::VolRect(int index) const
 {
 	BRect s = StripRect(index);
@@ -307,16 +313,18 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 1), "M", t->mute, make_color(255, 140, 0));
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
 		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
-		{	// под регулировкой баланса: подпись «Grid», затем чекбокс. Только у дорожки с галочкой работает липкая сетка.
-			BRect g = GridRect(i);
+		// под регулировкой баланса - строки «подпись + чекбокс»: Grid (липкая сетка) и Xfade (кроссфейд перекрытий)
+		for (int row = 0; row < 2; row++){
+			BRect g = (row == 0) ? GridRect(i) : XfadeRect(i);
+			const bool on = (row == 0) ? t->grid : t->xfade;
 			BRect box(g.right - 11, g.top + 1, g.right, g.top + 12);
 			SetHighColor(text);
-			DrawString("Grid", BPoint(g.left, g.bottom - 3));
+			DrawString(row == 0 ? "Grid" : "Xfade", BPoint(g.left, g.bottom - 3));
 			SetHighColor(make_color(255, 255, 255));
 			FillRect(box);
 			SetHighColor(make_color(0, 0, 0));
 			StrokeRect(box);
-			if (t->grid){
+			if (on){
 				SetPenSize(2);
 				StrokeLine(BPoint(box.left + 3, box.top + 6), BPoint(box.left + 5, box.bottom - 3));
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
@@ -452,6 +460,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (ButtonRect(i, 2).Contains(p)) return HIT_REC;
 		if (ButtonRect(i, 3).Contains(p)) return HIT_FX;
 		if (GridRect(i).Contains(p)) return HIT_GRID;
+		if (XfadeRect(i).Contains(p)) return HIT_XFADE;
 		if (NameRect(i).Contains(p)) return HIT_NAMEBOX;
 		BRect v = VolRect(i), a = PanRect(i);
 		v.InsetBy(-KNOB_W / 2 - 1, -2); a.InsetBy(-KNOB_W / 2 - 1, -2);
@@ -576,6 +585,11 @@ void TrackPanelView::MouseDown(BPoint p)
 		break;
 	case HIT_GRID:
 		Mix.SetGrid(index, !Mix.Track(index)->grid);
+		Pool.changed = true;
+		Invalidate();
+		break;
+	case HIT_XFADE:
+		Mix.SetCrossfade(index, !Mix.Track(index)->xfade);
 		Pool.changed = true;
 		Invalidate();
 		break;

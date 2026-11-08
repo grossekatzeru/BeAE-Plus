@@ -62,6 +62,44 @@ static void TestLatency(int &fails){
 	}
 }
 // мастер-шина: громкость, mute, индикатор уровня, эффекты с задержкой, сброс при перемотке, очистка
+static SourceRef ConstSrc(float v,int frames){ std::vector<float> d(frames,v); return MakeSource(d.data(),frames,1,44100.0f); }
+static void TestCrossfade(int &fails){
+	const double S=1.0/44100.0;
+	Mixer m;
+	int t=m.AddTrack("x",NULL,0,1);
+	CHECK(t>=1);
+	m.AddClip(t,ConstSrc(1.0f,1000),0,1000,0.0);
+	m.AddClip(t,ConstSrc(1.0f,1000),0,1000,500*S);
+	m.AddClip(t,ConstSrc(1.0f,1000),0,1000,3000*S);		// одинокий клип
+	m.AddClip(t,ConstSrc(1.0f,200),0,200,3300*S);		// вложен в предыдущий: просто микс
+	// микс: в перекрытии сумма
+	{ std::vector<float> o=RunMixer(m,4200,256); CHECK(fabsf(o[750*2]-2.0f)<1e-5); CHECK(fabsf(o[250*2]-1.0f)<1e-5); CHECK(fabsf(o[3400*2]-2.0f)<1e-5); }
+	m.SetCrossfade(t,true);
+	{ std::vector<float> o=RunMixer(m,4200,256);
+	  CHECK(fabsf(o[250*2]-1.0f)<1e-4);						// до перекрытия
+	  CHECK(fabsf(o[500*2]-1.0f)<1e-3);						// старт: первый 1, второй 0
+	  CHECK(fabsf(o[750*2]-1.41421f)<1e-2);					// середина равномощно
+	  CHECK(fabsf(o[999*2]-1.0f)<1e-2);						// конец первого, второй уже 1
+	  CHECK(fabsf(o[1200*2]-1.0f)<1e-4);						// после
+	  CHECK(fabsf(o[3400*2]-2.0f)<1e-4);						// вложенный клип не затухает
+	  CHECK(fabsf(o[3100*2]-1.0f)<1e-4);
+	  CHECK(o[750*2]==o[750*2+1]); }
+	// размер блока не влияет
+	{ std::vector<float> a=RunMixer(m,4200,64), b=RunMixer(m,4200,1000); bool same=true;
+	  const int edges[]={0,500,1000,1500,3000,3300,3500,4000};		// на границах клипа округление времени может дать +-1 кадр
+	  for(size_t i=0;i<a.size()/2;i++){ bool edge=false; for(int e:edges) if((int)i>=e-1&&(int)i<=e+1) edge=true; if(!edge&&fabsf(a[i*2]-b[i*2])>1e-5){ if(same) fprintf(stderr,"diff at %zu: %g vs %g\n",i,a[i*2],b[i*2]); same=false; } }
+	  CHECK(same); }
+	// активный клип в Pool (буфер) участвует в кроссфейде с клипом дорожки
+	{
+		Mixer n; n.AddClip(0,ConstSrc(1.0f,1000),0,1000,500*S); n.SetCrossfade(0,true);
+		n.SetActiveSpan(0.0,1000*S);
+		std::vector<float> o(1200*2,0.0f); for(int i=0;i<1000;i++) o[i*2]=o[i*2+1]=1.0f;	// «Pool»: активный клип 0..1000
+		for(int p=0;p<1200;p+=256){ int c=1200-p<256?1200-p:256; n.Process(&o[(size_t)p*2],c,p,44100,44100,true); }
+		CHECK(fabsf(o[250*2]-1.0f)<1e-4);
+		CHECK(fabsf(o[750*2]-1.41421f)<1e-2);		// активный клип затухает, клип дорожки нарастает
+		CHECK(fabsf(o[1100*2]-1.0f)<1e-4);
+	}
+}
 static void TestMaster(int &fails){
 	std::vector<Ladspa::Plugin> all=Ladspa::Scan(std::vector<std::string>());
 	const Ladspa::Plugin *dp=NULL; for(size_t i=0;i<all.size();i++) if(all[i].label=="test_delay") dp=&all[i];
@@ -126,6 +164,7 @@ static void TestMaster(int &fails){
 }
 int main(int argc,char**argv){
 	int fails=0;
+	TestCrossfade(fails);
 	Mixer m;
 	CHECK(m.TrackCount()==1);
 	// основная дорожка по умолчанию не меняет буфер

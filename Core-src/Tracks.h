@@ -19,6 +19,7 @@
 #define TIMELINE_MARGIN	10.0		// секунд запаса после самой дальней дорожки
 
 void	Tracks_Init();							// создать DEFAULT_TRACKS пустых дорожек (один раз при старте)
+void	Tracks_PublishActiveSpan();		// сообщить микшеру, где на ленте лежит активный клип (для кроссфейда); перед запуском воспроизведения
 bool	Tracks_Activate(int lane, double cursorTime = -1.0, int clip = -1);	// сделать активным клип дорожки (clip<0 - тот, что под курсором); курсор - на ленте, сек; false - нельзя
 void	Tracks_Stash();							// сохранить содержимое Pool в активную дорожку (без тишины по краям)
 void	Tracks_PlaceActive(double offsetSeconds);	// Pool содержит свежий звук (файл, запись): положить на ленту
@@ -73,7 +74,7 @@ void	Tracks_BeginProject();					// очистить всё перед откры
 void	Tracks_FinishProject();					// после заполнения микшера: показать дорожку 0
 
 // Раскладка дорожек по вертикали - одна и та же для панели слева и для полос с волнами.
-#define MIN_LANE_HEIGHT	98
+#define MIN_LANE_HEIGHT	116
 int		Tracks_Count();							// число дорожек
 int		Tracks_Rank(int slot);					// номер дорожки сверху вниз (или -1)
 int		Tracks_SlotAt(int rank);				// слот микшера по номеру сверху вниз (или -1)

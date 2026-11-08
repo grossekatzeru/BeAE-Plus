@@ -37,11 +37,12 @@ public:
 	virtual void MessageReceived(BMessage *msg);
 
 private:
-	enum { HIT_NONE, HIT_NAME, HIT_NAMEBOX, HIT_SOLO, HIT_MUTE, HIT_REC, HIT_VOL, HIT_PAN, HIT_FX, HIT_GRID, HIT_ADD, HIT_REMOVE, HIT_MASTER_MUTE, HIT_MASTER_FX, HIT_MASTER_VOL, HIT_MASTER };
+	enum { HIT_NONE, HIT_NAME, HIT_NAMEBOX, HIT_SOLO, HIT_MUTE, HIT_REC, HIT_VOL, HIT_PAN, HIT_FX, HIT_GRID, HIT_XFADE, HIT_ADD, HIT_REMOVE, HIT_MASTER_MUTE, HIT_MASTER_FX, HIT_MASTER_VOL, HIT_MASTER };
 
 	BRect	StripRect(int index) const;				// прямоугольник дорожки в координатах вида
 	BRect	ButtonRect(int index, int which) const;	// 0=S 1=M 2=R 3=FX
 	BRect	GridRect(int index) const;				// чекбокс Grid
+	BRect	XfadeRect(int index) const;				// чекбокс Xfade: кроссфейд перекрывающихся клипов
 	BRect	NameRect(int index) const;				// белое поле имени
 	BRect	MeterRect(int index) const;				// вертикальный индикатор у левого края
 	BRect	VolRect(int index) const;

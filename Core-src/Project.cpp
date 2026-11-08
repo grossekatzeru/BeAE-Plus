@@ -156,6 +156,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		trk << "      \"mute\": " << (t->mute ? "true" : "false") << ",\n";
 		trk << "      \"solo\": " << (t->solo ? "true" : "false") << ",\n";
 		trk << "      \"grid\": " << (t->grid ? "true" : "false") << ",\n";
+		trk << "      \"xfade\": " << (t->xfade ? "true" : "false") << ",\n";
 		trk << "      \"color\": null,\n";
 		trk << "      \"clips\": [" << clipsJson;
 		if (clips.size() > 0) trk << "\n      ";
@@ -300,6 +301,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetMute(slot, jt.Boolean("mute", false));
 		Mix.SetSolo(slot, jt.Boolean("solo", false));
 		Mix.SetGrid(slot, jt.Boolean("grid", false));
+		Mix.SetCrossfade(slot, jt.Boolean("xfade", false));
 
 		// клипы: версия 2 - список клипов со ссылками на источники; версия 1 - один файл и смещение
 		const JValue *jc = jt.Get("clips");
@@ -363,8 +365,10 @@ bool Project_MixdownDefault(BPath &out)
 }
 
 // Добавляет звук клипа в стерео-буфер dst (total кадров на частоте outRate) с множителями gl, gr.
-static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float outRate, float gl, float gr)
+static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float outRate, float gl, float gr,
+	const ClipFade *fade = NULL)
 {
+	ClipSpan me; me.start = c.pos; me.end = c.End();
 	if (!c.src || c.len <= 0) return;
 	const double rate = c.src->rate;
 	const int ch = c.src->channels;
@@ -377,6 +381,7 @@ static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float o
 		if (pos < 0) pos = 0;
 		int64 i0 = (int64)pos;
 		if (i0 >= c.len) break;
+		const float fg = fade ? ClipFadeGain(me, *fade, (double)n / outRate) : 1.0f;
 		int64 i1 = (i0 + 1 < c.len) ? i0 + 1 : i0;
 		float f = (float)(pos - (double)i0);
 		float l, r;
@@ -386,8 +391,24 @@ static void RenderClipOffline(const MixClip &c, float *dst, int64 total, float o
 		}else{
 			l = r = d[i0] + (d[i1] - d[i0]) * f;
 		}
-		dst[(size_t)n*2]   += l * gl;
-		dst[(size_t)n*2+1] += r * gr;
+		dst[(size_t)n*2]   += l * gl * fg;
+		dst[(size_t)n*2+1] += r * gr * fg;
+	}
+}
+
+static bool t_xf(int lane) { const MixTrack *t = Mix.Track(lane); return t && t->xfade; }
+
+// Клипы дорожки в буфер; при кроссфейде перекрытия сводятся плавным переходом.
+static void RenderLaneOffline(const std::vector<MixClip> &clips, bool xfade, float *dst, int64 total, float outRate, float gl, float gr)
+{
+	for (size_t q = 0; q < clips.size(); q++){
+		if (xfade){
+			ClipFade f = ComputeClipFade(clips, false, ClipSpan(), q);
+			const bool fading = f.inEnd > clips[q].pos || f.outStart < clips[q].End();
+			RenderClipOffline(clips[q], dst, total, outRate, gl, gr, fading ? &f : NULL);
+		}else{
+			RenderClipOffline(clips[q], dst, total, outRate, gl, gr);
+		}
 	}
 }
 
@@ -417,9 +438,10 @@ bool Project_AnalysisMix(std::vector<float> &mono, float &rate)
 	const int64 total = (int64)(endTime * rate + 0.5) + 1;
 	std::vector<float> st;
 	try { st.assign((size_t)total * 2, 0.0f); } catch (...) { return false; }
-	for (size_t k = 0; k < lanes.size(); k++)
-		for (size_t q = 0; q < lanes[k].second.size(); q++)
-			RenderClipOffline(lanes[k].second[q], &st[0], total, rate, 1.0f, 1.0f);
+	for (size_t k = 0; k < lanes.size(); k++){
+		MixTrack *lt = Mix.Track(lanes[k].first);
+		RenderLaneOffline(lanes[k].second, lt && lt->xfade, &st[0], total, rate, 1.0f, 1.0f);
+	}
 	mono.resize((size_t)total);
 	for (int64 n = 0; n < total; n++) mono[(size_t)n] = 0.5f * (st[(size_t)n*2] + st[(size_t)n*2+1]);
 	return true;
@@ -467,13 +489,11 @@ bool Project_Mixdown(const char *path, BString &err)
 	for (size_t k = 0; k < lanes.size(); k++){
 		const Lane &l = lanes[k];
 		if (!l.fx){
-			for (size_t q = 0; q < l.clips.size(); q++)
-				RenderClipOffline(l.clips[q], &out[0], total, outRate, l.gl, l.gr);
+			RenderLaneOffline(l.clips, t_xf(l.idx), &out[0], total, outRate, l.gl, l.gr);
 			continue;
 		}
 		try { tmp.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
-		for (size_t q = 0; q < l.clips.size(); q++)
-			RenderClipOffline(l.clips[q], &tmp[0], total, outRate, 1.0f, 1.0f);
+		RenderLaneOffline(l.clips, t_xf(l.idx), &tmp[0], total, outRate, 1.0f, 1.0f);
 		// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
 		FxChain local;
 		FxChain &live = Mix.Fx(l.idx);

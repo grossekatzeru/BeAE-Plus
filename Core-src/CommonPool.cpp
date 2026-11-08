@@ -189,6 +189,7 @@ void CommonPool::InitBufferPlayer(float f)
 #ifndef __VM_SYSTEM				// RAM
 	void CommonPool::StartPlaying(int64 p, bool end)
 	{
+		Tracks_PublishActiveSpan();
 		m_playing = true;
 		if (p){
 			play_cookie.mem = sample_memory + p;
@@ -216,6 +217,7 @@ void CommonPool::InitBufferPlayer(float f)
 #else	// VM
 	void CommonPool::StartPlaying(int64 p, bool end)
 	{
+		Tracks_PublishActiveSpan();
 		m_playing = true;
 		if (p){
 			play_cookie.mem = p;

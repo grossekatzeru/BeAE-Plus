@@ -427,6 +427,24 @@ static double ActiveClipStart()
 	return 0;
 }
 
+void Tracks_PublishActiveSpan()
+{
+	double s = 0, e = 0;
+	if (PoolHasSound()){
+		if (PoolMatchesOrigin()){
+			s = gOrigin.pos;
+			e = gOrigin.End();
+		}else{
+			int64 first = 0, last = 0;
+			if (ContentRange(Pool.sample_memory, Pool.size, Pool.sample_type, first, last) && Pool.frequency > 1.0f){
+				s = (double)first / Pool.frequency;
+				e = (double)(last + 1) / Pool.frequency;
+			}
+		}
+	}
+	Mix.SetActiveSpan(s, e);
+}
+
 double Tracks_Offset(int index)
 {
 	MixTrack *t = Mix.Track(index);
