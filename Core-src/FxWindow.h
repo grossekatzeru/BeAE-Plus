@@ -20,11 +20,14 @@ public:
 	static void Open(int track, BWindow *near);		// одно окно на дорожку
 	virtual void MessageReceived(BMessage *msg);
 	virtual bool QuitRequested();
+	virtual void FrameResized(float w, float h);
 
 private:
 	FxWindow(int track, BWindow *near);
 	void	RefreshList(int select);
 	void	BuildParams();
+	void	BuildParamsInner();
+	void	UpdateScroll();
 	void	ShowAddMenu();
 
 	int				fTrack;

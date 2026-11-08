@@ -150,6 +150,7 @@ FxWindow::FxWindow(int track, BWindow *near)
 		B_NOT_ZOOMABLE | B_ASYNCHRONOUS_CONTROLS),
 	  fTrack(track)
 {
+	fScroll = NULL;
 	MixTrack *t = (track == MIX_MASTER) ? NULL : Mix.Track(track);
 	BString title(track == MIX_MASTER ? "Master" : (t ? t->name : "Track"));
 	title << " - " << Language.get("FX_TITLE");
@@ -178,7 +179,7 @@ FxWindow::FxWindow(int track, BWindow *near)
 	fParams->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	fScroll = new BScrollView("paramscroll", fParams, B_FOLLOW_ALL, 0, false, true);
 	fScroll->MoveTo(224, 38);
-	fScroll->ResizeTo(343, 328);
+	fScroll->ResizeTo(343, Bounds().Height() - 38 - 12);
 	bg->AddChild(fScroll);
 
 	if (near) MoveTo(near->Frame().left + 80, near->Frame().top + 60);
@@ -209,6 +210,32 @@ void FxWindow::RefreshList(int select)
 }
 
 void FxWindow::BuildParams()
+{
+	BuildParamsInner();
+	UpdateScroll();
+	if (BScrollBar *bar = fScroll->ScrollBar(B_VERTICAL)) bar->SetValue(0);
+}
+
+// диапазон и размер бегунка полосы прокрутки зависят от высоты содержимого, сам BScrollView их не считает
+void FxWindow::UpdateScroll()
+{
+	BScrollBar *bar = fScroll->ScrollBar(B_VERTICAL);
+	if (!bar) return;
+	const float viewH = fScroll->Bounds().Height();
+	const float contentH = fParams->Bounds().Height() + 1;
+	const float range = contentH > viewH ? contentH - viewH : 0;
+	bar->SetRange(0, range);
+	bar->SetProportion(contentH > 0 ? (viewH / contentH > 1 ? 1 : viewH / contentH) : 1);
+	bar->SetSteps(24, viewH > 48 ? viewH - 24 : 24);
+}
+
+void FxWindow::FrameResized(float w, float h)
+{
+	BWindow::FrameResized(w, h);
+	if (fScroll) UpdateScroll();
+}
+
+void FxWindow::BuildParamsInner()
 {
 	while (BView *c = fParams->ChildAt(0)){
 		fParams->RemoveChild(c);
