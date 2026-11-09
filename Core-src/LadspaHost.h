@@ -113,8 +113,8 @@ std::vector<std::string> DefaultPaths();
 // Дополнительная папка поиска (например, plugins рядом с программой). Сканируется вместе с подпапками.
 void AddSearchDir(const std::string &dir);
 // Встроенный плагин: дескриптор живёт в самой программе, файла .so нет. Вызывать до Scan.
-// defaults - точные значения по умолчанию по номерам портов (можно 0).
-void RegisterBuiltin(const Descriptor *d, const float *defaults = 0);
+// defaults - точные значения по умолчанию по номерам портов (можно 0); group - подменю в списке эффектов.
+void RegisterBuiltin(const Descriptor *d, const float *defaults = 0, const char *group = "Built-in");
 bool IsBuiltin(const Plugin &p);
 // Просмотр папок (вместе с подпапками, глубина до 3). В *log пишутся причины, по которым файл пропущен.
 std::vector<Plugin> Scan(const std::vector<std::string> &dirs, std::vector<std::string> *log = 0);

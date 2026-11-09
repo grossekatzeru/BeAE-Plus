@@ -217,5 +217,8 @@ private:
 	bool		fHaveNext;
 };
 
+// Клипы дорожки (копия списка) в стерео-буфер dst (n кадров): для построения огибающей ключа (KeyCache.cpp)
+void Mixer_RenderClips(const std::vector<MixClip> &clips, bool xfade, float *dst, int n, double t0, double tstep);
+
 extern Mixer Mix;
 #endif

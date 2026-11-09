@@ -108,6 +108,7 @@ Range ResolveRange(const Port &p, float rate)
 static std::vector<std::string> sExtraDirs;
 static std::vector<const Descriptor *> sBuiltins;
 static std::vector<const float *> sBuiltinDefaults;
+static std::vector<std::string> sBuiltinGroups;
 static const char *kBuiltinPrefix = "builtin:";
 
 void AddSearchDir(const std::string &dir)
@@ -116,11 +117,12 @@ void AddSearchDir(const std::string &dir)
 		sExtraDirs.push_back(dir);
 }
 
-void RegisterBuiltin(const Descriptor *d, const float *defaults)
+void RegisterBuiltin(const Descriptor *d, const float *defaults, const char *group)
 {
 	if (d && std::find(sBuiltins.begin(), sBuiltins.end(), d) == sBuiltins.end()) {
 		sBuiltins.push_back(d);
 		sBuiltinDefaults.push_back(defaults);
+		sBuiltinGroups.push_back(group ? group : "Built-in");
 	}
 }
 
@@ -257,7 +259,7 @@ std::vector<Plugin> Scan(const std::vector<std::string> &dirs, std::vector<std::
 {
 	std::vector<Plugin> result;
 	for (size_t i = 0; i < sBuiltins.size(); ++i)
-		AddDescriptor(std::string(kBuiltinPrefix) + sBuiltins[i]->Label, "Built-in", sBuiltins[i], &result, sBuiltinDefaults[i]);
+		AddDescriptor(std::string(kBuiltinPrefix) + sBuiltins[i]->Label, sBuiltinGroups[i], sBuiltins[i], &result, sBuiltinDefaults[i]);
 	for (size_t di = 0; di < dirs.size(); ++di)
 		ScanDir(dirs[di], "", 0, &result, log);
 	std::stable_sort(result.begin(), result.end(), [](const Plugin &a, const Plugin &b) {

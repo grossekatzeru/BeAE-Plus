@@ -1,4 +1,5 @@
 #include "Mixer.h"
+#include "KeyCache.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -31,6 +32,13 @@ Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fActiveStart(0), fActi
 	fBpm = 120.0; fGridDiv = 4;
 	fTracks[0].used = true;
 	strcpy(fTracks[0].name, "Track 1");
+	// по умолчанию ключ строится из клипов, лежащих в микшере; приложение заменяет источник (добавляет активный клип из Pool)
+	Key::Cache::Global().SetLaneSource([this](int lane, std::vector<MixClip> &clips, bool &xfade) {
+		const MixTrack *t = Track(lane);
+		if (!t) return false;
+		clips = t->clips; xfade = t->xfade;
+		return true;
+	});
 }
 
 Mixer::~Mixer() {}
@@ -358,11 +366,11 @@ float ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t)
 
 // Добавляет звук всех клипов дорожки в стерео-буфер dst (n кадров). t0 - время первого кадра (сек),
 // tstep - шаг времени на кадр (отрицательный при обратном проигрывании). Линейная интерполяция.
-static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double tstep,
-	bool haveExtra = false, ClipSpan extra = ClipSpan())
+static void RenderClipList(const std::vector<MixClip> &clips, bool xfade, float *dst, int n, double t0, double tstep,
+	bool haveExtra, ClipSpan extra)
 {
-	for (size_t ci = 0; ci < t.clips.size(); ci++) {
-		const MixClip &c = t.clips[ci];
+	for (size_t ci = 0; ci < clips.size(); ci++) {
+		const MixClip &c = clips[ci];
 		if (!c.src || c.len <= 0) continue;
 		const double rate = c.src->rate;
 		double p = (t0 - c.pos) * rate;
@@ -374,9 +382,9 @@ static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double 
 		const int ch = c.src->channels;
 		ClipSpan me; ClipFade fade;
 		bool fading = false;
-		if (t.xfade) {
+		if (xfade) {
 			me.start = c.pos; me.end = c.End();
-			fade = ComputeClipFade(t.clips, haveExtra, extra, ci);
+			fade = ComputeClipFade(clips, haveExtra, extra, ci);
 			fading = fade.inEnd > me.start || fade.outStart < me.end;
 		}
 		for (int k=0; k<n; k++, p += pstep) {
@@ -394,6 +402,18 @@ static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double 
 			}
 		}
 	}
+}
+
+static void RenderClips(const MixTrack &t, float *dst, int n, double t0, double tstep,
+	bool haveExtra = false, ClipSpan extra = ClipSpan())
+{
+	RenderClipList(t.clips, t.xfade, dst, n, t0, tstep, haveExtra, extra);
+}
+
+// Клипы дорожки (копия списка) в стерео-буфер: для построения огибающей ключа (KeyEnvelope.cpp)
+void Mixer_RenderClips(const std::vector<MixClip> &clips, bool xfade, float *dst, int n, double t0, double tstep)
+{
+	RenderClipList(clips, xfade, dst, n, t0, tstep, false, ClipSpan());
 }
 
 void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
@@ -442,7 +462,10 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		}
 		if (extras && !t.clips.empty())
 			RenderClips(t, buf, frames, now, tstep, haveAct, actSpan);
-		fFx[act].Process(buf, frames, (float)sysRate);
+		{
+			Key::Scope ks(now, tstep);		// время блока для плагинов с ключом (сайдчейн BeFX)
+			fFx[act].Process(buf, frames, (float)sysRate);
+		}
 		float gl, gr;
 		Gains(t, anySolo, gl, gr);
 		float pl = 0, pr = 0;
@@ -493,7 +516,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 			if (hi < laneStart || lo >= laneEnd) continue;
 			memset(fTmp, 0, sizeof(float) * 2 * n);
 			RenderClips(t, fTmp, n, ta, tstep);
-			if (useFx) fx.Process(fTmp, n, (float)sysRate);
+			if (useFx) { Key::Scope ks(ta, tstep); fx.Process(fTmp, n, (float)sysRate); }
 			for (int k=0; k<n; k++) {
 				float l = fTmp[2*k] * gl, r = fTmp[2*k+1] * gr;
 				buf[2*(from+k)] += l; buf[2*(from+k)+1] += r;
