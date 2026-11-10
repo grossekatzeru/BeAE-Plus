@@ -154,6 +154,7 @@ class CommonPool{
 	
 	void	CreateMenu();			// create/recreate menu items
 	void	UpdateMenu();			// activate/deactivate menu items
+	void	UpdateAnalyzeMenu();	// menu Analyze: tuner always, other items need a sound
 	void	UpdateToolBar();		// activate/deactivate toolBar and menuBar items
 
 	bool	changed;

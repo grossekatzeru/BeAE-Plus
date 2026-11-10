@@ -56,6 +56,7 @@
 #include "FilterDialogs.h"
 #include "Analyzers.h"
 #include "TempoAnalyzer.h"
+#include "TunerWindow.h"
 #include "MidiImport.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
@@ -1719,6 +1720,10 @@ void MainWindow::MessageReceived(BMessage *message)
 
 	case TEMPO_ANALYZER:
 		(new TempoAnalyzerWindow(BPoint((Frame().left+Frame().right)/2, (Frame().top+Frame().bottom)/2)));
+		break;
+
+	case TUNER_OPEN:
+		TunerWindow::Open(BPoint((Frame().left+Frame().right)/2, (Frame().top+Frame().bottom)/2));
 		break;
 
 	case SET_FREQUENCY:

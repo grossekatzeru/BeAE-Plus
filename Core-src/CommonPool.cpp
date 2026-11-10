@@ -432,6 +432,9 @@ void CommonPool::CreateMenu()
 	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("SPECTRUM_ANALYZER"), new BMessage(SPECTRUM), KeyBind.GetKey("SPECTRUM_ANALYZER"), KeyBind.GetMod("SPECTRUM_ANALYZER")));
 	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("SAMPLE_SCOPE"), new BMessage(SAMPLE_SCOPE), KeyBind.GetKey("SAMPLE_SCOPE"), KeyBind.GetMod("SAMPLE_SCOPE")));
 	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("TEMPO_ANALYZER"), new BMessage(TEMPO_ANALYZER), KeyBind.GetKey("TEMPO_ANALYZER"), KeyBind.GetMod("TEMPO_ANALYZER")));
+	menu_analyze->AddSeparatorItem();
+	menu_analyze->AddItem(menuItem = new BMenuItem(Language.get("TUNER"), new BMessage(TUNER_OPEN), KeyBind.GetKey("TUNER"), KeyBind.GetMod("TUNER")));
+	UpdateAnalyzeMenu();
 	mainWindow->Unlock();
 }
 
@@ -495,11 +498,23 @@ void CommonPool::UpdateMenu()
 /*******************************************************
 *   Update the toolBar, renamed to UpdateMenuBarAndToolBar
 *******************************************************/
+// Меню «Анализ» доступно всегда (тюнер работает без проекта), остальные пункты - когда есть звук
+void CommonPool::UpdateAnalyzeMenu()
+{
+	menu_analyze->SetEnabled(true);
+	for (int32 i = 0; i < menu_analyze->CountItems(); i++) {
+		BMenuItem *item = menu_analyze->ItemAt(i);
+		if (!item || !item->Message())
+			continue;
+		item->SetEnabled(item->Message()->what == TUNER_OPEN || sample_type != NONE);
+	}
+}
+
 void CommonPool::UpdateToolBar()
 {
 	mainWindow->Lock();
 	menu_transform->SetEnabled(sample_type != NONE);	// transform menu
-	menu_analyze->SetEnabled(sample_type != NONE);		// analyzers menu
+	UpdateAnalyzeMenu();								// analyzers menu: тюнер доступен и без звука
 	((MainWindow*)mainWindow)->toolBar->Update();
 	mainWindow->Unlock();
 }

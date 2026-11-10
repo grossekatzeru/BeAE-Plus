@@ -409,6 +409,7 @@ void Shortcut::InstallDefaults(){
 	Install(1,"SPECTRUM_ANALYZER",	  0, 0,							  0, 0,							SPECTRUM		);
 	Install(1,"SAMPLE_SCOPE",	 	  0, 0,							  0, 0,							SAMPLE_SCOPE	);
 	Install(1,"TEMPO_ANALYZER",	  0, 0,							  0, 0,							TEMPO_ANALYZER	);
+	Install(1,"TUNER",			  0, 0,							  0, 0,							TUNER_OPEN		);
 
 	// The sample-tools
 	Install(0,"SAMPLE_TOOLS",		  0, 0,								  0, 0,						SPLITTER		);

@@ -90,3 +90,4 @@ BeAE ищет плагины в `plugins` рядом с программой (в
     tests/distressor/run_tests.sh
     tests/sidechain/run_tests.sh
     tests/gate/run_tests.sh
+    tests/tuner/run_tests.sh

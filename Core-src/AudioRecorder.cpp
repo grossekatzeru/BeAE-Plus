@@ -22,6 +22,9 @@ AudioRecorder::AudioRecorder()
 	fRecorder(NULL),
 	fHaveNode(false),
 	fRecording(false),
+	fListening(false),
+	fRingWritten(0),
+	fRingRead(0),
 	fChunkUsed(kChunkFloats),
 	fFrames(0),
 	fRate(44100.0f),
@@ -54,11 +57,58 @@ void AudioRecorder::Clear()
 	fOutOfMemory = false;
 }
 
+static const size_t kRingFrames = 1 << 17;		// около 3 с при 44,1 кГц
+
 status_t AudioRecorder::Start(BString *error)
 {
 	if (fRecording)
 		return B_OK;
-	Clear();
+	if (fListening)
+		Stop();				// запись важнее тюнера: отпускаем вход
+	return Open(error, false);
+}
+
+status_t AudioRecorder::StartListening(BString *error)
+{
+	if (fRecording) {
+		if (error) *error = "TUNER_BUSY";
+		return B_BUSY;
+	}
+	if (fListening)
+		return B_OK;
+	return Open(error, true);
+}
+
+size_t AudioRecorder::ReadListened(float *dst, size_t maxFrames)
+{
+	BAutolock lock(fLock);
+	if (fRing.empty() || maxFrames == 0)
+		return 0;
+	int64 avail = fRingWritten - fRingRead;
+	if (avail <= 0)
+		return 0;
+	if (avail > (int64)fRing.size())
+		avail = (int64)fRing.size();					// тюнер отстал: берём самое свежее
+	if (avail > (int64)maxFrames)
+		avail = (int64)maxFrames;
+	const int64 start = fRingWritten - avail;
+	for (int64 i = 0; i < avail; i++)
+		dst[i] = fRing[(size_t)((start + i) % (int64)fRing.size())];
+	fRingRead = fRingWritten;
+	return (size_t)avail;
+}
+
+status_t AudioRecorder::Open(BString *error, bool listen)
+{
+	if (listen) {
+		BAutolock lock(fLock);
+		fRing.assign(kRingFrames, 0.0f);
+		fRingWritten = 0;
+		fRingRead = 0;
+		fFormatKnown = false;
+	} else {
+		Clear();
+	}
 	fPeakL = fPeakR = 0.0f;
 
 	BMediaRoster *roster = BMediaRoster::Roster();
@@ -113,10 +163,11 @@ status_t AudioRecorder::Start(BString *error)
 		}
 	}
 
-	fRecording = true;
+	if (listen) fListening = true; else fRecording = true;
 	err = fRecorder->Start();
 	if (err != B_OK) {
 		fRecording = false;
+		fListening = false;
 		if (error) *error = "REC_ERR_START";
 		fRecorder->Disconnect();
 		fRecorder->SetHooks(NULL, NULL, NULL);
@@ -135,6 +186,7 @@ fail:
 void AudioRecorder::Stop()
 {
 	fRecording = false;
+	fListening = false;
 	if (fRecorder) {
 		fRecorder->Stop(true);
 		fRecorder->Disconnect();
@@ -166,6 +218,10 @@ void AudioRecorder::_RecordHook(void *cookie, bigtime_t, void *data, size_t size
 
 void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format)
 {
+	if (fListening) {
+		OnListenBuffer(data, size, format);
+		return;
+	}
 	if (!fRecording || fOutOfMemory)
 		return;
 	if (format.type != B_MEDIA_RAW_AUDIO)
@@ -226,6 +282,51 @@ void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format
 	}
 	fFrames += (int64)frames;
 
+	if (peakL > fPeakL) fPeakL = peakL;
+	if (peakR > fPeakR) fPeakR = peakR;
+}
+
+// Прослушивание: переводим в моно и кладём в кольцо (без выделения памяти в потоке звука)
+void AudioRecorder::OnListenBuffer(void *data, size_t size, const media_format &format)
+{
+	if (format.type != B_MEDIA_RAW_AUDIO)
+		return;
+	const media_raw_audio_format &raw = format.u.raw_audio;
+	const int bps = RecConv::BytesPerSample(raw.format);
+	const int srcCh = raw.channel_count;
+	if (bps == 0 || srcCh < 1)
+		return;
+	BAutolock lock(fLock);
+	if (fRing.empty())
+		return;
+	if (!fFormatKnown) {
+		fRate = raw.frame_rate > 0 ? raw.frame_rate : 44100.0f;
+		fSrcFormat = raw.format;
+		fSrcChannels = srcCh;
+		fSwap = (raw.byte_order != B_MEDIA_HOST_ENDIAN) && bps > 1;
+		fFormatKnown = true;
+	}
+	if ((int32)raw.channel_count != fSrcChannels || raw.format != fSrcFormat)
+		return;
+	const size_t frameBytes = (size_t)bps * srcCh;
+	const size_t frames = size / frameBytes;
+	const uint8 *src = (const uint8 *)data;
+	float tmp[1024];					// стерео; в кольцо кладём среднее каналов
+	float peakL = 0.0f, peakR = 0.0f;
+	size_t done = 0;
+	while (done < frames) {
+		size_t n = frames - done;
+		if (n > 512)
+			n = 512;
+		float pl, pr;
+		RecConv::ConvertFrames(src + done * frameBytes, n, raw.format, srcCh, fSwap, 2, tmp, &pl, &pr);
+		if (pl > peakL) peakL = pl;
+		if (pr > peakR) peakR = pr;
+		for (size_t i = 0; i < n; i++)
+			fRing[(size_t)((fRingWritten + (int64)i) % (int64)fRing.size())] = 0.5f * (tmp[i * 2] + tmp[i * 2 + 1]);
+		fRingWritten += (int64)n;
+		done += n;
+	}
 	if (peakL > fPeakL) fPeakL = peakL;
 	if (peakR > fPeakR) fPeakR = peakR;
 }

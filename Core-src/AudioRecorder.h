@@ -24,9 +24,17 @@ public:
 
 	// Открыть вход и начать запись. При ошибке вернёт код и текст в *error (ключ языка).
 	status_t	Start(BString *error);
-	// Остановить запись (данные остаются до Clear()).
+	// Остановить запись или прослушивание (данные записи остаются до Clear()).
 	void		Stop();
 	bool		IsRecording() const { return fRecording; }
+
+	// Прослушивание для тюнера: тот же вход, но звук не сохраняется, а идёт в небольшой кольцевой буфер (моно).
+	// Не работает одновременно с записью: Start() останавливает прослушивание, а StartListening() при записи вернёт ошибку.
+	status_t	StartListening(BString *error);
+	bool		IsListening() const { return fListening; }
+	// Новые кадры с прошлого вызова (не больше maxFrames, самые свежие); частота известна после первого буфера.
+	size_t		ReadListened(float *dst, size_t maxFrames);
+	float		ListenRate() const { return fRate; }
 
 	int64		Frames() const { return fFrames; }
 	float		Rate() const { return fRate; }
@@ -47,11 +55,18 @@ private:
 	static void	_RecordHook(void *cookie, bigtime_t timestamp, void *data, size_t size,
 							const media_format &format);
 	void		OnBuffer(void *data, size_t size, const media_format &format);
+	void		OnListenBuffer(void *data, size_t size, const media_format &format);
+
+	status_t	Open(BString *error, bool listen);
 
 	BMediaRecorder	*fRecorder;
 	media_node		fInputNode;
 	bool			fHaveNode;
 	volatile bool	fRecording;
+	volatile bool	fListening;
+	std::vector<float> fRing;			// кольцо прослушивания (моно)
+	volatile int64	fRingWritten;		// всего записано кадров в кольцо
+	int64			fRingRead;			// сколько уже прочитал тюнер
 
 	std::vector<float*> fChunks;		// блоки по kChunkFloats
 	size_t			fChunkUsed;			// занято в последнем блоке (в float)
