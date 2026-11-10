@@ -56,7 +56,7 @@ bool EndsWithSf2(const char *name)
 }
 
 MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm)
-	: BWindow(BRect(120, 120, 540, 330), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
+	: BWindow(BRect(120, 120, 540, 448), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
 		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_ASYNCHRONOUS_CONTROLS),
 	fTarget(target), fPanel(NULL), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
 	fThread(-1), fBusy(false)
@@ -68,7 +68,7 @@ MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double 
 	BStringView *label = new BStringView(BRect(12, 8, 408, 24), NULL, Language.get("MIDI_SOUNDFONT"));
 	back->AddChild(label);
 	fList = new BListView(BRect(12, 28, 392, 106), "fonts", B_SINGLE_SELECTION_LIST);
-	back->AddChild(new BScrollView("fontsScroll", fList, B_FOLLOW_ALL, 0, false, true));
+	back->AddChild(new BScrollView("fontsScroll", fList, B_FOLLOW_LEFT_RIGHT | B_FOLLOW_TOP, 0, false, true));
 	fChoose = new BButton(BRect(12, 118, 232, 146), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
 	back->AddChild(fChoose);
 	fTempoInfo = new BStringView(BRect(12, 152, 408, 168), NULL, "");
