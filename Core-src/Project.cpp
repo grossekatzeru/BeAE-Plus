@@ -20,6 +20,8 @@
 #include "Project.h"
 #include "LadspaFilter.h"
 #include "FxChain.h"
+#include "BeFxSidechain.h"
+#include "KeyCache.h"
 
 static BString	gName;
 static BString	gFolder;		// полный путь к папке проекта (с подпапкой)
@@ -85,7 +87,13 @@ static void FxToJson(FxChain &fx, BString &trk, const char *indent)
 			fv = false;
 			trk << "\"" << it->first << "\": " << Num(it->second);
 		}
-		trk << "}}";
+		trk << "}";
+		if (s->plugin.label == BeFx::kSidechainLabel){		// ключ запоминаем и по названию дорожки (номер слота может поменяться)
+			Ladspa::Values::const_iterator it = s->values.find(BeFx::SC_KEY);
+			const MixTrack *kt = (it != s->values.end() && it->second >= 1.0f) ? Mix.Track((int)(it->second + 0.5f) - 1) : NULL;
+			if (kt && kt->name[0]) trk << ", \"keyName\": \"" << JsonEscape(kt->name).c_str() << "\"";
+		}
+		trk << "}";
 	}
 	if (fx.Count() > 0) trk << "\n" << indent;
 }
@@ -207,7 +215,8 @@ bool Project_SaveAgain(BString &err)
 }
 
 // Эффекты из JSON (массив jfx) в цепочку fx; ошибки и ненайденные плагины - в warnings
-static void LoadFx(FxChain &fx, const JValue *jfx, BString &warnings)
+struct KeyFix { int chain; int slot; std::string name; };
+static void LoadFx(FxChain &fx, const JValue *jfx, BString &warnings, int chainId = -1, std::vector<KeyFix> *fixes = NULL)
 {
 	if (!jfx || jfx->type != JValue::Arr) return;
 	const float sysRate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
@@ -239,6 +248,10 @@ static void LoadFx(FxChain &fx, const JValue *jfx, BString &warnings)
 			: fx.Add(*pl, sysRate, &ferr, &vals, je.Boolean("enabled", true));
 		if (!added)
 			warnings << pname.c_str() << ": " << ferr.c_str() << "\n";
+		else if (fixes && !isVst && label == BeFx::kSidechainLabel && !je.String("keyName").empty()){
+			KeyFix kf; kf.chain = chainId; kf.slot = fx.Count() - 1; kf.name = je.String("keyName");
+			fixes->push_back(kf);
+		}
 	}
 }
 
@@ -288,6 +301,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		}
 	}
 	int slot = 0;
+	std::vector<KeyFix> keyFixes;			// ключи сайдчейна, которые надо сверить по названию дорожки
 	for (size_t k = 0; k < tracks->a.size() && k < MIX_MAX_TRACKS; k++){
 		const JValue &jt = tracks->a[k];
 		std::string tname = jt.String("name", "");
@@ -333,7 +347,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 				}
 			}
 		}
-		LoadFx(Mix.Fx(slot), jt.Get("effects"), warnings);
+		LoadFx(Mix.Fx(slot), jt.Get("effects"), warnings, slot, &keyFixes);
 		slot++;
 	}
 
@@ -347,11 +361,27 @@ bool Project_Open(const char *bemixPath, BString &err)
 		}
 	}
 
+	// ключи сайдчейна: если по сохранённому номеру лежит другая дорожка (проект мог сжаться при загрузке), берём дорожку с тем же названием
+	for (size_t q = 0; q < keyFixes.size(); q++){
+		FxChain &kfx = Mix.Fx(keyFixes[q].chain);
+		const FxChain::Slot *ksl = kfx.At(keyFixes[q].slot);
+		if (!ksl) continue;
+		const BeFx::KeyParams kp = BeFx::ReadKey(ksl->values);
+		const MixTrack *cur = kp.lane >= 0 ? Mix.Track(kp.lane) : NULL;
+		if (cur && keyFixes[q].name == cur->name) continue;
+		for (int i = 0; i < MIX_MAX_TRACKS; i++){
+			const MixTrack *t = Mix.Track(i);
+			if (t && keyFixes[q].name == t->name){ kfx.SetValue(keyFixes[q].slot, BeFx::SC_KEY, (float)(i + 1)); break; }
+		}
+	}
+
 	BString name(doc.String("name", "").c_str());
 	if (name.Length() == 0){ BString leaf(desc.Leaf()); leaf.RemoveLast(".bemix"); name = leaf; }
 	gName = name;
 	gFolder = folder.Path();
 	Tracks_FinishProject();
+	Key::Cache::Global().Clear();
+	BeFx::RequestKeys();					// огибающие ключей строятся в фоне
 	if (warnings.Length() > 0) err = warnings;
 	return true;
 }
@@ -499,6 +529,7 @@ bool Project_Mixdown(const char *path, BString &err)
 		// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
 		FxChain local;
 		FxChain &live = Mix.Fx(l.idx);
+		if (!BeFx::BuildKeysFor(live)){ err = "Sidechain: cannot build the key track"; return false; }
 		for (int e = 0; e < live.Count(); e++){
 			const FxChain::Slot *sl = live.At(e);
 			std::string ferr;
@@ -510,6 +541,7 @@ bool Project_Mixdown(const char *path, BString &err)
 		}
 		for (int64 from = 0; from < total; from += 4096){
 			int nfr = (int)((total - from < 4096) ? total - from : 4096);
+			Key::Scope keyScope((double)from / outRate, 1.0 / outRate);		// время блока для сайдчейна BeFX
 			local.Process(&tmp[(size_t)from * 2], nfr, outRate);
 		}
 		// плагины с задержкой (шумодав): сдвигаем результат назад на их задержку

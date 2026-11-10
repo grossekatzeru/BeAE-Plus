@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "Globals.h"
+#include "BeFxSidechain.h"
 #include "LadspaFilter.h"
 #include "LadspaSlider.h"
 #include "main.h"
@@ -254,6 +255,7 @@ const char *AppPluginsDir()
 
 void LadspaRescan()
 {
+	BeFx::RegisterAll();			// встроенные плагины группы BeFX
 	// папка plugins рядом с программой (с подпапками)
 	Ladspa::AddSearchDir(AppPluginsDir());
 	std::vector<std::string> log;
@@ -302,7 +304,7 @@ BMenu *BuildLadspaMenu()
 	// при разовой обработке выделения результат сдвинулся бы
 	std::vector<Ladspa::Plugin> list;
 	for (size_t i = 0; i < LadspaList().size(); ++i)
-		if (LadspaList()[i].latencyPort < 0)
+		if (LadspaList()[i].latencyPort < 0 && LadspaList()[i].label != BeFx::kSidechainLabel)	// сайдчейн работает только в цепочке дорожки
 			list.push_back(LadspaList()[i]);
 
 	if (list.empty()) {

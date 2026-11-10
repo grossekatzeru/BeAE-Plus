@@ -6,7 +6,10 @@
 #ifndef BEFX_SIDECHAIN_H
 #define BEFX_SIDECHAIN_H
 
+#include <map>
 #include "LadspaHost.h"
+
+class FxChain;
 
 namespace BeFx {
 
@@ -29,6 +32,14 @@ enum SidechainPort {
 	SC_IN_L, SC_IN_R, SC_OUT_L, SC_OUT_R,
 	SC_COUNT
 };
+
+
+// Ключи всех плагинов сайдчейна (во всех цепочках дорожек): запустить сборку огибающих в фоне / собрать и дождаться
+void RequestKeys();
+bool BuildKeysFor(FxChain &chain);		// для экспорта: false - ключ не собрался
+// Значения параметров ключа слота (номер дорожки -1, если ключ не выбран)
+struct KeyParams { int lane; int range; float cutoff; };
+KeyParams ReadKey(const std::map<int, float> &values);
 
 // Регистрирует плагин во встроенных (вызвать до Ladspa::Scan). Повторный вызов безвреден.
 void RegisterAll();

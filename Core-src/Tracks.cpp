@@ -12,6 +12,7 @@
 #include "Globals.h"
 #include "History.h"
 #include "Mixer.h"
+#include "KeyCache.h"
 #include "Tracks.h"
 #include "ProjectIO.h"
 #include "AudioRecorder.h"
@@ -35,6 +36,15 @@ static double	gClipSpan = 0;				// длина набора на ленте, се
 
 void Tracks_Init()
 {
+	// ключ сайдчейна строится из клипов дорожки вместе с активным клипом из Pool; кэш огибающих сбрасывается
+	Key::Cache::Global().Clear();
+	Key::Cache::Global().SetLaneSource([](int lane, std::vector<MixClip> &clips, bool &xfade) {
+		const MixTrack *t = Mix.Track(lane);
+		if (!t) return false;
+		clips = Tracks_LaneClips(lane);
+		xfade = t->xfade;
+		return true;
+	});
 	for (int i=Mix.TrackCount(); i<DEFAULT_TRACKS; i++)
 		Mix.AddEmptyTrack(NULL, 2);
 	// имена «Track 1».. «Track N»

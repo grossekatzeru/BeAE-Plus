@@ -1,5 +1,6 @@
 #include "Mixer.h"
 #include "KeyCache.h"
+#include "BeFxSidechain.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -116,6 +117,15 @@ void Mixer::RemoveTrack(int i)
 	while (fCount > 1 && !fTracks[fCount-1].used) fCount--;
 	Unlock();
 	fFx[i].Clear();
+	// плагины сайдчейна, у которых этот слот был ключом: ключ снимаем, иначе его займёт новая дорожка в этом слоте
+	for (int t = 0; t <= MIX_MAX_TRACKS; t++)
+		for (int e = 0; e < fFx[t].Count(); e++) {
+			const FxChain::Slot *sl = fFx[t].At(e);
+			if (sl && sl->plugin.label == BeFx::kSidechainLabel) {
+				Ladspa::Values::const_iterator it = sl->values.find(BeFx::SC_KEY);
+				if (it != sl->values.end() && (int)(it->second + 0.5f) == i + 1) fFx[t].SetValue(e, BeFx::SC_KEY, 0.0f);
+			}
+		}
 	fRevision++;
 }
 

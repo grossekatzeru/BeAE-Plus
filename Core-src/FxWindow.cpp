@@ -15,6 +15,8 @@
 #include "LadspaSlider.h"
 #include "ParamSlider.h"
 #include "Vst2Host.h"
+#include "BeFxSidechain.h"
+#include "BeFxSidechainWindow.h"
 #include "FxWindow.h"
 
 #define FX_ADD_BTN		'fxAb'
@@ -27,6 +29,7 @@
 #define FX_ENABLED		'fxEn'
 #define FX_PARAM		'fxPm'
 #define FX_DEFAULTS		'fxDf'
+#define FX_OPEN_BEFX	'fxBf'
 
 static FxWindow *sOpen[MIX_MAX_TRACKS + 1];		// последняя - мастер-шина
 
@@ -261,6 +264,16 @@ void FxWindow::BuildParamsInner()
 	const float rate = Pool.system_frequency > 0 ? Pool.system_frequency : 44100.0f;
 	float y = 6;
 	const float w = fParams->Bounds().Width() - 12;
+	if (s->kind == FxChain::KIND_LADSPA && s->plugin.label == BeFx::kSidechainLabel){
+		// у плагина группы BeFX своё окно параметров
+		fDefaults->SetEnabled(false);
+		fParams->AddChild(new BStringView(BRect(6, 6, 6 + w, 22), NULL, Language.get("BEFX_OWN_WINDOW")));
+		BButton *open = new BButton(BRect(6, 30, 6 + 230, 56), NULL, Language.get("BEFX_OPEN"), new BMessage(FX_OPEN_BEFX));
+		fParams->AddChild(open);
+		open->SetTarget(this);
+		fParams->ResizeTo(fParams->Bounds().Width(), 70);
+		return;
+	}
 	if (s->kind == FxChain::KIND_VST2){
 		for (int k = 0; k < s->vst->NumParams(); k++){
 			std::string pn = s->vst->ParamName(k);
@@ -330,7 +343,7 @@ void FxWindow::ShowAddMenu()
 		// плагины из подпапок (и встроенные) идут отдельными подменю, остальные - как раньше
 		std::vector<std::string> names;
 		for (size_t i = 0; i < list.size(); i++)
-			if (!list[i].group.empty() && std::find(names.begin(), names.end(), list[i].group) == names.end())
+			if (!list[i].group.empty() && list[i].group != "BeFX" && std::find(names.begin(), names.end(), list[i].group) == names.end())
 				names.push_back(list[i].group);
 		std::sort(names.begin(), names.end());
 		std::vector<const Ladspa::Plugin*> plain;
@@ -369,6 +382,18 @@ void FxWindow::ShowAddMenu()
 			}
 			group->AddItem(it);
 		}
+	}
+	// BeFX: собственные плагины программы (на мастер-шине сайдчейн не работает: у неё нет дорожек-источников)
+	if (fTrack != MIX_MASTER){
+		BMenu *befx = new BMenu("BeFX");
+		for (size_t i = 0; i < list.size(); i++){
+			if (list[i].group != "BeFX") continue;
+			BMessage *m = new BMessage(FX_ADD_PLUGIN);
+			m->AddString("file", list[i].file.c_str());
+			m->AddString("label", list[i].label.c_str());
+			befx->AddItem(new BMenuItem(list[i].name.c_str(), m));
+		}
+		if (befx->CountItems() > 0) menu->AddItem(befx); else delete befx;
 	}
 	menu->AddItem(ladspa);
 
@@ -421,8 +446,12 @@ void FxWindow::MessageReceived(BMessage *msg)
 		}
 		Mix.Touch();
 		RefreshList(fx.Count() - 1);
+		if (p->label == BeFx::kSidechainLabel) BeFxSidechainWindow::Open(fTrack, fx.Count() - 1, this);
 		break;
 	}
+	case FX_OPEN_BEFX:
+		BeFxSidechainWindow::Open(fTrack, fList->CurrentSelection(), this);
+		break;
 	case FX_ADD_VST:
 	{
 		const char *file = NULL;

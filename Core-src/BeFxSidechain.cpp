@@ -1,6 +1,7 @@
 #include "BeFxSidechain.h"
 #include "Ducker.h"
 #include "KeyCache.h"
+#include "Mixer.h"
 #include <math.h>
 
 namespace BeFx {
@@ -128,6 +129,43 @@ const Ladspa::Descriptor *Descriptor()
 }
 
 }	// namespace
+
+KeyParams ReadKey(const std::map<int, float> &values)
+{
+	KeyParams k; k.lane = -1; k.range = Key::RANGE_ALL; k.cutoff = 150.0f;
+	std::map<int, float>::const_iterator it = values.find(SC_KEY);
+	if (it != values.end() && it->second >= 0.5f) k.lane = (int)(it->second + 0.5f) - 1;
+	it = values.find(SC_RANGE);
+	if (it != values.end() && it->second >= 0.5f) k.range = Key::RANGE_LOW;
+	it = values.find(SC_CUTOFF);
+	if (it != values.end()) k.cutoff = Clamp(it->second, 40.0f, 1000.0f);
+	return k;
+}
+
+void RequestKeys()
+{
+	for (int t = 0; t <= MIX_MAX_TRACKS; t++) {
+		FxChain &fx = Mix.Fx(t);
+		for (int e = 0; e < fx.Count(); e++) {
+			const FxChain::Slot *sl = fx.At(e);
+			if (!sl || !sl->enabled || sl->plugin.label != kSidechainLabel) continue;
+			const KeyParams k = ReadKey(sl->values);
+			if (k.lane >= 0) Key::Cache::Global().Request(k.lane, k.range, k.cutoff);
+		}
+	}
+}
+
+bool BuildKeysFor(FxChain &chain)
+{
+	bool ok = true;
+	for (int e = 0; e < chain.Count(); e++) {
+		const FxChain::Slot *sl = chain.At(e);
+		if (!sl || !sl->enabled || sl->plugin.label != kSidechainLabel) continue;
+		const KeyParams k = ReadKey(sl->values);
+		if (k.lane >= 0 && !Key::Cache::Global().BuildNow(k.lane, k.range, k.cutoff)) ok = false;
+	}
+	return ok;
+}
 
 void RegisterAll()
 {
