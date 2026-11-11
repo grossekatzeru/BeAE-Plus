@@ -1450,7 +1450,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		if (gMixdownPanel) gMixdownPanel->GetSelectedFormatInfo(&ff, &ci);
 		BString err;
 		std::vector<float> mix;
-		long long total = 0;
+		int64 total = 0;
 		float rate = 0;
 		if (!Project_MixdownRender(mix, total, rate, err)){
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();

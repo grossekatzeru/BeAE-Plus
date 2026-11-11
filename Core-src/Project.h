@@ -21,7 +21,7 @@ BString	Project_Title(const char *item = NULL);	// заголовок окна: 
 // Свести все дорожки в один WAV (громкость, панорама, mute/solo, смещения учитываются).
 bool	Project_Mixdown(const char *path, BString &err);		// сведение в WAV (float, 2 канала)
 // Сведение в память: чередующиеся стерео-кадры float (total кадров на частоте outRate); дальше файл пишет вызывающий (любой формат Media Kit)
-bool	Project_MixdownRender(std::vector<float> &out, long long &total, float &outRate, BString &err);
+bool	Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate, BString &err);
 bool	Project_MixdownDefault(BPath &out);	// <папка проекта>/<Имя>.wav; false, если проект ещё не на диске
 
 // Моно-сумма всех слышимых дорожек без эффектов (до 3 минут) для анализа; false, если звука нет.
