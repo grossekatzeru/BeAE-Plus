@@ -70,7 +70,6 @@
 #include "Project.h"
 
 #define MSG_MIXDOWN_FILE	'mixF'
-#define PROJECT_NEW			'prjW'
 #define MSG_PROJECT_FOLDER	'prjF'
 #define MSG_PROJECT_NAME	'prjN'
 #define MSG_PROJECT_FILE	'prjP'
