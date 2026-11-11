@@ -200,7 +200,7 @@ static bool CodecNameOk(const char *ext, const char *name)
 		return n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0 || n.IFindFirst("linear") >= 0;
 	if (!strcasecmp(ext, "flac")) return n.IFindFirst("flac") >= 0;
 	if (!strcasecmp(ext, "ogg") || !strcasecmp(ext, "oga") || !strcasecmp(ext, "opus"))
-		return n.IFindFirst("vorbis") >= 0 || n.IFindFirst("opus") >= 0 || n.IFindFirst("flac") >= 0;
+		return n.IFindFirst("vorbis") >= 0 || n.IFindFirst("opus") >= 0;		// Ogg-FLAC не предлагаем: он редкий и путает
 	if (!strcasecmp(ext, "mp3")) return n.IFindFirst("mp3") >= 0 || n.IFindFirst("lame") >= 0 || n.IFindFirst("mpeg") >= 0;
 	if (!strcasecmp(ext, "m4a") || !strcasecmp(ext, "aac")) return n.IFindFirst("aac") >= 0;
 	return true;
