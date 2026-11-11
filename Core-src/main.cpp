@@ -407,6 +407,11 @@ void MyApplication::Save(BMessage *message){
 		if (dir.InitCheck() != B_OK)
 			return;
 
+		if (fSavePanel->CompressedSelected()){				// сжатые форматы пока не реализованы
+			(new BAlert(NULL, Language.get("SAVE_COMPRESSED_SOON"), Language.get("OK")))->Go();
+			return;
+		}
+
 		// расширение по выбранному формату: без него файл не опознают другие программы
 		BString fullName(name);
 		{
@@ -442,7 +447,7 @@ void MyApplication::Save(BMessage *message){
 
 		fSavePanel->GetSelectedFormatInfo(&fileFormat, &audioCodec);
 
-		if (audioCodec != NULL){
+		if (fileFormat != NULL){						// несжатый: WAV, кодек Raw audio (или без кодека)
 
 //			format = Pool.m_format;
 			memcpy(&format, &Pool.m_format, sizeof(format));
@@ -458,7 +463,7 @@ void MyApplication::Save(BMessage *message){
 				return;
 			}
 			
-			BMediaTrack *outTrack = file.CreateTrack(&format, audioCodec);
+			BMediaTrack *outTrack = audioCodec ? file.CreateTrack(&format, audioCodec) : file.CreateTrack(&format);
 
 			if (outTrack){
 				file.CommitHeader();

@@ -35,6 +35,7 @@
 
 #define PANEL_FORMAT 	 'sfpf'
 #define PANEL_CODEC		 'sfps'
+#define PANEL_OPTIONS	 'sfpo'
 #define SAVE_AUDIO		'sveA'
 
 // ------------------- FileFormatMenuItem -------------------
@@ -66,15 +67,22 @@ class SavePanel : public BFilePanel, public BHandler {
 	SavePanel(BHandler *handler, uint32 saveMessage = SAVE_AUDIO);		// saveMessage - что отправить после выбора файла
 	void MessageReceived(BMessage *message);
 	~SavePanel();
+	// несжатый: WAV (кодек Raw audio или NULL); сжатый: format == NULL (пока не реализован)
 	void GetSelectedFormatInfo(media_file_format **format, media_codec_info **audio);
+	bool CompressedSelected() const;
 	void SetFormatInfo(media_file_format *format, media_codec_info *audio);
 
   private:
+	void FindWavFormat();
 	void BuildFormatMenu();
-	void BuildAudioMenu();
+	void UpdateControls();
 
 	BMenuField	*fFormatMenu;
 	BMenuField	*fAudioMenu;
+	BButton		*fOptions;
+	media_file_format fWavFormat;
+	media_codec_info  fRawCodec;
+	bool		fHaveWav, fHaveRaw, fCompressed;
 };
 
 #endif

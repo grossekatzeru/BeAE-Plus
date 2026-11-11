@@ -70,81 +70,99 @@ FileFormatMenuItem::~FileFormatMenuItem()
 
 
 /*******************************************************
+*   Панель «Сохранить как...» / «Миксдаун как...»
 *
+*   Внизу три строки:
+*     1. имя файла на всю ширину;
+*     2. «Формат» (Несжатый PCM / Сжатый) и кнопка «Сохранить»;
+*     3. «Кодек» (активен для сжатого формата), кнопка «Опции...» и «Отменить».
+*   Несжатый - это WAV (AIFF в TODO). Сжатые форматы пока пустые: сначала смотрим внешний вид.
 *******************************************************/
 SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
-	: BFilePanel(B_SAVE_PANEL, new BMessenger(handler), NULL, B_FILE_NODE, false, new BMessage(saveMessage), NULL, true, true)
+	: BFilePanel(B_SAVE_PANEL, new BMessenger(handler), NULL, B_FILE_NODE, false, new BMessage(saveMessage), NULL, true, true),
+	fFormatMenu(NULL), fAudioMenu(NULL), fOptions(NULL), fHaveWav(false), fHaveRaw(false), fCompressed(false)
 {
+	FindWavFormat();
+
 	if (Window()->Lock()) {
 		float minw, maxw, minh, maxh;
 		Window()->GetSizeLimits(&minw, &maxw, &minh, &maxh);
-		minw = 350;
+		minw = 420;
+		minh = 300;
 		Window()->SetSizeLimits(minw, maxw, minh, maxh);
-		Window()->ResizeTo(MAX(Window()->Frame().Width(), minw), Window()->Frame().Height());
-
+		Window()->ResizeTo(MAX(Window()->Frame().Width(), minw), MAX(Window()->Frame().Height() + 40, minh));
 		Window()->SetTitle(Language.get("PANEL_SAVE"));
 
-		// Find all the views that are in the way and move up them up 10 pixels
-		BView *background = Window()->ChildAt(0);
-		BView *poseview = background->FindView("PoseView");
-		if (poseview) poseview->ResizeBy(0, -40);
-		BButton *insert = (BButton *)background->FindView("default button");
-		if (insert) insert->MoveBy(0, -35);
-		BButton *cancel = (BButton *)background->FindView("cancel button");
-		if (cancel){
-			cancel->ResizeTo( insert->Frame().Width(), insert->Frame().Height()-5);
-			cancel->MoveTo( insert->Frame().left, insert->Frame().bottom+7);
-		}
-		BScrollBar *hscrollbar = (BScrollBar *)background->FindView("HScrollBar");
-		if (hscrollbar) hscrollbar->MoveBy(0, -40);
-		BScrollBar *vscrollbar = (BScrollBar *)background->FindView("VScrollBar");
-		if (vscrollbar) vscrollbar->ResizeBy(0, -40);
-		BView *countvw = (BView *)background->FindView("CountVw");
-		if (countvw) countvw->MoveBy(0, -40);
-		BView *textview = (BView *)background->FindView("text view");
-		if (textview){
-			textview->ResizeBy(50, 0);
-			textview->MoveBy(0, -40);
-		}
-		
 		// Add the new BHandler to the window's looper
 		Window()->AddHandler(this);
-		
-		if (!cancel || !textview || !hscrollbar) {
-			//printf("Couldn't find necessary controls.\n");
+
+		BView *background = Window()->ChildAt(0);
+		BView *poseview = background->FindView("PoseView");
+		BButton *insert = (BButton *)background->FindView("default button");
+		BButton *cancel = (BButton *)background->FindView("cancel button");
+		BScrollBar *hscrollbar = (BScrollBar *)background->FindView("HScrollBar");
+		BScrollBar *vscrollbar = (BScrollBar *)background->FindView("VScrollBar");
+		BView *countvw = background->FindView("CountVw");
+		BView *textview = background->FindView("text view");
+		if (!poseview || !insert || !cancel || !hscrollbar || !vscrollbar || !countvw || !textview) {
+			Window()->Unlock();
 			return;
 		}
 
-		// Position the menu field relative to the other GUI elements, and make it the
-		// same length as the textview
-		BRect rect = textview->Frame();
-//		rect.top = hscrollbar->Frame().bottom + 5;
-//		rect.bottom = rect.top + 10;
-//		rect.right = (rect.right+rect.left)/2;
-		rect.OffsetBy(0,26);
+		const float margin = 12, gap = 6;
+		const BRect B = background->Bounds();
+		const float bh = insert->Frame().Height();			// высота строки - по кнопкам, поля не наплывают друг на друга
+		const float bw = insert->Frame().Width();
+		const float row3 = B.bottom - margin - bh + 1;
+		const float row2 = row3 - gap - bh;
+		const float row1 = row2 - gap - bh;
 
+		// кнопки: «Сохранить» во второй строке, «Отменить» в третьей, обе у правого края
+		insert->ResizeTo(bw, bh);
+		insert->MoveTo(B.right - margin - bw, row2);
+		insert->SetResizingMode(B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
+		cancel->ResizeTo(bw, bh);
+		cancel->MoveTo(B.right - margin - bw, row3);
+		cancel->SetResizingMode(B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
+
+		// первая строка: имя файла до правого края
+		textview->MoveTo(margin, row1);
+		textview->ResizeTo(B.Width() - 2 * margin, textview->Frame().Height());
+		textview->SetResizingMode(B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM);
+
+		// список файлов заканчивается над первой строкой
+		const float delta = (row1 - gap) - countvw->Frame().bottom;
+		poseview->ResizeBy(0, delta);
+		hscrollbar->MoveBy(0, delta);
+		vscrollbar->ResizeBy(0, delta);
+		countvw->MoveBy(0, delta);
+
+		// подписи одной ширины, чтобы поля начинались ровно
+		const float label = MAX(be_plain_font->StringWidth(Language.get("FORMAT")), be_plain_font->StringWidth(Language.get("CODEC"))) + 10;
+
+		// вторая строка: формат - до кнопки «Сохранить»
 		BPopUpMenu *popmenu = new BPopUpMenu(Language.get("FORMAT"));
-		fFormatMenu = new BMenuField(rect, NULL, Language.get("FORMAT"), popmenu , B_FOLLOW_LEFT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
+		fFormatMenu = new BMenuField(BRect(margin, row2, insert->Frame().left - gap, row2 + bh - 1), NULL, Language.get("FORMAT"), popmenu, true,
+			B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
+		fFormatMenu->SetDivider(label);
 		background->AddChild(fFormatMenu);
-	
-		rect.OffsetBy(0,24);
+
+		// третья строка: кнопка «Опции...» рядом с «Отменить», кодек - до «Опции...»
+		const float ow = MAX(be_plain_font->StringWidth(Language.get("SAVE_OPTIONS")) + 30, 80.0f);
+		fOptions = new BButton(BRect(cancel->Frame().left - gap - ow, row3, cancel->Frame().left - gap, row3 + bh - 1), NULL,
+			Language.get("SAVE_OPTIONS"), new BMessage(PANEL_OPTIONS), B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
+		fOptions->SetTarget(this);
+		background->AddChild(fOptions);
 
 		popmenu = new BPopUpMenu(Language.get("CODEC"));
-		fAudioMenu = new BMenuField(rect, NULL, Language.get("CODEC"), popmenu,B_FOLLOW_LEFT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
+		fAudioMenu = new BMenuField(BRect(margin, row3, fOptions->Frame().left - gap, row3 + bh - 1), NULL, Language.get("CODEC"), popmenu, true,
+			B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
+		fAudioMenu->SetDivider(label);
 		background->AddChild(fAudioMenu);
 
-		fFormatMenu->SetDivider(50);
-		fAudioMenu->SetDivider(50);
-		
-		// Make sure the smallest window won't draw the "Settings" button over anything else
-//		float min_window_width = Window()->Bounds().right - 10 + textview->Frame().right;
-//		Window()->SetSizeLimits(min_window_width, 10000, 250, 10000);
-//		if (Window()->Bounds().IntegerWidth() + 1 < min_window_width)
-//			Window()->ResizeTo(min_window_width, 300);
-	
 		BuildFormatMenu();
-		BuildAudioMenu();
-		
+		UpdateControls();
+
 		Window()->Unlock();
 	}
 }
@@ -157,21 +175,16 @@ void SavePanel::MessageReceived(BMessage *message) {
 	case PANEL_FORMAT:
 	{
 		BMenuItem *f = fFormatMenu->Menu()->FindMarked();
-		if (f) sLastFormat.SetTo(f->Label());
-		BuildAudioMenu();
+		fCompressed = f && fFormatMenu->Menu()->IndexOf(f) == 1;
+		UpdateControls();
 		break;
 	}
 
 	case PANEL_CODEC:
-	{
-		BMenuItem *f = fFormatMenu->Menu()->FindMarked();
-		BMenuItem *c = fAudioMenu->Menu()->FindMarked();
-		if (f && c){
-			sLastCodec.SetTo(c->Label());
-			sLastCodecFormat.SetTo(f->Label());
-		}
 		break;
-	}
+
+	case PANEL_OPTIONS:				// настройки выбранного кодека: пока заготовка
+		break;
 
 	default:
 		BHandler::MessageReceived(message);
@@ -179,199 +192,91 @@ void SavePanel::MessageReceived(BMessage *message) {
 	}
 }
 
-// Белый список: только звуковые форматы. Систему спрашиваем обо всех установленных писателях (ffmpeg добавляет
-// десятки видеоконтейнеров: 3GPP, MP4, MKV...), но для звука годятся немногие, и пары «формат + кодек» из них
-// часто дают файл, который не открывается. Нет кодировщика в системе - формата в списке не будет.
-static bool AudioFormatOk(const media_file_format &f)
+/*******************************************************
+*   Формат WAV и несжатый кодек («Raw audio») ищутся у системы
+*******************************************************/
+void SavePanel::FindWavFormat()
 {
-	if (!(f.capabilities & (media_file_format::B_KNOWS_RAW_AUDIO | media_file_format::B_KNOWS_ENCODED_AUDIO))) return false;
-	static const char *kExt[] = { "wav", "aiff", "aif", "flac", "ogg", "oga", "opus", "mp3", "m4a", "aac", NULL };
-	for (int i = 0; kExt[i]; i++)
-		if (strcasecmp(f.file_extension, kExt[i]) == 0) return true;
-	return false;
-}
+	media_file_format mfi;
+	int32 cookie = 0;
+	fHaveWav = false;
+	fHaveRaw = false;
+	while (get_next_file_format(&cookie, &mfi) == B_OK) {
+		if (mfi.family == B_WAV_FORMAT_FAMILY || strcasecmp(mfi.file_extension, "wav") == 0) {
+			fWavFormat = mfi;
+			fHaveWav = true;
+			break;
+		}
+	}
+	if (!fHaveWav) return;
 
-// Кодеки внутри формата: несжатый звук для WAV/AIFF, FLAC для flac, Vorbis/Opus для ogg, MP3 и AAC для своих.
-// Если ни один не подошёл по названию (другая локаль плагина), показываются все, чтобы формат не остался пустым.
-static bool CodecNameOk(const char *ext, const char *name)
-{
-	BString n(name);
-	if (!strcasecmp(ext, "wav") || !strcasecmp(ext, "aiff") || !strcasecmp(ext, "aif"))
-		return n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0 || n.IFindFirst("linear") >= 0;
-	if (!strcasecmp(ext, "flac")) return n.IFindFirst("flac") >= 0;
-	if (!strcasecmp(ext, "ogg") || !strcasecmp(ext, "oga") || !strcasecmp(ext, "opus"))
-		return n.IFindFirst("vorbis") >= 0 || n.IFindFirst("opus") >= 0;		// Ogg-FLAC не предлагаем: он редкий и путает
-	if (!strcasecmp(ext, "mp3")) return n.IFindFirst("mp3") >= 0 || n.IFindFirst("lame") >= 0 || n.IFindFirst("mpeg") >= 0;
-	if (!strcasecmp(ext, "m4a") || !strcasecmp(ext, "aac")) return n.IFindFirst("aac") >= 0;
-	return true;
-}
-
-// есть ли в системе кодировщик, подходящий формату (иначе, например, у «MPEG Layer 3» без кодировщика MP3
-// оказывались FLAC, AAC и AC-3 - выбирать там нечего, и формат из списка убирается)
-static bool HasGoodEncoder(media_file_format &f)
-{
 	media_format format, outfmt;
 	memset(&format, 0, sizeof(format));
 	memset(&outfmt, 0, sizeof(outfmt));
 	media_codec_info info;
-	int32 cookie = 0;
+	cookie = 0;
 	format.type = B_MEDIA_RAW_AUDIO;
 	format.u.raw_audio = media_raw_audio_format::wildcard;
-	while (get_next_encoder(&cookie, &f, &format, &outfmt, &info) == B_OK) {
-		if (CodecNameOk(f.file_extension, info.pretty_name)) return true;
+	while (get_next_encoder(&cookie, &fWavFormat, &format, &outfmt, &info) == B_OK) {
+		BString n(info.pretty_name);
+		if (n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0) {
+			fRawCodec = info;
+			fHaveRaw = true;
+			break;
+		}
 		format.type = B_MEDIA_RAW_AUDIO;
 		format.u.raw_audio = media_raw_audio_format::wildcard;
 	}
-	return false;
 }
 
-static bool sFormatFallback = false;		// белый список ничего не дал: показаны все форматы и все кодеки
-
 /*******************************************************
-*
+*   Два пункта: несжатый (WAV) и сжатый
 *******************************************************/
 void SavePanel::BuildFormatMenu() {
 	BMenu *menu = fFormatMenu->Menu();
 	BMenuItem *item;
-	// clear out old format menu items
-	while ((item = menu->RemoveItem((int32)0)) != NULL) {
-		delete item;
-	}
+	while ((item = menu->RemoveItem((int32)0)) != NULL) delete item;
 
-	// add menu items for each file format
-	media_file_format mfi;
-	int32 cookie = 0;
-	FileFormatMenuItem *ff_item;
-	sFormatFallback = false;
-	for (int pass = 0; pass < 2 && menu->CountItems() == 0; pass++) {	// если белый список ничего не нашёл - показываем всё
-		if (pass == 1) sFormatFallback = true;
-		cookie = 0;
-		while (get_next_file_format(&cookie, &mfi) == B_OK) {
-			if (pass == 0 && (!AudioFormatOk(mfi) || !HasGoodEncoder(mfi))) continue;
-			ff_item = new FileFormatMenuItem(&mfi);
-			menu->AddItem(ff_item);
-			ff_item->SetTarget(this);
-		}
-	}
-	
-	// отмечаем: прошлый выбор, иначе WAV, иначе первый (раньше всегда первый, например «3GPP video»,
-	// и файл получался в контейнере, который другие программы не открывают)
-	item = NULL;
-	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
-		FileFormatMenuItem *f = dynamic_cast<FileFormatMenuItem *>(menu->ItemAt(i));
-		if (f && sLastFormat.Length() > 0 && sLastFormat == f->Label()) item = f;
-	}
-	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
-		FileFormatMenuItem *f = dynamic_cast<FileFormatMenuItem *>(menu->ItemAt(i));
-		if (f && f->fFileFormat.family == B_WAV_FORMAT_FAMILY) item = f;
-	}
-	if (item == NULL) item = menu->ItemAt(0);
-	if (item != NULL) {
-		item->SetMarked(true);
-		((BInvoker *)item)->Invoke();
-	}
+	item = new BMenuItem(Language.get("SAVE_FORMAT_PCM"), new BMessage(PANEL_FORMAT));
+	item->SetTarget(this);
+	menu->AddItem(item);
+	item->SetMarked(true);
+	item = new BMenuItem(Language.get("SAVE_FORMAT_COMPRESSED"), new BMessage(PANEL_FORMAT));
+	item->SetTarget(this);
+	menu->AddItem(item);
+	fCompressed = false;
 }
 
-/*******************************************************
-*
-*******************************************************/
-void SavePanel::BuildAudioMenu()
+// кодек и «Опции...» работают только для сжатого формата; список кодеков пока пуст
+void SavePanel::UpdateControls()
 {
 	BMenu *menu = fAudioMenu->Menu();
-	BMenuItem *item = NULL;
-	// clear out old audio codec menu items
-	while ((item = menu->RemoveItem((int32)0)) != NULL) {
-		delete item;
-	}
-
-	// get selected file format
-	FileFormatMenuItem *ffmi = dynamic_cast<FileFormatMenuItem *>(fFormatMenu->Menu()->FindMarked());
-	if (ffmi == NULL) return;
-	media_file_format *mf_format = &(ffmi->fFileFormat);
-
-	media_format format, outfmt;
-	memset(&format, 0, sizeof(format));
-	memset(&outfmt, 0, sizeof(outfmt));
-	media_codec_info codec_info;
-	int32 cookie = 0;
-	CodecMenuItem *cmi;
-
-	// add available audio encoders to menu
-	format.type = B_MEDIA_RAW_AUDIO;
-	format.u.raw_audio = media_raw_audio_format::wildcard;	
-	std::vector<media_codec_info> all;
-	while (get_next_encoder(&cookie, mf_format, &format, &outfmt, &codec_info) == B_OK) {
-		all.push_back(codec_info);
-		// reset media format struct
-		format.type = B_MEDIA_RAW_AUDIO;
-		format.u.raw_audio = media_raw_audio_format::wildcard;
-	}
-	int shown = 0;
-	for (int pass = 0; pass < 2 && shown == 0; pass++) {		// первый проход - по белому списку, второй - все (только в аварийном режиме)
-		if (pass == 1 && !sFormatFallback) break;
-		for (size_t k = 0; k < all.size(); k++) {
-			if (pass == 0 && !CodecNameOk(mf_format->file_extension, all[k].pretty_name)) continue;
-			cmi = new CodecMenuItem(&all[k], PANEL_CODEC);
-			menu->AddItem(cmi);
-			cmi->SetTarget(this);
-			shown++;
-		}
-	}
-
-	// кодек: прошлый для этого формата, иначе несжатый (Raw/PCM), иначе первый
-	item = NULL;
-	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
-		if (sLastCodec.Length() > 0 && sLastCodecFormat == ffmi->Label() && sLastCodec == menu->ItemAt(i)->Label())
-			item = menu->ItemAt(i);
-	}
-	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
-		BString n(menu->ItemAt(i)->Label());
-		if (n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0) item = menu->ItemAt(i);
-	}
-	if (item == NULL) item = menu->ItemAt(0);
-	if (item != NULL) {
-		fAudioMenu->SetEnabled(true);
-		item->SetMarked(true);
-		((BInvoker *)item)->Invoke();
-	} else {
-		item = new BMenuItem("None available", NULL);
-		menu->AddItem(item);
-		item->SetMarked(true);
-		fAudioMenu->SetEnabled(false);
-	}
+	BMenuItem *item;
+	while ((item = menu->RemoveItem((int32)0)) != NULL) delete item;
+	fAudioMenu->SetEnabled(fCompressed);
+	fOptions->SetEnabled(fCompressed);
 }
 
 /*******************************************************
-*
+*   Несжатый: WAV и кодек Raw audio; сжатый: пока ничего (format == NULL)
 *******************************************************/
 void SavePanel::GetSelectedFormatInfo(media_file_format **format, media_codec_info **audio)
 {
 	*format = NULL;
-	FileFormatMenuItem *formatItem =
-		dynamic_cast<FileFormatMenuItem *>(fFormatMenu->Menu()->FindMarked());
-	if (formatItem != NULL) {
-		*format = &(formatItem->fFileFormat);
-	}
-	
 	*audio = NULL;
-	CodecMenuItem *codecItem =
-		dynamic_cast<CodecMenuItem *>(fAudioMenu->Menu()->FindMarked());
-	if (codecItem != NULL) {
-		*audio =  &(codecItem->fCodecInfo);
-	}
+	if (fCompressed || !fHaveWav) return;
+	*format = &fWavFormat;
+	if (fHaveRaw) *audio = &fRawCodec;			// если «Raw audio» нет, пишется вызовом без кодека
 }
-/*******************************************************
-*
-*******************************************************/
+
+bool SavePanel::CompressedSelected() const
+{
+	return fCompressed;
+}
+
 void SavePanel::SetFormatInfo(media_file_format *format, media_codec_info *audio)
 {
-
-
 }
 
-/*******************************************************
-*
-*******************************************************/
 SavePanel::~SavePanel() {
-	
 }

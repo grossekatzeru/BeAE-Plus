@@ -25,7 +25,7 @@ static inline double Clip1(float v)
 	return v > 1.0f ? 1.0 : (v < -1.0f ? -1.0 : (double)v);	// перегруз не должен заворачиваться через край целого
 }
 
-bool MediaWriteFloat(const entry_ref &dirRef, const char *name, const media_file_format &ff, const media_codec_info &ci,
+bool MediaWriteFloat(const entry_ref &dirRef, const char *name, const media_file_format &ff, const media_codec_info *ci,
 	const float *frames, long long count, int channels, float rate, BString &err)
 {
 	BDirectory dir(&dirRef);
@@ -50,12 +50,13 @@ bool MediaWriteFloat(const entry_ref &dirRef, const char *name, const media_file
 		raf->buffer_size = 0;
 
 		media_file_format fileFormat = ff;
-		media_codec_info codec = ci;
+		media_codec_info codec;
+		if (ci) codec = *ci;
 		BMediaFile file(&ref, &fileFormat, B_MEDIA_FILE_REPLACE_MODE);
 		if (file.InitCheck() != B_OK) {
 			err = "The file format cannot be written";
 		} else {
-			BMediaTrack *track = file.CreateTrack(&format, &codec);
+			BMediaTrack *track = ci ? file.CreateTrack(&format, &codec) : file.CreateTrack(&format);
 			if (track == NULL) {
 				err = "The codec does not accept this audio";
 			} else if (file.CommitHeader() != B_OK) {

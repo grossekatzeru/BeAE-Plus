@@ -1445,9 +1445,10 @@ void MainWindow::MessageReceived(BMessage *message)
 		entry_ref dir;
 		const char *name = NULL;
 		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
-		media_file_format *ff = NULL;
-		media_codec_info *ci = NULL;
-		if (gMixdownPanel) gMixdownPanel->GetSelectedFormatInfo(&ff, &ci);
+		if (gMixdownPanel && gMixdownPanel->CompressedSelected()){		// сжатые форматы пока не реализованы
+			(new BAlert(NULL, Language.get("SAVE_COMPRESSED_SOON"), Language.get("OK")))->Go();
+			break;
+		}
 		BString err;
 		std::vector<float> mix;
 		int64 total = 0;
@@ -1456,17 +1457,13 @@ void MainWindow::MessageReceived(BMessage *message)
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
 			break;
 		}
-		if (ff == NULL || ci == NULL){							// формат не выбран: простой WAV, как раньше
-			BString fn(name);
-			if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
-			BPath p(&dir);
-			p.Append(fn.String());
-			if (!WavWriteFloat(p.Path(), &mix[0], total, 2, rate))
-				(new BAlert(NULL, Language.get("CANT_OVERWRITE_FILE"), Language.get("OK")))->Go();
-			break;
-		}
-		if (!MediaWriteFloat(dir, name, *ff, *ci, &mix[0], total, 2, rate, err))
-			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+		// несжатый: WAV float (32 бита), как раньше; сжатые форматы - через MediaWriteFloat, когда будут готовы
+		BString fn(name);
+		if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
+		BPath p(&dir);
+		p.Append(fn.String());
+		if (!WavWriteFloat(p.Path(), &mix[0], total, 2, rate))
+			(new BAlert(NULL, Language.get("CANT_OVERWRITE_FILE"), Language.get("OK")))->Go();
 		break;
 	}
 
