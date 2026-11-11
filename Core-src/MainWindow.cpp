@@ -816,10 +816,10 @@ void MainWindow::UpdateRecent()
 	while(recent_menu->ItemAt(0))
 		recent_menu->RemoveItem(recent_menu->ItemAt(0));
 
-	be_roster->GetRecentDocuments(&msg,10,"audio");
+	be_roster->GetRecentDocuments(&msg,10,NULL,"application/x-vnd.BeAE-BeAE");	// только файлы, открытые в BeAE
 	while(msg.FindRef("refs",i,&eref) == B_OK){
 		e.SetTo(&eref);
-		if(e.InitCheck() == B_OK){
+		if(e.InitCheck() == B_OK && e.Exists()){
 			e.GetName(name);
 			msgout = new BMessage(B_REFS_RECEIVED);//DO_OPEN);
 			msgout->AddRef("refs",&eref);

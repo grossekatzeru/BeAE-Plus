@@ -154,6 +154,7 @@ void MyApplication::RefsReceived(BMessage *message)
 		if (inFile.InitCheck() == B_OK){
 
 			mainWindow->SetTitle(Project_Title(ref.name).String());
+			be_roster->AddToRecentDocuments(&ref, "application/x-vnd.BeAE-BeAE");	// список «Открыть» - только наши файлы
 
 			Pool.sample_view_dirty = true;	// update the sample-view
 			Pool.update_index = true;
