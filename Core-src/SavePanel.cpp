@@ -119,8 +119,10 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 		const BRect B = background->Bounds();
 		const float bh = insert->Bounds().Height();			// высота системной кнопки
 		const float bw = insert->Bounds().Width();
+		const float ch = cancel->Bounds().Height();			// у «Отменить» своя высота (у «Сохранить» ещё рамка кнопки по умолчанию)
+		const float cw = cancel->Bounds().Width();
 		const float fh = textview->Bounds().Height();		// высота полей: как была (хорошо подобрана)
-		const float rh = MAX(bh, fh);						// высота строки
+		const float rh = MAX(MAX(bh, ch), fh);						// высота строки
 		const float row3 = B.bottom - margin - rh;
 		const float row2 = row3 - gap - rh;
 		const float row1 = row2 - gap - rh;
@@ -128,7 +130,7 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 		// кнопки у правого края: «Сохранить» во второй строке, «Отменить» в третьей
 		insert->MoveBy(B.right - margin - bw - Pos::In(background, insert).x, row2 + (rh - bh) / 2 - Pos::In(background, insert).y);
 		insert->SetResizingMode(B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
-		cancel->MoveBy(B.right - margin - bw - Pos::In(background, cancel).x, row3 + (rh - bh) / 2 - Pos::In(background, cancel).y);
+		cancel->MoveBy(B.right - margin - cw - Pos::In(background, cancel).x, row3 + (rh - ch) / 2 - Pos::In(background, cancel).y);
 		cancel->SetResizingMode(B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
 
 		// первая строка: имя файла до правого края
@@ -152,24 +154,25 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 
 		// подписи одной ширины, чтобы поля начинались ровно
 		const float label = MAX(be_plain_font->StringWidth(Language.get("FORMAT")), be_plain_font->StringWidth(Language.get("CODEC"))) + 10;
-		const float insertLeft = B.right - margin - bw;
+		const BPoint cancelPos = Pos::In(background, cancel);		// после перемещения
+		const float cancelLeft = cancelPos.x;
 
 		// вторая строка: формат - до кнопки «Сохранить»
 		BPopUpMenu *popmenu = new BPopUpMenu(Language.get("FORMAT"));
-		fFormatMenu = new BMenuField(BRect(margin, row2 + (rh - fh) / 2, insertLeft - gap, row2 + (rh - fh) / 2 + fh), NULL,
+		fFormatMenu = new BMenuField(BRect(margin, row2 + (rh - fh) / 2, Pos::In(background, insert).x - gap, row2 + (rh - fh) / 2 + fh), NULL,
 			Language.get("FORMAT"), popmenu, true, B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
 		fFormatMenu->SetDivider(label);
 		background->AddChild(fFormatMenu);
 
 		// третья строка: кнопка «Опции...» рядом с «Отменить», кодек - до «Опции...»
-		const float ow = MAX(be_plain_font->StringWidth(Language.get("SAVE_OPTIONS")) + 30, bw);
-		fOptions = new BButton(BRect(insertLeft - gap - ow, row3 + (rh - bh) / 2, insertLeft - gap, row3 + (rh - bh) / 2 + bh), NULL,
+		const float ow = MAX(be_plain_font->StringWidth(Language.get("SAVE_OPTIONS")) + 30, cw);
+		fOptions = new BButton(BRect(cancelLeft - gap - ow, cancelPos.y, cancelLeft - gap, cancelPos.y + ch), NULL,
 			Language.get("SAVE_OPTIONS"), new BMessage(PANEL_OPTIONS), B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
 		fOptions->SetTarget(this);
 		background->AddChild(fOptions);
 
 		popmenu = new BPopUpMenu(Language.get("CODEC"));
-		fAudioMenu = new BMenuField(BRect(margin, row3 + (rh - fh) / 2, insertLeft - gap - ow - gap, row3 + (rh - fh) / 2 + fh), NULL,
+		fAudioMenu = new BMenuField(BRect(margin, row3 + (rh - fh) / 2, cancelLeft - gap - ow - gap, row3 + (rh - fh) / 2 + fh), NULL,
 			Language.get("CODEC"), popmenu, true, B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM, B_WILL_DRAW | B_NAVIGABLE);
 		fAudioMenu->SetDivider(label);
 		background->AddChild(fAudioMenu);
