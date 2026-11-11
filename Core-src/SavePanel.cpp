@@ -206,6 +206,27 @@ static bool CodecNameOk(const char *ext, const char *name)
 	return true;
 }
 
+// есть ли в системе кодировщик, подходящий формату (иначе, например, у «MPEG Layer 3» без кодировщика MP3
+// оказывались FLAC, AAC и AC-3 - выбирать там нечего, и формат из списка убирается)
+static bool HasGoodEncoder(media_file_format &f)
+{
+	media_format format, outfmt;
+	memset(&format, 0, sizeof(format));
+	memset(&outfmt, 0, sizeof(outfmt));
+	media_codec_info info;
+	int32 cookie = 0;
+	format.type = B_MEDIA_RAW_AUDIO;
+	format.u.raw_audio = media_raw_audio_format::wildcard;
+	while (get_next_encoder(&cookie, &f, &format, &outfmt, &info) == B_OK) {
+		if (CodecNameOk(f.file_extension, info.pretty_name)) return true;
+		format.type = B_MEDIA_RAW_AUDIO;
+		format.u.raw_audio = media_raw_audio_format::wildcard;
+	}
+	return false;
+}
+
+static bool sFormatFallback = false;		// белый список ничего не дал: показаны все форматы и все кодеки
+
 /*******************************************************
 *
 *******************************************************/
@@ -221,10 +242,12 @@ void SavePanel::BuildFormatMenu() {
 	media_file_format mfi;
 	int32 cookie = 0;
 	FileFormatMenuItem *ff_item;
+	sFormatFallback = false;
 	for (int pass = 0; pass < 2 && menu->CountItems() == 0; pass++) {	// если белый список ничего не нашёл - показываем всё
+		if (pass == 1) sFormatFallback = true;
 		cookie = 0;
 		while (get_next_file_format(&cookie, &mfi) == B_OK) {
-			if (pass == 0 && !AudioFormatOk(mfi)) continue;
+			if (pass == 0 && (!AudioFormatOk(mfi) || !HasGoodEncoder(mfi))) continue;
 			ff_item = new FileFormatMenuItem(&mfi);
 			menu->AddItem(ff_item);
 			ff_item->SetTarget(this);
@@ -284,7 +307,8 @@ void SavePanel::BuildAudioMenu()
 		format.u.raw_audio = media_raw_audio_format::wildcard;
 	}
 	int shown = 0;
-	for (int pass = 0; pass < 2 && shown == 0; pass++) {		// первый проход - по белому списку, второй - все
+	for (int pass = 0; pass < 2 && shown == 0; pass++) {		// первый проход - по белому списку, второй - все (только в аварийном режиме)
+		if (pass == 1 && !sFormatFallback) break;
 		for (size_t k = 0; k < all.size(); k++) {
 			if (pass == 0 && !CodecNameOk(mf_format->file_extension, all[k].pretty_name)) continue;
 			cmi = new CodecMenuItem(&all[k], PANEL_CODEC);
