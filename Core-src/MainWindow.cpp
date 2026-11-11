@@ -749,7 +749,7 @@ void MainWindow::AddMenu()
 	sub->AddItem(fGroupItem = new BMenuItem(Language.get("CLIP_GROUP"), new BMessage(CLIP_GROUP), KeyBind.GetKey("CLIP_GROUP"), KeyBind.GetMod("CLIP_GROUP")));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
 	sub->AddSeparatorItem();
-	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
+	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE), KeyBind.GetKey("CLIP_SAVE"), KeyBind.GetMod("CLIP_SAVE")));
 	menu->AddItem(sub);
 	
 	menu->AddSeparatorItem();
@@ -1445,8 +1445,10 @@ void MainWindow::MessageReceived(BMessage *message)
 		entry_ref dir;
 		const char *name = NULL;
 		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
+		BString fn(name);										// расширение .wav добавляется само
+		if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
 		BPath p(&dir);
-		p.Append(name);
+		p.Append(fn.String());
 		BString err;
 		if (!Project_Mixdown(p.Path(), err))
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();

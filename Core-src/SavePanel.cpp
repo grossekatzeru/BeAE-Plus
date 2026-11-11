@@ -36,6 +36,9 @@
 #include "Globals.h"
 #include "SavePanel.h"
 
+// выбор формата и кодека запоминается до конца работы; по умолчанию WAV и несжатый звук
+static BString sLastFormat, sLastCodec, sLastCodecFormat;
+
 /*******************************************************
 *
 *******************************************************/
@@ -150,11 +153,23 @@ SavePanel::SavePanel(BHandler *handler)
 void SavePanel::MessageReceived(BMessage *message) {
 	switch (message->what){
 	case PANEL_FORMAT:
+	{
+		BMenuItem *f = fFormatMenu->Menu()->FindMarked();
+		if (f) sLastFormat.SetTo(f->Label());
 		BuildAudioMenu();
 		break;
+	}
 
 	case PANEL_CODEC:
+	{
+		BMenuItem *f = fFormatMenu->Menu()->FindMarked();
+		BMenuItem *c = fAudioMenu->Menu()->FindMarked();
+		if (f && c){
+			sLastCodec.SetTo(c->Label());
+			sLastCodecFormat.SetTo(f->Label());
+		}
 		break;
+	}
 
 	default:
 		BHandler::MessageReceived(message);
@@ -183,8 +198,18 @@ void SavePanel::BuildFormatMenu() {
 		ff_item->SetTarget(this);
 	}
 	
-	// mark first item
-	item = menu->ItemAt(0);
+	// отмечаем: прошлый выбор, иначе WAV, иначе первый (раньше всегда первый, например «3GPP video»,
+	// и файл получался в контейнере, который другие программы не открывают)
+	item = NULL;
+	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
+		FileFormatMenuItem *f = dynamic_cast<FileFormatMenuItem *>(menu->ItemAt(i));
+		if (f && sLastFormat.Length() > 0 && sLastFormat == f->Label()) item = f;
+	}
+	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
+		FileFormatMenuItem *f = dynamic_cast<FileFormatMenuItem *>(menu->ItemAt(i));
+		if (f && f->fFileFormat.family == B_WAV_FORMAT_FAMILY) item = f;
+	}
+	if (item == NULL) item = menu->ItemAt(0);
 	if (item != NULL) {
 		item->SetMarked(true);
 		((BInvoker *)item)->Invoke();
@@ -226,8 +251,17 @@ void SavePanel::BuildAudioMenu()
 		format.u.raw_audio = media_raw_audio_format::wildcard;
 	}
 
-	// mark first audio encoder
-	item = menu->ItemAt(0);
+	// кодек: прошлый для этого формата, иначе несжатый (Raw/PCM), иначе первый
+	item = NULL;
+	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
+		if (sLastCodec.Length() > 0 && sLastCodecFormat == ffmi->Label() && sLastCodec == menu->ItemAt(i)->Label())
+			item = menu->ItemAt(i);
+	}
+	for (int32 i = 0; i < menu->CountItems() && item == NULL; i++) {
+		BString n(menu->ItemAt(i)->Label());
+		if (n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0) item = menu->ItemAt(i);
+	}
+	if (item == NULL) item = menu->ItemAt(0);
 	if (item != NULL) {
 		fAudioMenu->SetEnabled(true);
 		item->SetMarked(true);
