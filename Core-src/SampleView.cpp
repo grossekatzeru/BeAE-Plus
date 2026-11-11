@@ -337,6 +337,20 @@ void SampleView::Draw(BRect rect)
 			ConstrainClippingRegion(NULL);
 		}
 	}
+	if (Tracks_SelectedCount() >= 2 && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){	// выделено несколько клипов: активный красится так же
+		double cs = 0, ce = 0;
+		if (Tracks_ActiveClipSpan(cs, ce)){
+			const double tl = (double)Pool.l_pointer / Pool.frequency;
+			const double tr = (double)Pool.r_pointer / Pool.frequency;
+			const float W = Bounds().Width() + 1;
+			BRect g(MAX((float)((cs - tl) / (tr - tl) * W), 0.0f), POINTER_BAR_HEIGHT,
+				MIN((float)((ce - tl) / (tr - tl) * W), Bounds().right), Bounds().bottom);
+			BRegion clip(rect);
+			ConstrainClippingRegion(&clip);
+			LanesTintSelected(this, g);
+			ConstrainClippingRegion(NULL);
+		}
+	}
 	if (Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){		// сетка активной дорожки
 		const double tl = (double)Pool.l_pointer / Pool.frequency;
 		const double tr = (double)Pool.r_pointer / Pool.frequency;
@@ -645,7 +659,10 @@ void SampleView::MouseDown(BPoint p)
 				}
 			}
 		}else if (clicks == 2 && Prefs.select_all_on_double){		/* The double-click selection */
-			Pool.SelectAll();
+			Tracks_SelectLaneClips();						// все клипы дорожки выделяются и красятся одним цветом
+			Pool.sample_view_dirty = true;
+			Invalidate();
+			if (BView *lv = Window()->FindView("Lanes view")) lv->Invalidate();
 		}
 		break;
 	}
@@ -818,7 +835,7 @@ void SampleView::MouseMoved(BPoint p, uint32 button, const BMessage *msg)
 	/* decide which part would be selected */
 	bool full_update = false;
 	
-	if (Prefs.drag_drop && drag_selection)				/* drag & drop */
+	if (drag_selection)				/* drag & drop */
 	{
 		if (fabs(p.x - start_selection.x) >3)
 		{

@@ -18,6 +18,7 @@
 #include <new>
 
 #include "Globals.h"
+#include "Preferences.h"
 #include "CommonPool.h"
 #include "MidiFile.h"
 #include "MidiSynth.h"
@@ -56,7 +57,7 @@ bool EndsWithSf2(const char *name)
 }
 
 MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm)
-	: BWindow(BRect(120, 120, 540, 448), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
+	: BWindow(BRect(120, 120, 540, 370), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
 		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_ASYNCHRONOUS_CONTROLS),
 	fTarget(target), fPanel(NULL), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
 	fThread(-1), fBusy(false)
@@ -65,32 +66,30 @@ MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double 
 	back->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	AddChild(back);
 
-	BStringView *label = new BStringView(BRect(12, 8, 408, 24), NULL, Language.get("MIDI_SOUNDFONT"));
-	back->AddChild(label);
-	fList = new BListView(BRect(12, 28, 392, 106), "fonts", B_SINGLE_SELECTION_LIST);
-	back->AddChild(new BScrollView("fontsScroll", fList, B_FOLLOW_LEFT_RIGHT | B_FOLLOW_TOP, 0, false, true));
-	fChoose = new BButton(BRect(12, 118, 232, 146), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
+	fFont = new BStringView(BRect(12, 8, 408, 24), NULL, "");
+	back->AddChild(fFont);
+	fChoose = new BButton(BRect(12, 40, 232, 68), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
 	back->AddChild(fChoose);
-	fTempoInfo = new BStringView(BRect(12, 152, 408, 168), NULL, "");
+	fTempoInfo = new BStringView(BRect(12, 74, 408, 90), NULL, "");
 	back->AddChild(fTempoInfo);
 	const char *keys[3] = { "MIDI_OPT_SET_PROJECT", "MIDI_OPT_FIT_MIDI", "MIDI_OPT_KEEP" };
 	for (int i = 0; i < 3; i++) {
-		fOption[i] = new BRadioButton(BRect(24, 170 + i * 20, 408, 188 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
+		fOption[i] = new BRadioButton(BRect(24, 92 + i * 20, 408, 110 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
 		back->AddChild(fOption[i]);
 		fOption[i]->Hide();
 	}
 	fOption[0]->SetValue(B_CONTROL_ON);
-	fEffects = new BCheckBox(BRect(12, 236, 408, 254), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
+	fEffects = new BCheckBox(BRect(12, 158, 408, 176), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
 	back->AddChild(fEffects);
-	fStatus = new BStringView(BRect(12, 262, 408, 278), NULL, "");
+	fStatus = new BStringView(BRect(12, 184, 408, 200), NULL, "");
 	back->AddChild(fStatus);
-	fInsert = new BButton(BRect(190, 290, 300, 318), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
+	fInsert = new BButton(BRect(190, 212, 300, 240), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
 	back->AddChild(fInsert);
 	fInsert->SetEnabled(false);
 	fInsert->MakeDefault(true);
-	BButton *cancel = new BButton(BRect(308, 290, 408, 318), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
+	BButton *cancel = new BButton(BRect(308, 212, 408, 240), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
 	back->AddChild(cancel);
-	ResizeTo(420, 328);
+	ResizeTo(420, 250);
 
 	Scan();
 	Show();
@@ -102,8 +101,9 @@ MidiImportWindow::~MidiImportWindow()
 }
 
 // саундфонты лежат в synth системной, пользовательской и «непакетной» папок данных
-void MidiImportWindow::Scan()
+std::vector<std::string> MidiSoundfontPaths()
 {
+	std::vector<std::string> paths;
 	const directory_which dirs[] = { B_SYSTEM_DATA_DIRECTORY, B_USER_NONPACKAGED_DATA_DIRECTORY, B_USER_DATA_DIRECTORY };
 	for (size_t d = 0; d < sizeof(dirs) / sizeof(dirs[0]); d++) {
 		BPath path;
@@ -120,18 +120,33 @@ void MidiImportWindow::Scan()
 			BPath full;
 			if (entry.GetPath(&full) != B_OK) continue;
 			bool dup = false;
-			for (size_t k = 0; k < fPaths.size(); k++) if (fPaths[k] == full.Path()) dup = true;
-			if (dup) continue;
-			fPaths.push_back(full.Path());
-			fList->AddItem(new BStringItem(name));
+			for (size_t k = 0; k < paths.size(); k++) if (paths[k] == full.Path()) dup = true;
+			if (!dup) paths.push_back(full.Path());
 		}
 	}
-	if (fPaths.empty()) {
-		fStatus->SetText(Language.get("MIDI_NO_SOUNDFONTS"));
-		fChoose->SetEnabled(false);
-	} else {
-		fList->Select(0);
+	return paths;
+}
+
+// саундфонт берётся из настроек; если он там не задан или исчез - первый найденный
+void MidiImportWindow::Scan()
+{
+	std::vector<std::string> all = MidiSoundfontPaths();
+	fSf2.clear();
+	if (Prefs.midi_soundfont.Length() > 0) {
+		for (size_t k = 0; k < all.size(); k++)
+			if (all[k] == Prefs.midi_soundfont.String()) fSf2 = all[k];
 	}
+	if (fSf2.empty() && !all.empty()) fSf2 = all[0];
+	if (fSf2.empty()) {
+		fStatus->SetText(Language.get("MIDI_NO_SOUNDFONTS"));
+		fFont->SetText("");
+		fChoose->SetEnabled(false);
+		return;
+	}
+	BPath p(fSf2.c_str());
+	BString s(Language.get("MIDI_SOUNDFONT"));
+	s << " " << p.Leaf();
+	fFont->SetText(s.String());
 }
 
 bool MidiImportWindow::QuitRequested()
@@ -213,16 +228,15 @@ void MidiImportWindow::UpdateTempoUi()
 
 void MidiImportWindow::StartRender()
 {
-	const int32 sel = fList->CurrentSelection();
 	if (!fHaveSong) return;
-	if (sel < 0 || (size_t)sel >= fPaths.size()) {
+	if (fSf2.empty()) {
 		fStatus->SetText(Language.get("MIDI_NO_SELECTION"));
 		return;
 	}
 	Job *job = new (std::nothrow) Job;
 	if (!job) return;
 	job->song = fSong;
-	job->sf2 = fPaths[sel];
+	job->sf2 = fSf2;
 	job->scale = 1.0;
 	job->effects = fEffects->Value() == B_CONTROL_ON;
 	job->setBpm = 0;

@@ -8,6 +8,8 @@
 #include <AppKit.h>
 #include <InterfaceKit.h>
 #include <Spinner.h>
+#include <string>
+#include <vector>
 
 class PrefAudio : public BView {
 public:
@@ -27,6 +29,9 @@ private:
 	BStringView		*v_rec_hint;
 	BSpinner		*s_latency;
 	BButton			*b_fine;
+	BListView		*l_fonts;			// саундфонты для импорта MIDI
+	BStringView		*v_fonts;			// подсказка или «не найдено»
+	std::vector<std::string> fonts;
 };
 
 #endif

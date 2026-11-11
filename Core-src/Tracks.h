@@ -29,6 +29,7 @@ bool	Tracks_MoveClip(int lane, int clip, double seconds);	// сдвинуть к
 bool	Tracks_ActiveClipLocked();				// активный клип закреплён во времени (его нельзя сдвигать)
 void	Tracks_ToggleActiveClipLock();			// закрепить / освободить активный клип
 // Выделение нескольких клипов: активный клип выделен всегда, остальные добавляются Ctrl+щелчком
+void	Tracks_SelectLaneClips();				// двойной щелчок: выделить все клипы активной дорожки
 void	Tracks_ClearClipSelection();			// снять выделение со всех клипов, кроме активного
 bool	Tracks_ToggleClipSelected(int lane, int clip);	// добавить / убрать клип микшера из выделения
 int		Tracks_SelectedCount();					// число выделенных клипов, включая активный

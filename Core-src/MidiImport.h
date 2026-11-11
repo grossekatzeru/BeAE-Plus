@@ -31,6 +31,10 @@ struct MidiImportResult {
 	double				setBpm;			// > 0 - установить этот темп проекта (Grid и метроном)
 };
 
+// Саундфонты (*.sf2) из папок synth системной, пользовательской и «непакетной» папок данных (полные пути).
+// Какой из них использовать при импорте MIDI, выбирается в «Настройки -> Аудио -> MIDI» (Prefs.midi_soundfont).
+std::vector<std::string> MidiSoundfontPaths();
+
 // Применить эффекты MIDI к дорожке lane: баланс и плагины. warn - что не удалось (например, не найден плагин), пусто - всё хорошо.
 void MidiApplyEffects(int lane, int pan, int reverb, int chorus, std::string &warn);
 
@@ -57,7 +61,7 @@ private:
 	static int32 Worker(void *arg);
 
 	BMessenger		fTarget;
-	BListView		*fList;
+	BStringView		*fFont;				// какой саундфонт будет использован (выбирается в настройках)
 	BButton			*fChoose;
 	BStringView		*fStatus, *fTempoInfo;
 	BRadioButton	*fOption[3];			// 0 - темп проекта по MIDI, 1 - подогнать MIDI, 2 - не менять
@@ -68,7 +72,7 @@ private:
 	double			fProjectBpm;
 	bool			fHaveSong;
 	MidiSong		fSong;
-	std::vector<std::string>	fPaths;
+	std::string		fSf2;				// путь к выбранному саундфонту, пусто - не найден
 	thread_id		fThread;
 	bool			fBusy;
 };

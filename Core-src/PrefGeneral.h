@@ -43,7 +43,7 @@ class PrefGeneral : public BView {
   private:
   	void AddLanguageMenu();
 	BPopUpMenu	*langmenu, *time;
-	BCheckBox *c_grid, *c_paste, *c_play, *c_double, *c_peak, *c_follow_playing, *c_drag_drop;
+	BCheckBox *c_grid, *c_paste, *c_play, *c_double, *c_peak, *c_follow_playing;
 	BSpinner *s_peak, *s_free;
 	BTextControl *temp_file;
 	BMenuItem *menu_sample, *menu_time;

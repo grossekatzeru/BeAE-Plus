@@ -2,6 +2,7 @@
 #include <InterfaceKit.h>
 #include <SeparatorView.h>
 #include <String.h>
+#include <Path.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -9,11 +10,13 @@
 #include "Globals.h"
 #include "AudioRecorder.h"
 #include "PrefAudio.h"
+#include "MidiImport.h"
 
 #define BUFFER_SLIDER		'abSl'
 #define BUFFER_TEXT			'abTx'
 #define LATENCY_CHANGED		'abLt'
 #define FINE_TUNE			'abFt'
+#define FONT_SELECTED		'abSf'
 
 #define FRAME_BYTES			8			// стерео float: 2 канала по 4 байта
 #define MIN_FRAMES			64
@@ -55,8 +58,27 @@ PrefAudio::PrefAudio() : BView("Prefs audio", 0)
 
 	b_fine = new BButton("fine", Language.get("AUDIO_FINE_TUNE"), new BMessage(FINE_TUNE));
 
-	BStringView *soon = new BStringView(NULL, Language.get("AUDIO_COMING_SOON"));
-	soon->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
+	BStringView *title_midi = new BStringView(NULL, Language.get("AUDIO_MIDI_TITLE"));
+	title_midi->SetFont(be_bold_font);
+	BStringView *label_font = new BStringView(NULL, Language.get("MIDI_SOUNDFONT_PREF"));
+	l_fonts = new BListView("fonts", B_SINGLE_SELECTION_LIST);
+	l_fonts->SetSelectionMessage(new BMessage(FONT_SELECTED));
+	BScrollView *scroll_fonts = new BScrollView("fontsScroll", l_fonts, 0, false, true);
+	scroll_fonts->SetExplicitMinSize(BSize(B_SIZE_UNSET, 90));
+	v_fonts = new BStringView(NULL, "");
+	v_fonts->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
+	fonts = MidiSoundfontPaths();
+	{
+		int32 current = -1;
+		for (size_t i = 0; i < fonts.size(); i++) {
+			BPath p(fonts[i].c_str());
+			l_fonts->AddItem(new BStringItem(p.Leaf()));
+			if (Prefs.midi_soundfont == fonts[i].c_str()) current = (int32)i;
+		}
+		if (current < 0 && !fonts.empty()) current = 0;		// ничего не выбрано - работает первый найденный
+		if (current >= 0) l_fonts->Select(current);
+		if (fonts.empty()) v_fonts->SetText(Language.get("MIDI_NO_SOUNDFONTS"));
+	}
 
 	BLayoutBuilder::Group<>(this, B_VERTICAL)
 		.SetInsets(B_USE_WINDOW_SPACING)
@@ -75,7 +97,10 @@ PrefAudio::PrefAudio() : BView("Prefs audio", 0)
 			.Add(b_fine)
 		.End()
 		.Add(new BSeparatorView(B_HORIZONTAL))
-		.Add(soon)
+		.Add(title_midi)
+		.Add(label_font)
+		.Add(scroll_fonts)
+		.Add(v_fonts)
 		.AddGlue();
 
 	ShowFrames(Prefs.buffer_size / FRAME_BYTES);
@@ -91,6 +116,7 @@ void PrefAudio::AttachedToWindow()
 	t_buffer->SetTarget(this);
 	s_latency->SetTarget(this);
 	b_fine->SetTarget(this);
+	l_fonts->SetTarget(this);
 }
 
 // число кадров -> поле, бегунок и подсказка (без перезапуска проигрывателя)
@@ -165,6 +191,14 @@ void PrefAudio::MessageReceived(BMessage *msg)
 
 	case FINE_TUNE:									// пока пусто
 		break;
+
+	case FONT_SELECTED:								// выбран саундфонт для импорта MIDI
+	{
+		const int32 i = l_fonts->CurrentSelection();
+		if (i >= 0 && (size_t)i < fonts.size())
+			Prefs.midi_soundfont.SetTo(fonts[i].c_str());
+		break;
+	}
 
 	default:
 		BView::MessageReceived(msg);

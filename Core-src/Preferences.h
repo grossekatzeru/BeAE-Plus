@@ -48,6 +48,7 @@ class Preferences{
  public:
 	// Non-user set prefs
 	BString lang_name, temp_dir;
+	BString midi_soundfont;	// полный путь к *.sf2 для импорта MIDI (пусто - первый найденный)
 
 	rgb_color	index_back_color, index_left_color, index_mid_color, index_mid_selected_color;
 	rgb_color	index_back_selected_color, index_left_selected_color;
@@ -69,7 +70,6 @@ class Preferences{
 	bool	select_after_paste;		// set selection after a paste
 	bool	show_peak;				// peak_level lines
 	bool	follow_playing;			// follow the playcursor on display
-	bool	drag_drop;				// enable drag & drop
 
 	float	peak;
 	int32	display_time;

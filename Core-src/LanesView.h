@@ -35,6 +35,7 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 // Цвет группы клипов (16 пастельных, дальше по кругу) и полупрозрачная заливка клипа этим цветом.
 rgb_color GroupColor(int group);
 void LanesTintGroup(BView *v, BRect r, int group);
+void LanesTintSelected(BView *v, BRect r);		// выделенные клипы: тот же цвет, что у выделения в списках (как у активной дорожки)
 
 // Линии сетки дорожки slot (если Grid включён) - тот же масштаб, что и у LanesDrawClips.
 void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W);

@@ -71,6 +71,10 @@ void Preferences::Init(){
 	if(prefs.FindString("Language_Name",&lang_name) != B_OK)
 		lang_name.SetTo("English");
    
+   // SoundFont для импорта MIDI
+	if(prefs.FindString("midi_soundfont",&midi_soundfont) != B_OK)
+		midi_soundfont.SetTo("");
+
    // Get the temp dir
 	if(prefs.FindString("temp_dir",&temp_dir) != B_OK)
 		temp_dir.SetTo("/tmp");
@@ -107,8 +111,6 @@ void Preferences::Init(){
    if(prefs.FindBool("select_paste", &select_after_paste) != B_OK)
       select_after_paste = true;
 
-   if(prefs.FindBool("drag_drop", &drag_drop) != B_OK)
-      drag_drop = true;
 
    if(prefs.FindInt32("buffer_size", &buffer_size) != B_OK)
       buffer_size = BUFFER_SIZE;
@@ -229,6 +231,7 @@ void Preferences::Sync(){
    
 	prefs.SetString("Language_Name",Language.Name());
 	prefs.SetString("temp_dir",temp_dir.String());
+	prefs.SetString("midi_soundfont",midi_soundfont.String());
 	prefs.SetRect("window_frame", frame);
 
 	prefs.SetRect("sample_scope_frame", sample_scope_pos);
@@ -241,7 +244,6 @@ void Preferences::Sync(){
 	}
 
 	prefs.SetBool("show_peak", show_peak);
-	prefs.SetBool("drag_drop", drag_drop);
 	prefs.SetBool("show_grid", show_grid);
 	prefs.SetBool("save_undo", save_undo);
 	prefs.SetBool("play_on_load", play_when_loaded);
@@ -356,6 +358,7 @@ Preferences::~Preferences(){
 void Preferences::FactorySettings(){
 	lang_name.SetTo("English");
 	temp_dir.SetTo("/tmp");
+	midi_soundfont.SetTo("");
 
 	frame.Set(50,50,800,600);
 
@@ -369,7 +372,6 @@ void Preferences::FactorySettings(){
 	save_undo = true;
 	show_grid = true;
 	show_peak = true;
-	drag_drop = true;
 	play_when_loaded = true;
 	select_all_on_double = true;
 	select_after_paste = true;

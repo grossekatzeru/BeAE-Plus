@@ -531,6 +531,15 @@ static bool ActiveClipExists()
 	return Tracks_ActiveRange(first, last);
 }
 
+void Tracks_SelectLaneClips()
+{
+	const int lane = Mix.Active();
+	for (int k = 0; k < Mix.ClipCount(lane); k++){
+		Mix.SetClipSelected(lane, k, true);
+		Tracks_SelectGroupOf(lane, k);			// клип в группе тянет за собой всю группу
+	}
+}
+
 void Tracks_ClearClipSelection()
 {
 	for (int i = 0; i < MIX_MAX_TRACKS; i++)

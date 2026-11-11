@@ -29,6 +29,7 @@
 #include <InterfaceKit.h>
 #include <StorageKit.h>
 #include <String.h>
+#include <SeparatorView.h>
 #include <Path.h>
 #include <TranslationKit.h>
 #include <TranslationUtils.h>
@@ -75,9 +76,6 @@ PrefGeneral::PrefGeneral():BView("Prefs general", 0){
 	c_double = new BCheckBox("double", Language.get("SELECT_DOUBLE"), new BMessage(BOOL_CHANGED));
 	if (Prefs.select_all_on_double)	c_double->SetValue(B_CONTROL_ON);
 
-	c_drag_drop = new BCheckBox("dragndrop", Language.get("DRAG_DROP"), new BMessage(BOOL_CHANGED));
-	if (Prefs.drag_drop)	c_drag_drop->SetValue(B_CONTROL_ON);
-
 	time = new BPopUpMenu(Language.get("TIMEDISPLAY"));
 	BMenuField *menuTime = new BMenuField(NULL,Language.get("TIMEDISPLAY"),time);
 
@@ -97,18 +95,30 @@ PrefGeneral::PrefGeneral():BView("Prefs general", 0){
 	s_free->SetRange(10, 10000);
 	s_free->SetValue(Prefs.keep_free);
 
+	// страница по темам: вид волны, правка, система
+	BStringView *t_view = new BStringView(NULL, Language.get("PREF_SEC_VIEW"));
+	t_view->SetFont(be_bold_font);
+	BStringView *t_edit = new BStringView(NULL, Language.get("PREF_SEC_EDIT"));
+	t_edit->SetFont(be_bold_font);
+	BStringView *t_sys = new BStringView(NULL, Language.get("PREF_SEC_SYSTEM"));
+	t_sys->SetFont(be_bold_font);
+
 	BLayoutBuilder::Group<>(this)
 		.AddGroup(B_VERTICAL, B_USE_DEFAULT_SPACING)
 		.SetInsets(B_USE_WINDOW_SPACING)
-			.Add(menuLang)
+			.Add(t_view)
 			.Add(c_grid)
 			.Add(c_peak)
 			.Add(s_peak)
-			.Add(c_paste)
-			.Add(c_follow_playing)
-			.Add(c_double)
-			.Add(c_drag_drop)
 			.Add(menuTime)
+			.Add(new BSeparatorView(B_HORIZONTAL))
+			.Add(t_edit)
+			.Add(c_paste)
+			.Add(c_double)
+			.Add(c_follow_playing)
+			.Add(new BSeparatorView(B_HORIZONTAL))
+			.Add(t_sys)
+			.Add(menuLang)
 			.Add(temp_file)
 			.Add(s_free);
 }
@@ -167,7 +177,6 @@ void PrefGeneral::AttachedToWindow(){
 	c_follow_playing->SetTarget(this);
 	s_peak->SetTarget(this);
 	s_free->SetTarget(this);
-	c_drag_drop->SetTarget(this);
 	temp_file->SetTarget(this);
 	time->SetTargetForItems(this);
 
@@ -206,7 +215,6 @@ void PrefGeneral::MessageReceived(BMessage *msg){
 		Prefs.play_when_loaded = (c_play->Value() == B_CONTROL_ON);
 		Prefs.show_peak = (c_peak->Value() == B_CONTROL_ON);
 		Prefs.follow_playing = (c_follow_playing->Value() == B_CONTROL_ON);
-		Prefs.drag_drop = (c_drag_drop->Value() == B_CONTROL_ON);
 		Pool.update_draw_cache = true;	// update the draw cache
 		Pool.sample_view_dirty = true;	// update the sample-view
 		Pool.RedrawWindow();

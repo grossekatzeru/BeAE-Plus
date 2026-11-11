@@ -87,6 +87,19 @@ void LanesTintGroup(BView *v, BRect r, int group)
 	v->SetDrawingMode(B_OP_COPY);
 }
 
+// Выделенный клип: заливка цветом выделения системы (тот же, что у активной дорожки в панели)
+void LanesTintSelected(BView *v, BRect r)
+{
+	if (!r.IsValid()) return;
+	rgb_color col = ui_color(B_LIST_SELECTED_BACKGROUND_COLOR);
+	col.alpha = 90;
+	v->SetDrawingMode(B_OP_ALPHA);
+	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	v->SetHighColor(col);
+	v->FillRect(r);
+	v->SetDrawingMode(B_OP_COPY);
+}
+
 // Клипы дорожки: у каждого светлая подложка, центральные линии, огибающая волны и белые границы.
 void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float W)
 {
@@ -137,6 +150,8 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 		}
 		if (c->group > 0)
 			LanesTintGroup(v, BRect(body.left + x0, body.top, body.left + x1, body.bottom), c->group);
+		if (c->selected)
+			LanesTintSelected(v, BRect(body.left + x0, body.top, body.left + x1, body.bottom));
 		v->SetHighColor(make_color(255, 255, 255));
 		if (xs >= 0 && xs < W) v->StrokeLine(BPoint(body.left + (float)xs, body.top), BPoint(body.left + (float)xs, body.bottom));
 		if (xe >= 0 && xe < W) v->StrokeLine(BPoint(body.left + (float)xe, body.top), BPoint(body.left + (float)xe, body.bottom));
