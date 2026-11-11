@@ -536,7 +536,7 @@ MainWindow::MainWindow(BRect frame)
 	LanesView *lanes_view = new LanesView(r);		// стопка полос; в полосе активной дорожки - SampleView
 	AddChild(lanes_view);
 	{
-		BRect sb(r.right + 1, r.top, r.right + LANES_SCROLLBAR_WIDTH, r.bottom);	// во всю высоту области дорожек
+		BRect sb(r.right + 1, sv.top, r.right + LANES_SCROLLBAR_WIDTH, sv.bottom);	// на всю высоту: от верха индекса до низа шкалы времени
 		LanesScrollBar *bar = new LanesScrollBar(sb, lanes_view);
 		AddChild(bar);
 		lanes_view->SetScrollBar(bar);
