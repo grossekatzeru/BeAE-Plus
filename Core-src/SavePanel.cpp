@@ -32,6 +32,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
+#include <vector>
 
 #include "Globals.h"
 #include "SavePanel.h"
@@ -70,8 +72,8 @@ FileFormatMenuItem::~FileFormatMenuItem()
 /*******************************************************
 *
 *******************************************************/
-SavePanel::SavePanel(BHandler *handler)
-	: BFilePanel(B_SAVE_PANEL, new BMessenger(handler), NULL, B_FILE_NODE, false, new BMessage(SAVE_AUDIO), NULL, true, true)
+SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
+	: BFilePanel(B_SAVE_PANEL, new BMessenger(handler), NULL, B_FILE_NODE, false, new BMessage(saveMessage), NULL, true, true)
 {
 	if (Window()->Lock()) {
 		float minw, maxw, minh, maxh;
@@ -177,6 +179,33 @@ void SavePanel::MessageReceived(BMessage *message) {
 	}
 }
 
+// Белый список: только звуковые форматы. Систему спрашиваем обо всех установленных писателях (ffmpeg добавляет
+// десятки видеоконтейнеров: 3GPP, MP4, MKV...), но для звука годятся немногие, и пары «формат + кодек» из них
+// часто дают файл, который не открывается. Нет кодировщика в системе - формата в списке не будет.
+static bool AudioFormatOk(const media_file_format &f)
+{
+	if (!(f.capabilities & (media_file_format::B_KNOWS_RAW_AUDIO | media_file_format::B_KNOWS_ENCODED_AUDIO))) return false;
+	static const char *kExt[] = { "wav", "aiff", "aif", "flac", "ogg", "oga", "opus", "mp3", "m4a", "aac", NULL };
+	for (int i = 0; kExt[i]; i++)
+		if (strcasecmp(f.file_extension, kExt[i]) == 0) return true;
+	return false;
+}
+
+// Кодеки внутри формата: несжатый звук для WAV/AIFF, FLAC для flac, Vorbis/Opus для ogg, MP3 и AAC для своих.
+// Если ни один не подошёл по названию (другая локаль плагина), показываются все, чтобы формат не остался пустым.
+static bool CodecNameOk(const char *ext, const char *name)
+{
+	BString n(name);
+	if (!strcasecmp(ext, "wav") || !strcasecmp(ext, "aiff") || !strcasecmp(ext, "aif"))
+		return n.IFindFirst("raw") >= 0 || n.IFindFirst("pcm") >= 0 || n.IFindFirst("linear") >= 0;
+	if (!strcasecmp(ext, "flac")) return n.IFindFirst("flac") >= 0;
+	if (!strcasecmp(ext, "ogg") || !strcasecmp(ext, "oga") || !strcasecmp(ext, "opus"))
+		return n.IFindFirst("vorbis") >= 0 || n.IFindFirst("opus") >= 0 || n.IFindFirst("flac") >= 0;
+	if (!strcasecmp(ext, "mp3")) return n.IFindFirst("mp3") >= 0 || n.IFindFirst("lame") >= 0 || n.IFindFirst("mpeg") >= 0;
+	if (!strcasecmp(ext, "m4a") || !strcasecmp(ext, "aac")) return n.IFindFirst("aac") >= 0;
+	return true;
+}
+
 /*******************************************************
 *
 *******************************************************/
@@ -192,10 +221,14 @@ void SavePanel::BuildFormatMenu() {
 	media_file_format mfi;
 	int32 cookie = 0;
 	FileFormatMenuItem *ff_item;
-	while (get_next_file_format(&cookie, &mfi) == B_OK) {
-		ff_item = new FileFormatMenuItem(&mfi);
-		menu->AddItem(ff_item);
-		ff_item->SetTarget(this);
+	for (int pass = 0; pass < 2 && menu->CountItems() == 0; pass++) {	// если белый список ничего не нашёл - показываем всё
+		cookie = 0;
+		while (get_next_file_format(&cookie, &mfi) == B_OK) {
+			if (pass == 0 && !AudioFormatOk(mfi)) continue;
+			ff_item = new FileFormatMenuItem(&mfi);
+			menu->AddItem(ff_item);
+			ff_item->SetTarget(this);
+		}
 	}
 	
 	// отмечаем: прошлый выбор, иначе WAV, иначе первый (раньше всегда первый, например «3GPP video»,
@@ -229,7 +262,8 @@ void SavePanel::BuildAudioMenu()
 	}
 
 	// get selected file format
-	FileFormatMenuItem *ffmi = (FileFormatMenuItem*)fFormatMenu->Menu()->FindMarked();
+	FileFormatMenuItem *ffmi = dynamic_cast<FileFormatMenuItem *>(fFormatMenu->Menu()->FindMarked());
+	if (ffmi == NULL) return;
 	media_file_format *mf_format = &(ffmi->fFileFormat);
 
 	media_format format, outfmt;
@@ -242,13 +276,22 @@ void SavePanel::BuildAudioMenu()
 	// add available audio encoders to menu
 	format.type = B_MEDIA_RAW_AUDIO;
 	format.u.raw_audio = media_raw_audio_format::wildcard;	
+	std::vector<media_codec_info> all;
 	while (get_next_encoder(&cookie, mf_format, &format, &outfmt, &codec_info) == B_OK) {
-		cmi = new CodecMenuItem(&codec_info, PANEL_CODEC);
-		menu->AddItem(cmi);
-		cmi->SetTarget(this);
+		all.push_back(codec_info);
 		// reset media format struct
 		format.type = B_MEDIA_RAW_AUDIO;
 		format.u.raw_audio = media_raw_audio_format::wildcard;
+	}
+	int shown = 0;
+	for (int pass = 0; pass < 2 && shown == 0; pass++) {		// первый проход - по белому списку, второй - все
+		for (size_t k = 0; k < all.size(); k++) {
+			if (pass == 0 && !CodecNameOk(mf_format->file_extension, all[k].pretty_name)) continue;
+			cmi = new CodecMenuItem(&all[k], PANEL_CODEC);
+			menu->AddItem(cmi);
+			cmi->SetTarget(this);
+			shown++;
+		}
 	}
 
 	// кодек: прошлый для этого формата, иначе несжатый (Raw/PCM), иначе первый

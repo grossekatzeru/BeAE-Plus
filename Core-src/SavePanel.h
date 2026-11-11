@@ -63,7 +63,7 @@ public:
 
 class SavePanel : public BFilePanel, public BHandler {
   public:
-	SavePanel(BHandler *handler);
+	SavePanel(BHandler *handler, uint32 saveMessage = SAVE_AUDIO);		// saveMessage - что отправить после выбора файла
 	void MessageReceived(BMessage *message);
 	~SavePanel();
 	void GetSelectedFormatInfo(media_file_format **format, media_codec_info **audio);

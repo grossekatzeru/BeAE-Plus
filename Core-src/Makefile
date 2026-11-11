@@ -35,7 +35,7 @@ SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp AnalyzeWindow.cpp Bass
 	MainWindow.cpp MyClipBoard.cpp NormalizeFilter.cpp OpenPanel.cpp PeakFile.cpp \
 	PointersView.cpp PrefAudio.cpp PrefColors.cpp PrefGeneral.cpp PrefKeys.cpp PrefView.cpp \
 	PrefWindow.cpp Preferences.cpp ProgressWindow.cpp RealtimeFilter.cpp ResampleWindow.cpp \
-	ReverbWindow.cpp RoomFilter.cpp SampleScopeWindow.cpp SampleView.cpp SavePanel.cpp \
+	ReverbWindow.cpp RoomFilter.cpp SampleScopeWindow.cpp SampleView.cpp SavePanel.cpp MediaWriter.cpp \
 	Shortcut.cpp SpectrumWindow.cpp SpinSlider.cpp \
 	SwatchView.cpp TimeBarView.cpp ToolBarView.cpp TransportView.cpp VMSystem.cpp \
 	VUView.cpp ValuesView.cpp YLanguageClass.cpp YPreferences.cpp main.cpp

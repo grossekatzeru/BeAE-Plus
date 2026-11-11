@@ -58,6 +58,9 @@
 #include "TempoAnalyzer.h"
 #include "TunerWindow.h"
 #include "MidiImport.h"
+#include "SavePanel.h"
+#include "MediaWriter.h"
+#include "ProjectIO.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
 #include "LadspaFilter.h"
@@ -95,7 +98,7 @@ public:
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
 static MidiOpenPanel *gMidiPanel = NULL;
-static BFilePanel *gMixdownPanel = NULL;
+static SavePanel *gMixdownPanel = NULL;
 static BFilePanel *gClipSavePanel = NULL;
 static BPath	   gProjParent;
 
@@ -1427,14 +1430,11 @@ void MainWindow::MessageReceived(BMessage *message)
 
 	case MIXDOWN_AS:
 		if (Recorder.IsRecording()) break;
-		if (gMixdownPanel == NULL){
-			gMixdownPanel = new BFilePanel(B_SAVE_PANEL, new BMessenger(this), NULL, 0, false,
-				new BMessage(MSG_MIXDOWN_FILE));
-			gMixdownPanel->Window()->SetTitle(Language.get("FILE_MIX_AS"));
-		}
+		if (gMixdownPanel == NULL)			// та же панель с выбором формата и кодека, что у «Сохранить как...»
+			gMixdownPanel = new SavePanel(this, MSG_MIXDOWN_FILE);
+		gMixdownPanel->Window()->SetTitle(Language.get("FILE_MIX_AS"));
 		{
 			BString n(Project_Name()[0] ? Project_Name() : Language.get("MIXDOWN_DEFAULT_NAME"));
-			n << ".wav";
 			gMixdownPanel->SetSaveText(n.String());
 		}
 		gMixdownPanel->Show();
@@ -1445,12 +1445,27 @@ void MainWindow::MessageReceived(BMessage *message)
 		entry_ref dir;
 		const char *name = NULL;
 		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
-		BString fn(name);										// расширение .wav добавляется само
-		if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
-		BPath p(&dir);
-		p.Append(fn.String());
+		media_file_format *ff = NULL;
+		media_codec_info *ci = NULL;
+		if (gMixdownPanel) gMixdownPanel->GetSelectedFormatInfo(&ff, &ci);
 		BString err;
-		if (!Project_Mixdown(p.Path(), err))
+		std::vector<float> mix;
+		long long total = 0;
+		float rate = 0;
+		if (!Project_MixdownRender(mix, total, rate, err)){
+			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
+			break;
+		}
+		if (ff == NULL || ci == NULL){							// формат не выбран: простой WAV, как раньше
+			BString fn(name);
+			if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
+			BPath p(&dir);
+			p.Append(fn.String());
+			if (!WavWriteFloat(p.Path(), &mix[0], total, 2, rate))
+				(new BAlert(NULL, Language.get("CANT_OVERWRITE_FILE"), Language.get("OK")))->Go();
+			break;
+		}
+		if (!MediaWriteFloat(dir, name, *ff, *ci, &mix[0], total, 2, rate, err))
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
 		break;
 	}

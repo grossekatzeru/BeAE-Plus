@@ -479,7 +479,7 @@ bool Project_AnalysisMix(std::vector<float> &mono, float &rate)
 	return true;
 }
 
-bool Project_Mixdown(const char *path, BString &err)
+bool Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate, BString &err)
 {
 	struct Lane { int idx; std::vector<MixClip> clips; float gl, gr; bool fx; };
 	std::vector<Lane> lanes;
@@ -488,7 +488,7 @@ bool Project_Mixdown(const char *path, BString &err)
 		MixTrack *t = Mix.Track(i);
 		if (t && t->solo) anySolo = true;
 	}
-	float outRate = 0;
+	outRate = 0;
 	double endTime = 0;
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
 		MixTrack *t = Mix.Track(i);
@@ -512,9 +512,8 @@ bool Project_Mixdown(const char *path, BString &err)
 	const bool masterFx = Mix.Fx(MIX_MASTER).HasEffects();
 	if (masterFx) endTime += 4.0;			// хвост эффектов мастера
 
-	const int64 total = (int64)(endTime * outRate + 0.5) + 1;
+	total = (int64)(endTime * outRate + 0.5) + 1;
 	if (total * 8 > 0xFFFFFF00LL){ err = "The mixdown is too long for a WAV file"; return false; }
-	std::vector<float> out;
 	try { out.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
 
 	std::vector<float> tmp;
@@ -584,6 +583,15 @@ bool Project_Mixdown(const char *path, BString &err)
 		if (g != 1.0f)
 			for (size_t n = 0; n < (size_t)total * 2; n++) out[n] *= g;
 	}
+	return true;
+}
+
+bool Project_Mixdown(const char *path, BString &err)
+{
+	std::vector<float> out;
+	int64 total = 0;
+	float outRate = 0;
+	if (!Project_MixdownRender(out, total, outRate, err)) return false;
 	if (!WavWriteFloat(path, &out[0], total, 2, outRate)){
 		err = "Cannot write "; err << path;
 		return false;
