@@ -118,9 +118,14 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 		const float margin = 12, gap = 6;
 		const BRect B = background->Bounds();
 		const float bh = insert->Bounds().Height();			// высота системной кнопки
-		const float bw = insert->Bounds().Width();
 		const float ch = cancel->Bounds().Height();			// у «Отменить» своя высота (у «Сохранить» ещё рамка кнопки по умолчанию)
-		const float cw = cancel->Bounds().Width();
+		// три кнопки одной ширины: по самой длинной подписи («Сохранить» в русском, «Cancel» в других языках) и не уже системных
+		float bw = MAX(be_plain_font->StringWidth(insert->Label()), be_plain_font->StringWidth(cancel->Label()));
+		bw = MAX(bw, be_plain_font->StringWidth(Language.get("SAVE_OPTIONS"))) + 28;
+		bw = MAX(bw, MAX(insert->Bounds().Width(), cancel->Bounds().Width()));
+		const float cw = bw;
+		insert->ResizeTo(bw, bh);
+		cancel->ResizeTo(bw, ch);
 		const float fh = textview->Bounds().Height();		// высота полей: как была (хорошо подобрана)
 		const float rh = MAX(MAX(bh, ch), fh);						// высота строки
 		const float row3 = B.bottom - margin - rh;
@@ -165,7 +170,7 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 		background->AddChild(fFormatMenu);
 
 		// третья строка: кнопка «Опции...» рядом с «Отменить», кодек - до «Опции...»
-		const float ow = MAX(be_plain_font->StringWidth(Language.get("SAVE_OPTIONS")) + 30, cw);
+		const float ow = bw;									// «Опции...» той же ширины
 		fOptions = new BButton(BRect(cancelLeft - gap - ow, cancelPos.y, cancelLeft - gap, cancelPos.y + ch), NULL,
 			Language.get("SAVE_OPTIONS"), new BMessage(PANEL_OPTIONS), B_FOLLOW_RIGHT | B_FOLLOW_BOTTOM);
 		fOptions->SetTarget(this);
