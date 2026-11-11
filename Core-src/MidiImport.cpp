@@ -27,7 +27,6 @@
 #include "LadspaFilter.h"
 #include "FxChain.h"
 
-#define MSG_MIDI_CHOOSE		'mdCh'
 #define MSG_MIDI_FINISHED	'mdFn'
 #define MSG_MIDI_INSERT		'mdIn'
 #define MIDI_RATE			44100.0f
@@ -56,10 +55,10 @@ bool EndsWithSf2(const char *name)
 }
 }
 
-MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm)
-	: BWindow(BRect(120, 120, 540, 370), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
+MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm, const entry_ref &midi)
+	: BWindow(BRect(120, 120, 540, 336), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
 		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_ASYNCHRONOUS_CONTROLS),
-	fTarget(target), fPanel(NULL), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
+	fTarget(target), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
 	fThread(-1), fBusy(false)
 {
 	BView *back = new BView(Bounds(), "back", B_FOLLOW_ALL, B_WILL_DRAW);
@@ -68,36 +67,34 @@ MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double 
 
 	fFont = new BStringView(BRect(12, 8, 408, 24), NULL, "");
 	back->AddChild(fFont);
-	fChoose = new BButton(BRect(12, 40, 232, 68), NULL, Language.get("MIDI_CHOOSE"), new BMessage(MSG_MIDI_CHOOSE));
-	back->AddChild(fChoose);
-	fTempoInfo = new BStringView(BRect(12, 74, 408, 90), NULL, "");
+	fTempoInfo = new BStringView(BRect(12, 40, 408, 56), NULL, "");
 	back->AddChild(fTempoInfo);
 	const char *keys[3] = { "MIDI_OPT_SET_PROJECT", "MIDI_OPT_FIT_MIDI", "MIDI_OPT_KEEP" };
 	for (int i = 0; i < 3; i++) {
-		fOption[i] = new BRadioButton(BRect(24, 92 + i * 20, 408, 110 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
+		fOption[i] = new BRadioButton(BRect(24, 58 + i * 20, 408, 76 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
 		back->AddChild(fOption[i]);
 		fOption[i]->Hide();
 	}
 	fOption[0]->SetValue(B_CONTROL_ON);
-	fEffects = new BCheckBox(BRect(12, 158, 408, 176), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
+	fEffects = new BCheckBox(BRect(12, 124, 408, 142), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
 	back->AddChild(fEffects);
-	fStatus = new BStringView(BRect(12, 184, 408, 200), NULL, "");
+	fStatus = new BStringView(BRect(12, 150, 408, 166), NULL, "");
 	back->AddChild(fStatus);
-	fInsert = new BButton(BRect(190, 212, 300, 240), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
+	fInsert = new BButton(BRect(190, 178, 300, 206), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
 	back->AddChild(fInsert);
 	fInsert->SetEnabled(false);
 	fInsert->MakeDefault(true);
-	BButton *cancel = new BButton(BRect(308, 212, 408, 240), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
+	BButton *cancel = new BButton(BRect(308, 178, 408, 206), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
 	back->AddChild(cancel);
-	ResizeTo(420, 250);
+	ResizeTo(420, 216);
 
 	Scan();
+	LoadMidiFile(midi);
 	Show();
 }
 
 MidiImportWindow::~MidiImportWindow()
 {
-	delete fPanel;
 }
 
 // саундфонты лежат в synth системной, пользовательской и «непакетной» папок данных
@@ -140,7 +137,6 @@ void MidiImportWindow::Scan()
 	if (fSf2.empty()) {
 		fStatus->SetText(Language.get("MIDI_NO_SOUNDFONTS"));
 		fFont->SetText("");
-		fChoose->SetEnabled(false);
 		return;
 	}
 	BPath p(fSf2.c_str());
@@ -157,20 +153,6 @@ bool MidiImportWindow::QuitRequested()
 void MidiImportWindow::MessageReceived(BMessage *msg)
 {
 	switch (msg->what) {
-	case MSG_MIDI_CHOOSE:
-		if (fBusy) break;
-		if (!fPanel) {
-			BMessenger me(this);
-			fPanel = new BFilePanel(B_OPEN_PANEL, &me, NULL, B_FILE_NODE, false, NULL, NULL, true, true);
-		}
-		fPanel->Show();
-		break;
-	case B_REFS_RECEIVED:
-	{
-		entry_ref ref;
-		if (msg->FindRef("refs", &ref) == B_OK) LoadMidiFile(ref);
-		break;
-	}
 	case MSG_MIDI_INSERT:
 		if (!fBusy) StartRender();
 		break;
@@ -202,7 +184,7 @@ void MidiImportWindow::LoadMidiFile(const entry_ref &midi)
 	fHaveSong = true;
 	fStatus->SetText(midi.name);
 	UpdateTempoUi();
-	fInsert->SetEnabled(true);
+	fInsert->SetEnabled(!fSf2.empty());		// без саундфонта (Настройки -> Аудио -> MIDI) вставлять нечем
 }
 
 // пустой проект - темп возьмётся из MIDI сам; иначе при расхождении (> 0.5 BPM) выбор из трёх вариантов
@@ -251,7 +233,6 @@ void MidiImportWindow::StartRender()
 	job->target = fTarget;
 	job->window = BMessenger(this);
 	fBusy = true;
-	fChoose->SetEnabled(false);
 	fInsert->SetEnabled(false);
 	fStatus->SetText(Language.get("MIDI_RENDERING"));
 	fThread = spawn_thread(Worker, "MIDI render", B_NORMAL_PRIORITY, job);
@@ -334,4 +315,93 @@ void MidiApplyEffects(int lane, int pan, int reverb, int chorus, std::string &wa
 	if (pan >= 0) Mix.SetPan(lane, (float)(pan - 64) / 63.0f);		// 0 - лево, 64 - центр, 127 - право
 	AddRole(lane, kReverbRole, reverb, warn);
 	AddRole(lane, kChorusRole, chorus, warn);
+}
+
+// ---------------------------------------------------------------- панель выбора MIDI-файла
+
+namespace {
+// папки (чтобы ходить по ним) и файлы *.mid, *.midi, *.kar
+class MidiFilter : public BRefFilter {
+public:
+#if defined(__HAIKU__)
+	virtual bool Filter(const entry_ref *ref, BNode *node, struct stat_beos *, const char *)
+#else
+	virtual bool Filter(const entry_ref *ref, BNode *node, struct stat *, const char *)
+#endif
+	{
+		if (node->IsDirectory() || node->IsSymLink()) return true;
+		const char *n = ref->name;
+		const size_t len = n ? strlen(n) : 0;
+		return (len > 4 && strcasecmp(n + len - 4, ".mid") == 0)
+			|| (len > 5 && strcasecmp(n + len - 5, ".midi") == 0)
+			|| (len > 4 && strcasecmp(n + len - 4, ".kar") == 0);
+	}
+};
+}
+
+MidiOpenPanel::MidiOpenPanel(BMessenger target)
+	: BFilePanel(B_OPEN_PANEL, &target, NULL, B_FILE_NODE, false, new BMessage(MSG_MIDI_FILE), new MidiFilter, true, true),
+	fLine1(NULL), fLine2(NULL)
+{
+	if (Window()->Lock()) {
+		float minw, maxw, minh, maxh;
+		Window()->GetSizeLimits(&minw, &maxw, &minh, &maxh);
+		minw = 480;							// как у панели открытия аудиофайла
+		Window()->SetSizeLimits(minw, maxw, minh, maxh);
+		Window()->ResizeTo(Window()->Frame().Width() > minw ? Window()->Frame().Width() : minw, Window()->Frame().Height());
+		BView *cancel = Window()->FindView("cancel button");
+		BView *view = Window()->ChildAt(0);
+		if (cancel && view) {
+			BRect r(cancel->Frame());
+			r.right = cancel->Frame().left - 8;
+			r.left = view->Bounds().left + 10;
+			r.bottom = r.top + 14;
+			r.OffsetBy(0, -1);
+			fLine1 = new BStringView(r, NULL, "", B_FOLLOW_LEFT | B_FOLLOW_BOTTOM);
+			r.OffsetBy(0, 14);
+			fLine2 = new BStringView(r, NULL, "", B_FOLLOW_LEFT | B_FOLLOW_BOTTOM);
+			view->AddChild(fLine1);
+			view->AddChild(fLine2);
+		}
+		Window()->Unlock();
+	}
+	SetButtonLabel(B_DEFAULT_BUTTON, Language.get("LOAD"));
+	SetButtonLabel(B_CANCEL_BUTTON, Language.get("CANCEL"));
+	Window()->SetTitle(Language.get("MIDI_PANEL_TITLE"));
+}
+
+MidiOpenPanel::~MidiOpenPanel()
+{
+	delete RefFilter();
+}
+
+// выбранный файл читается сразу: число дорожек с нотами и начальный темп
+void MidiOpenPanel::SelectionChanged()
+{
+	if (!fLine1 || !fLine2) return;
+	fLine1->SetText("");
+	fLine2->SetText("");
+	Rewind();
+	entry_ref ref;
+	if (GetNextSelectedRef(&ref) != B_OK) return;
+	BNode node(&ref);
+	if (node.InitCheck() != B_OK || node.IsDirectory()) return;
+	BFile file(&ref, B_READ_ONLY);
+	off_t size = 0;
+	std::vector<uint8_t> data;
+	MidiSong song;
+	std::string err;
+	if (file.InitCheck() != B_OK || file.GetSize(&size) != B_OK || size < 14 || size > 32 * 1024 * 1024
+		|| (data.resize((size_t)size), file.Read(&data[0], (size_t)size) != size)
+		|| !LoadMidi(&data[0], data.size(), song, err)) {
+		fLine1->SetText(Language.get("MIDI_ERROR"));
+		return;
+	}
+	char s[160];
+	snprintf(s, sizeof(s), Language.get("MIDI_INFO_TRACKS"), (int)song.tracks.size());
+	fLine1->SetText(s);
+	BString t(Language.get("MIDI_INFO_TEMPO"));
+	t.ReplaceFirst("%s", Bpm(song.bpm).String());
+	if (song.tempoVaries) t << "*";
+	fLine2->SetText(t.String());
 }

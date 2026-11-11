@@ -44,12 +44,29 @@ class BRadioButton;
 class BCheckBox;
 class BStringView;
 class BFilePanel;
+class BStringView;
+
+// Сообщение панели выбора MIDI-файла: "refs" с выбранным файлом уходит главному окну
+#define MSG_MIDI_FILE	'mdFl'
+
+// Панель «Загрузка MIDI-файла...»: такая же, как панель открытия аудиофайла (кнопки Загрузить/Отмена, справа внизу
+// сведения о выбранном файле: число дорожек и темп). Предпрослушивания нет: для него нужен рендер саундфонтом (см. TODO.md).
+#include <FilePanel.h>
+class MidiOpenPanel : public BFilePanel {
+public:
+	MidiOpenPanel(BMessenger target);
+	virtual ~MidiOpenPanel();
+	virtual void SelectionChanged();
+private:
+	BStringView	*fLine1, *fLine2;
+};
 
 class MidiImportWindow : public BWindow {
 public:
 	// projectEmpty/projectBpm - состояние проекта на момент вызова: в пустой проект темп берётся из MIDI сам,
 	// в непустой при расхождении окно предлагает выбор
-	MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm);
+	// midi - уже выбранный в панели MidiOpenPanel файл; окно показывает параметры вставки (темп, эффекты)
+	MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm, const entry_ref &midi);
 	virtual ~MidiImportWindow();
 	virtual void MessageReceived(BMessage *msg);
 	virtual bool QuitRequested();
@@ -62,12 +79,10 @@ private:
 
 	BMessenger		fTarget;
 	BStringView		*fFont;				// какой саундфонт будет использован (выбирается в настройках)
-	BButton			*fChoose;
 	BStringView		*fStatus, *fTempoInfo;
 	BRadioButton	*fOption[3];			// 0 - темп проекта по MIDI, 1 - подогнать MIDI, 2 - не менять
 	BButton			*fInsert;
 	BCheckBox		*fEffects;			// добавить эффекты MIDI (панорама, реверб, хорус) как параметры дорожки/плагинов
-	BFilePanel		*fPanel;
 	bool			fProjectEmpty;
 	double			fProjectBpm;
 	bool			fHaveSong;

@@ -94,6 +94,7 @@ public:
 
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
+static MidiOpenPanel *gMidiPanel = NULL;
 static BFilePanel *gMixdownPanel = NULL;
 static BFilePanel *gClipSavePanel = NULL;
 static BPath	   gProjParent;
@@ -1700,9 +1701,20 @@ void MainWindow::MessageReceived(BMessage *message)
 		(new SampleScopeWindow());
 		break;
 		
-	case MIDI_IMPORT:
-		new MidiImportWindow(BMessenger(this), Tracks_IsEmpty(), Mix.Bpm());
+	case MIDI_IMPORT:										// сначала панель выбора файла (как при открытии аудио), потом параметры
+		if (Recorder.IsRecording()) break;
+		if (gMidiPanel == NULL)
+			gMidiPanel = new MidiOpenPanel(BMessenger(this));
+		gMidiPanel->Show();
 		break;
+
+	case MSG_MIDI_FILE:
+	{
+		entry_ref midi;
+		if (message->FindRef("refs", &midi) == B_OK)
+			new MidiImportWindow(BMessenger(this), Tracks_IsEmpty(), Mix.Bpm(), midi);
+		break;
+	}
 
 	case MIDI_IMPORT_DONE:
 	{
