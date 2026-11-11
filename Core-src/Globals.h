@@ -108,6 +108,7 @@ enum {MONO=1, STEREO=2};
 #define PROJECT_SAVE		'prjS'
 #define PROJECT_SAVE_AS		'prjA'
 #define PROJECT_OPEN		'prjO'
+#define MIXDOWN_AS			'mixA'		// Файл -> Миксдаун как...
 #define CLIP_SPLIT			'cSpl'
 #define CLIP_COPY			'cCop'
 #define CLIP_PASTE			'cPas'

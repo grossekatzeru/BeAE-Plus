@@ -69,7 +69,6 @@
 #include <strings.h>
 #include "Project.h"
 
-#define MIXDOWN_AS			'mixA'
 #define MSG_MIXDOWN_FILE	'mixF'
 #define PROJECT_NEW			'prjW'
 #define MSG_PROJECT_FOLDER	'prjF'
@@ -683,12 +682,12 @@ void MainWindow::AddMenu()
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_APPEND"), new BMessage(APPEND), KeyBind.GetKey("FILE_APPEND"), KeyBind.GetMod("FILE_APPEND")));
 	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
-	menu->AddItem(new BMenuItem(Language.get("FILE_MIX_AS"), new BMessage(MIXDOWN_AS)));
+	menu->AddItem(new BMenuItem(Language.get("FILE_MIX_AS"), new BMessage(MIXDOWN_AS), KeyBind.GetKey("FILE_MIX_AS"), KeyBind.GetMod("FILE_MIX_AS")));
 	menu->AddSeparatorItem();
-	menu->AddItem(new BMenuItem(Language.get("PROJECT_NEW"), new BMessage(PROJECT_NEW)));
-	menu->AddItem(new BMenuItem(Language.get("PROJECT_OPEN"), new BMessage(PROJECT_OPEN)));
-	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE"), new BMessage(PROJECT_SAVE)));
-	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE_AS"), new BMessage(PROJECT_SAVE_AS)));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_NEW"), new BMessage(PROJECT_NEW), KeyBind.GetKey("PROJECT_NEW"), KeyBind.GetMod("PROJECT_NEW")));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_OPEN"), new BMessage(PROJECT_OPEN), KeyBind.GetKey("PROJECT_OPEN"), KeyBind.GetMod("PROJECT_OPEN")));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE"), new BMessage(PROJECT_SAVE), KeyBind.GetKey("PROJECT_SAVE"), KeyBind.GetMod("PROJECT_SAVE")));
+	menu->AddItem(new BMenuItem(Language.get("PROJECT_SAVE_AS"), new BMessage(PROJECT_SAVE_AS), KeyBind.GetKey("PROJECT_SAVE_AS"), KeyBind.GetMod("PROJECT_SAVE_AS")));
 	menu->AddSeparatorItem();
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_SAVE"), new BMessage(SAVE), KeyBind.GetKey("FILE_SAVE"), KeyBind.GetMod("FILE_SAVE")));
 	Pool.mn_save = menuItem;
@@ -746,8 +745,8 @@ void MainWindow::AddMenu()
 	sub->AddItem(new BMenuItem(Language.get("CLIP_PASTE_N"), new BMessage(CLIP_PASTE_N), KeyBind.GetKey("CLIP_PASTE_N"), KeyBind.GetMod("CLIP_PASTE_N")));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_DELETE"), new BMessage(CLIP_DELETE)));
 	sub->AddSeparatorItem();
-	sub->AddItem(fLockItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK)));
-	sub->AddItem(fGroupItem = new BMenuItem(Language.get("CLIP_GROUP"), new BMessage(CLIP_GROUP)));
+	sub->AddItem(fLockItem = new BMenuItem(Language.get("CLIP_LOCK"), new BMessage(CLIP_LOCK), KeyBind.GetKey("CLIP_LOCK"), KeyBind.GetMod("CLIP_LOCK")));
+	sub->AddItem(fGroupItem = new BMenuItem(Language.get("CLIP_GROUP"), new BMessage(CLIP_GROUP), KeyBind.GetKey("CLIP_GROUP"), KeyBind.GetMod("CLIP_GROUP")));
 	sub->AddItem(new BMenuItem(Language.get("CLIP_MOVE"), new BMessage(TOOL_MOVE)));
 	sub->AddSeparatorItem();
 	sub->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));

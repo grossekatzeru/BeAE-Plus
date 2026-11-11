@@ -26,6 +26,8 @@
 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <set>
+#include <string>
 #include <FindDirectory.h>
 #include <Path.h>
 #include <InterfaceDefs.h>
@@ -84,6 +86,11 @@ void Shortcut::Init(){
 
 	// install defaults
 	InstallDefaults();
+	std::set<std::string> known;			// актуальные команды: всё остальное из старого файла настроек - мусор
+	for(int32 i = 0; i < kbind.CountItems(); i++){
+		key_bind *k0 = (key_bind*)kbind.ItemAt(i);
+		if(k0) known.insert(k0->ID);
+	}
 
 	YPreferences prefs(SETTINGS_DIR"/KeyBindings");
 	if(prefs.InitCheck() == B_OK){
@@ -108,11 +115,18 @@ void Shortcut::Init(){
 		}
 	}
 
+	for(int32 i = kbind.CountItems() - 1; i >= 0; i--){
+		key_bind *k1 = (key_bind*)kbind.ItemAt(i);
+		if(k1 && known.find(k1->ID) == known.end()){
+			kbind.RemoveItem(i);
+			delete k1;
+		}
+	}
+	lastkb = NULL;
+
 	// Сохранённые настройки клавиш старше клипов: перенести клавиши на работу с клипами
 	key_bind *kb = FindKB("CLEAR");
 	if (kb && kb->keyAlt == B_DELETE){ kb->keyAlt = 0; kb->modAlt = 0; }		// Delete - удаление клипа
-	kb = FindKB("PASTE_NEW");
-	if (kb && kb->key == 'V' && kb->mod == (B_COMMAND_KEY | B_SHIFT_KEY)){ kb->key = 0; kb->mod = 0; }	// Shift+V - вставить клип N раз
 	kb = FindKB("CLIP_PASTE_N");
 	if (kb && kb->key == 0 && kb->keyAlt == 0){ kb->key = 'V'; kb->mod = B_COMMAND_KEY | B_SHIFT_KEY; }
 	kb = FindKB("CLIP_DELETE");
@@ -313,8 +327,12 @@ void Shortcut::InstallDefaults(){
 	Install(1,"FILE_NEW",			'N', B_COMMAND_KEY,					  0, 0,							NEW				);
 	Install(1,"FILE_OPEN",			'O', B_COMMAND_KEY,					'O', 0,							OPEN			);
 	Install(1,"FILE_INSERT",   	    'I', B_COMMAND_KEY,			   B_INSERT, B_SHIFT_KEY,				MIDI_IMPORT		);
-	Install(1,"FILE_APPEND",		  0, 0,								  0, 0,							APPEND			);
 	Install(1,"FILE_MIX",			'M', B_COMMAND_KEY,					  0, 0,							OPEN_MIX		);
+	Install(1,"FILE_MIX_AS",		  0, 0,								  0, 0,							MIXDOWN_AS		);
+	Install(1,"PROJECT_NEW",		'N', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							PROJECT_NEW		);
+	Install(1,"PROJECT_OPEN",		'O', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							PROJECT_OPEN	);
+	Install(1,"PROJECT_SAVE",		  0, 0,								  0, 0,							PROJECT_SAVE	);
+	Install(1,"PROJECT_SAVE_AS",	  0, 0,								  0, 0,							PROJECT_SAVE_AS	);
 	Install(1,"FILE_SAVE",			'S', B_COMMAND_KEY,					  0, 0,							SAVE			);
 	Install(1,"FILE_SAVE_AS",		'S', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							SAVE_AS			);
 	Install(1,"FILE_SAVE_SELECTION",'S', B_COMMAND_KEY | B_CONTROL_KEY,	'S', B_SHIFT_KEY,				SAVE_SELECTION	);
@@ -327,12 +345,12 @@ void Shortcut::InstallDefaults(){
 	Install(1,"REDO",				'Z', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							REDO			);
 	Install(1,"UNDO_ENABLE",		'Z', B_COMMAND_KEY | B_CONTROL_KEY,	  0, 0,							UNDO_ENABLE		);
 	Install(1,"COPY",				'C', B_COMMAND_KEY,					  0, 0,							B_COPY			);
-	Install(1,"COPY_SILENCE",		'X', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							COPY_SILENCE	);
 	Install(1,"CUT",				'X', B_COMMAND_KEY,					  0, 0,							B_CUT			);
 	Install(1,"PASTE",			  	'V', B_COMMAND_KEY,					  0, 0,							B_PASTE			);
-	Install(1,"PASTE_NEW",			  0, 0,								  0, 0,							PASTE_NEW		);	// старая вставка «как новый» больше не нужна
 	Install(1,"CLIP_PASTE_N",		'V', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							CLIP_PASTE_N	);
 	Install(1,"CLIP_DELETE",		  0, 0,						   B_DELETE, 0,							CLIP_DELETE		);
+	Install(1,"CLIP_LOCK",			  0, 0,								  0, 0,							CLIP_LOCK		);
+	Install(1,"CLIP_GROUP",			  0, 0,								  0, 0,							CLIP_GROUP		);
 	Install(1,"CLIP_SAVE",			  0, 0,								  0, 0,							CLIP_SAVE		);
 #ifdef __SAMPLE_STUDIO_LE
 	Install(1,"EDIT_PASTE_MIX",		'V', B_COMMAND_KEY | B_CONTROL_KEY,	  0, 0,							PASTE_MIXED		);
@@ -356,6 +374,8 @@ void Shortcut::InstallDefaults(){
 	// help
 	Install(0,"HELP_MENU2",	  		  0, 0,								  0, 0,							SPLITTER		);
 	Install(1,"HELP",	       		'H', B_COMMAND_KEY,					 14, 0,							HELP			);
+	Install(1,"HISTORY",			  0, 0,								  0, 0,							HISTORY			);
+	Install(1,"HOMEPAGE",			  0, 0,								  0, 0,							HOMEPAGE		);
 	Install(1,"ABOUT",			      0, 0,								  0, 0,							ABOUT			);
 	
 	// The Transporter
