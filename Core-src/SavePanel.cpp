@@ -137,7 +137,14 @@ SavePanel::SavePanel(BHandler *handler, uint32 saveMessage)
 		textview->SetResizingMode(B_FOLLOW_LEFT_RIGHT | B_FOLLOW_BOTTOM);
 
 		// список файлов заканчивается над первой строкой
-		const float delta = (row1 - gap) - (Pos::In(background, countvw).y + countvw->Bounds().Height());
+		// низ блока списка - самый нижний из его видов (список, обе полосы прокрутки, счётчик)
+		float listBottom = 0;
+		BView *parts[4] = { poseview, hscrollbar, vscrollbar, countvw };
+		for (int i = 0; i < 4; i++)
+			listBottom = MAX(listBottom, Pos::In(background, parts[i]).y + parts[i]->Bounds().Height());
+		float delta = (row1 - gap) - listBottom;
+		if (poseview->Bounds().Height() + delta < 60)				// не сжимать список до нуля
+			delta = 60 - poseview->Bounds().Height();
 		poseview->ResizeBy(0, delta);
 		hscrollbar->MoveBy(0, delta);
 		vscrollbar->ResizeBy(0, delta);
