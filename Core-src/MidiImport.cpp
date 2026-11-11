@@ -1,5 +1,7 @@
 #include <Alert.h>
+#include <Box.h>
 #include <Button.h>
+#include <LayoutBuilder.h>
 #include <Directory.h>
 #include <Entry.h>
 #include <File.h>
@@ -37,7 +39,7 @@ struct Job {
 	std::string		sf2;
 	double			scale;			// множитель времени событий (подгонка MIDI под темп проекта)
 	double			setBpm;			// > 0 - сообщить, какой темп установить в проекте
-	bool			effects;		// передать значения эффектных контроллеров (панорама, реверб, хорус)
+	bool			fxPan, fxReverb, fxChorus;	// какие эффектные контроллеры MIDI передать: панорама CC10, реверб CC91, хорус CC93
 	BMessenger		target, window;
 };
 
@@ -57,39 +59,60 @@ bool EndsWithSf2(const char *name)
 
 MidiImportWindow::MidiImportWindow(BMessenger target, bool projectEmpty, double projectBpm, const entry_ref &midi)
 	: BWindow(BRect(120, 120, 540, 336), Language.get("MIDI_IMPORT_TITLE"), B_TITLED_WINDOW_LOOK, B_NORMAL_WINDOW_FEEL,
-		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_ASYNCHRONOUS_CONTROLS),
+		B_NOT_ZOOMABLE | B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS),
 	fTarget(target), fProjectEmpty(projectEmpty), fProjectBpm(projectBpm), fHaveSong(false),
 	fThread(-1), fBusy(false)
 {
-	BView *back = new BView(Bounds(), "back", B_FOLLOW_ALL, B_WILL_DRAW);
-	back->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
-	AddChild(back);
+	// сверху рамка «Эффекты MIDI»: по флажку на каждый эффект; ниже сведения о файле, саундфонте и темпе
+	fFxPan = new BCheckBox("fxpan", Language.get("MIDI_FX_PAN"), new BMessage('mdFx'));
+	fFxReverb = new BCheckBox("fxrev", Language.get("MIDI_FX_REVERB"), new BMessage('mdFx'));
+	fFxChorus = new BCheckBox("fxcho", Language.get("MIDI_FX_CHORUS"), new BMessage('mdFx'));
+	BBox *box = new BBox("fxbox");
+	box->SetLabel(Language.get("MIDI_FX_BOX"));
+	BLayoutBuilder::Group<>(box, B_VERTICAL, B_USE_SMALL_SPACING)
+		.SetInsets(B_USE_DEFAULT_SPACING, B_USE_BIG_SPACING, B_USE_DEFAULT_SPACING, B_USE_DEFAULT_SPACING)
+		.Add(fFxPan)
+		.Add(fFxReverb)
+		.Add(fFxChorus);
 
-	fFont = new BStringView(BRect(12, 8, 408, 24), NULL, "");
-	back->AddChild(fFont);
-	fTempoInfo = new BStringView(BRect(12, 40, 408, 56), NULL, "");
-	back->AddChild(fTempoInfo);
+	fStatus = new BStringView(NULL, "");				// имя файла; во время рендера - ход работы
+	fFont = new BStringView(NULL, "");
+	fTempoInfo = new BStringView(NULL, "");
 	const char *keys[3] = { "MIDI_OPT_SET_PROJECT", "MIDI_OPT_FIT_MIDI", "MIDI_OPT_KEEP" };
 	for (int i = 0; i < 3; i++) {
-		fOption[i] = new BRadioButton(BRect(24, 58 + i * 20, 408, 76 + i * 20), NULL, Language.get(keys[i]), new BMessage('mdOp'));
-		back->AddChild(fOption[i]);
+		fOption[i] = new BRadioButton(NULL, Language.get(keys[i]), new BMessage('mdOp'));
 		fOption[i]->Hide();
 	}
 	fOption[0]->SetValue(B_CONTROL_ON);
-	fEffects = new BCheckBox(BRect(12, 124, 408, 142), NULL, Language.get("MIDI_OPT_EFFECTS"), new BMessage('mdFx'));
-	back->AddChild(fEffects);
-	fStatus = new BStringView(BRect(12, 150, 408, 166), NULL, "");
-	back->AddChild(fStatus);
-	fInsert = new BButton(BRect(190, 178, 300, 206), NULL, Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
-	back->AddChild(fInsert);
+	fInsert = new BButton("insert", Language.get("MIDI_INSERT"), new BMessage(MSG_MIDI_INSERT));
 	fInsert->SetEnabled(false);
 	fInsert->MakeDefault(true);
-	BButton *cancel = new BButton(BRect(308, 178, 408, 206), NULL, Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
-	back->AddChild(cancel);
-	ResizeTo(420, 216);
+	BButton *cancel = new BButton("cancel", Language.get("CANCEL"), new BMessage(B_QUIT_REQUESTED));
+
+	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_DEFAULT_SPACING)
+		.SetInsets(B_USE_WINDOW_SPACING)
+		.Add(box)
+		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
+			.Add(fStatus)
+			.Add(fFont)
+			.Add(fTempoInfo)
+			.AddGroup(B_VERTICAL, 0)
+				.SetInsets(B_USE_DEFAULT_SPACING, 0, 0, 0)
+				.Add(fOption[0])
+				.Add(fOption[1])
+				.Add(fOption[2])
+			.End()
+		.End()
+		.AddGlue()
+		.AddGroup(B_HORIZONTAL)
+			.AddGlue()
+			.Add(cancel)
+			.Add(fInsert)
+		.End();
 
 	Scan();
 	LoadMidiFile(midi);
+	CenterOnScreen();
 	Show();
 }
 
@@ -220,7 +243,9 @@ void MidiImportWindow::StartRender()
 	job->song = fSong;
 	job->sf2 = fSf2;
 	job->scale = 1.0;
-	job->effects = fEffects->Value() == B_CONTROL_ON;
+	job->fxPan = fFxPan->Value() == B_CONTROL_ON;
+	job->fxReverb = fFxReverb->Value() == B_CONTROL_ON;
+	job->fxChorus = fFxChorus->Value() == B_CONTROL_ON;
 	job->setBpm = 0;
 	if (fProjectEmpty) {
 		job->setBpm = fSong.bpm;
@@ -270,9 +295,11 @@ int32 MidiImportWindow::Worker(void *arg)
 				MidiImportResult::Item item;
 				item.name = MidiTrackTitle(job->song.tracks[t], ++index);
 				item.src = src;
-				if (job->effects) {
+				if (job->fxPan || job->fxReverb || job->fxChorus) {
 					const MidiEffects fx = MidiTrackEffects(job->song.tracks[t]);
-					item.pan = fx.pan; item.reverb = fx.reverb; item.chorus = fx.chorus;
+					if (job->fxPan) item.pan = fx.pan;
+					if (job->fxReverb) item.reverb = fx.reverb;
+					if (job->fxChorus) item.chorus = fx.chorus;
 				}
 				res->items.push_back(item);
 			}

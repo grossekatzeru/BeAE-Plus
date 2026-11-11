@@ -82,7 +82,7 @@ private:
 	BStringView		*fStatus, *fTempoInfo;
 	BRadioButton	*fOption[3];			// 0 - темп проекта по MIDI, 1 - подогнать MIDI, 2 - не менять
 	BButton			*fInsert;
-	BCheckBox		*fEffects;			// добавить эффекты MIDI (панорама, реверб, хорус) как параметры дорожки/плагинов
+	BCheckBox		*fFxPan, *fFxReverb, *fFxChorus;	// какие эффекты MIDI перенести: баланс дорожки и плагины реверба / хоруса
 	bool			fProjectEmpty;
 	double			fProjectBpm;
 	bool			fHaveSong;
