@@ -26,6 +26,7 @@
 	OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <math.h>
 #include <AppKit.h>
 #include <InterfaceKit.h>
 #include <MediaKit.h>
@@ -384,6 +385,11 @@ void MyApplication::RefsReceived(BMessage *message)
 
 //------------------------------------------------------------------ Save
 
+static inline double SaveClip(float v)
+{
+	return v > 1.0f ? 1.0 : (v < -1.0f ? -1.0 : (double)v);	// перегруз не должен «заворачиваться» через край целого
+}
+
 void MyApplication::Save(BMessage *message){
 	// Grab the stuff we know is there .. or should be :P
 
@@ -399,7 +405,22 @@ void MyApplication::Save(BMessage *message){
 		dir.SetTo(&dir_ref);
 		if (dir.InitCheck() != B_OK)
 			return;
-			
+
+		// расширение по выбранному формату: без него файл не опознают другие программы
+		BString fullName(name);
+		{
+			media_codec_info *c0;
+			media_file_format *f0;
+			fSavePanel->GetSelectedFormatInfo(&f0, &c0);
+			if (f0 != NULL && f0->file_extension[0] != 0){
+				BString dot(".");
+				dot << f0->file_extension;
+				if (fullName.Length() < dot.Length() || fullName.IFindLast(dot.String()) != fullName.Length() - dot.Length())
+					fullName << dot;
+			}
+		}
+		name = fullName.String();
+
 		dir.CreateFile(name, &newFile);
 		
 		BEntry entry(&dir, name);
@@ -415,6 +436,7 @@ void MyApplication::Save(BMessage *message){
 		media_format format;
 		memset(&format, 0, sizeof(format));
 		char *buffer(NULL);
+		bool saveFailed(false);
 		int32 frame_size(1);
 
 		fSavePanel->GetSelectedFormatInfo(&fileFormat, &audioCodec);
@@ -445,9 +467,17 @@ void MyApplication::Save(BMessage *message){
 				}
 
 				raf = &(format.u.raw_audio);
-				buffer = (char*)malloc(raf->buffer_size);
 				int32 channels = raf->channel_count;
 				frame_size = (raf->format & 0xf) * raf->channel_count;
+				if (frame_size <= 0 || channels <= 0){
+					(new BAlert(NULL, Language.get("CODEC_FORMAT_ERROR"), Language.get("OK")))->Go();
+					file.CloseFile();
+					Pool.save_mode = 0;
+					return;
+				}
+				if (raf->buffer_size < (size_t)frame_size * 64)		// кодек не назвал размер буфера
+					raf->buffer_size = frame_size * 2048;
+				buffer = (char*)malloc(raf->buffer_size);
 				
 				int32 buffer_step = raf->buffer_size / frame_size;
 #ifndef __VM_SYSTEM	//RAM
@@ -476,37 +506,34 @@ void MyApplication::Save(BMessage *message){
 					case 0x4:	// 0 == mid, 0x80000001 == bottom, 0x7fffffff == top (all >16-bit formats, left-adjusted)
 					{	int32 *tmp = (int32*)buffer;
 						for (int32 count = 0; count<block*channels; count++){
-							t = *mem++;
-							*tmp++ = ROUND(t*0x7fffffff);
+							*tmp++ = (int32)lrint(SaveClip(*mem++) * 2147483647.0);
 						}
 					}	break;
 					case 0x2:	// 0 == mid, -32767 == bottom, +32767 == top
 					{	int16 *tmp = (int16*)buffer;
 						for (int32 count = 0; count<block*channels; count++){
-							t = *mem++;
-							*tmp++ = ROUND(t*32767.0);
+							*tmp++ = (int16)lrint(SaveClip(*mem++) * 32767.0);
 						}
 					}	break;
 					case 0x11:	// 128 == mid, 1 == bottom, 255 == top (discouraged but supported format)
 					{	uint8 *tmp = (uint8*)buffer;
 						for (int32 count = 0; count<block*channels; count++){
-							t = *mem++;
-							*tmp = ROUND(t*127.0);
-							tmp++;
-							*tmp = *tmp ^ 0x80;
+							*tmp++ = (uint8)(lrint(SaveClip(*mem++) * 127.0) + 128);
 						}
 					}	break;
 					case 0x1:		// 0 == mid, -127 == bottom, +127 == top (not officially supported format)
 					{	int8 *tmp = (int8*)buffer;
 						for (int32 count = 0; count<block*channels; count++){
-							t = *mem++;
-							*tmp++ = ROUND(t*127.0);		// xor 128 to invert sign bit
+							*tmp++ = (int8)lrint(SaveClip(*mem++) * 127.0);
 						}
 					}	break;
 					}
 
 					Pool.ProgressUpdate( block );
-					outTrack->WriteFrames(buffer, block);
+					if (outTrack->WriteFrames(buffer, block) != B_OK){
+						saveFailed = true;
+						break;
+					}
 					#ifdef __VM_SYSTEM	//RAM
 					VM.ReadBlock(convert_buffer, block*channels );
 					mem = convert_buffer;
@@ -518,26 +545,35 @@ void MyApplication::Save(BMessage *message){
 				}
 				#endif
 				
-				Pool.changed = false;
+				if (!saveFailed) Pool.changed = false;
 
 				outTrack->Flush();
 
-				BMimeType result;
-				BEntry ent(&dir,name);
-				entry_ref fref;
-				ent.GetRef(&fref);
-				BMimeType::GuessMimeType(&fref,&result);
-				BNodeInfo ninfo(&newFile); 
-				ninfo.SetType(result.Type()); 
 
 			}else{
 				(new BAlert(NULL, Language.get("CODEC_FORMAT_ERROR"), Language.get("OK")))->Go();
 			}
 
-			file.CloseFile();
+			file.CloseFile();			// только здесь дописывается заголовок (размеры) - тип ставим после
+
+			if (outTrack){
+				BNodeInfo ninfo(&newFile);
+				if (fileFormat != NULL && fileFormat->mime_type[0] != 0)
+					ninfo.SetType(fileFormat->mime_type);
+			}
+			off_t fsize = 0;
+			if (newFile.GetSize(&fsize) == B_OK && fsize == 0)
+				entry.Remove();			// пустой файл-«обломок» не оставляем
+			if (saveFailed)
+				(new BAlert(NULL, Language.get("SAVE_ERROR"), Language.get("OK")))->Go();
 			
 			free(buffer);
 			Pool.HideProgress();
+		}else{
+			(new BAlert(NULL, Language.get("CODEC_FORMAT_ERROR"), Language.get("OK")))->Go();
+			off_t z = 0;
+			if (newFile.GetSize(&z) == B_OK && z == 0)
+				entry.Remove();
 		}
 	}else{
 		(new BAlert(NULL, Language.get("SAVE_ERROR"), Language.get("OK")))->Go();
