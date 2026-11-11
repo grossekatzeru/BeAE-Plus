@@ -78,6 +78,22 @@
 #define MSG_CLIP_COUNT		'cCnt'
 #define MSG_CLIP_FILE		'cFil'
 
+// фильтр панели "Открыть проект": папки (чтобы ходить по ним) и файлы *.bemix
+class ProjectFilter : public BRefFilter {
+public:
+#if defined(__HAIKU__)
+	virtual bool Filter(const entry_ref *ref, BNode *node, struct stat_beos *, const char *)
+#else
+	virtual bool Filter(const entry_ref *ref, BNode *node, struct stat *, const char *)
+#endif
+	{
+		if (node->IsDirectory() || node->IsSymLink()) return true;
+		const char *n = ref->name;
+		const size_t len = n ? strlen(n) : 0;
+		return len > 6 && strcasecmp(n + len - 6, ".bemix") == 0;
+	}
+};
+
 static BFilePanel *gProjFolderPanel = NULL;
 static BFilePanel *gProjOpenPanel = NULL;
 static BFilePanel *gMixdownPanel = NULL;
@@ -1578,7 +1594,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		if (Recorder.IsRecording()) break;
 		if (gProjOpenPanel == NULL){
 			gProjOpenPanel = new BFilePanel(B_OPEN_PANEL, new BMessenger(this), NULL, B_FILE_NODE, false,
-				new BMessage(MSG_PROJECT_FILE));
+				new BMessage(MSG_PROJECT_FILE), new ProjectFilter);	// фильтр: только папки и *.bemix
 			gProjOpenPanel->Window()->SetTitle(Language.get("PROJECT_OPEN"));
 		}
 		gProjOpenPanel->Show();
