@@ -26,7 +26,7 @@ static const char *ModeLabel(Id id, int mode)
 }
 
 EncoderOptionsWindow::EncoderOptionsWindow(Id id, BWindow *parent)
-	: BWindow(BRect(0, 0, 10, 10), "", B_TITLED_WINDOW_LOOK, B_MODAL_SUBSET_WINDOW_FEEL,
+	: BWindow(BRect(0, 0, 10, 10), "", B_TITLED_WINDOW_LOOK, B_MODAL_APP_WINDOW_FEEL,
 		B_NOT_ZOOMABLE | B_NOT_RESIZABLE | B_AUTO_UPDATE_SIZE_LIMITS | B_ASYNCHRONOUS_CONTROLS),
 	fId(id), fMode(NULL), fStereo(NULL), fQuality(NULL), fBitrate(NULL), fLevel(NULL),
 	fArtist(NULL), fAlbum(NULL), fYear(NULL), fComment(NULL)
@@ -36,7 +36,6 @@ EncoderOptionsWindow::EncoderOptionsWindow(Id id, BWindow *parent)
 	BString title(Language.get("SAVE_OPTIONS_TITLE"));
 	title << " " << p.title;
 	SetTitle(title.String());
-	if (parent) AddToSubset(parent);
 
 	BBox *box = new BBox("quality");
 	box->SetLabel(p.title);
@@ -113,6 +112,7 @@ EncoderOptionsWindow::EncoderOptionsWindow(Id id, BWindow *parent)
 	UpdateEnabled();
 	if (parent) CenterIn(parent->Frame()); else CenterOnScreen();
 	Show();
+	Activate();
 }
 
 // VBR: нужно качество, CBR/ABR: битрейт

@@ -212,6 +212,7 @@ void SavePanel::MessageReceived(BMessage *message) {
 	case PANEL_OPTIONS:				// настройки выбранного кодировщика (качество, режим, теги)
 	{
 		const int id = SelectedEncoder();
+		printf("[save panel] options: encoder=%d compressed=%d\n", id, (int)fCompressed);
 		if (id >= 0) new EncoderOptionsWindow((ExtEncoder::Id)id, Window());
 		break;
 	}
