@@ -36,6 +36,7 @@
 #include <View.h>
 
 #include "ByteSwap.h"
+#include "FileImport.h"
 #include "Globals.h"
 #include "MainWindow.h"
 #include "main.h"
@@ -170,7 +171,7 @@ void MyApplication::RefsReceived(BMessage *message)
 
 				if (format.IsAudio()) {
 					audTrack = inTrack;
-					inTrack->DecodedFormat(&format);
+					RequestDecodedFormat(inTrack, format, "open");
 
 //					Pool.m_format = format;
 					memcpy(&Pool.m_format, &format, sizeof(Pool.m_format));
@@ -257,12 +258,12 @@ void MyApplication::RefsReceived(BMessage *message)
 					memset( buffer, 0, format.u.raw_audio.buffer_size);
 					framesRead = 0;
 					if ((err = audTrack->ReadFrames(buffer, &framesRead, &mh)) != B_OK) {
-						printf("Error reading audio frames: %s\n", strerror(err));
+						printf("[open] read error: %s\n", strerror(err));
 						break;
 					}
 
 					if (framesRead <= 0){			// декодер ничего не отдал: два раза подряд - файл закончился раньше, чем обещал заголовок
-						if (++zeroReads >= 2) break;
+						if (++zeroReads >= 2){ printf("[open] zero frames, stop at %lld of %lld\n", (long long)i, (long long)frameCount); break; }
 						continue;
 					}
 					zeroReads = 0;

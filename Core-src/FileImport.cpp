@@ -5,6 +5,7 @@
 #include <string.h>
 #include <new>
 #include <vector>
+#include <stdio.h>
 
 #include "FileImport.h"
 #include "ByteSwap.h"
@@ -35,6 +36,34 @@ static float ReadSample(const char *buf, uint32 fmt, int64 idx)
 	return x;
 }
 
+void RequestDecodedFormat(BMediaTrack *track, media_format &fmt, const char *what)
+{
+	media_format enc;
+	memset(&enc, 0, sizeof(enc));
+	track->EncodedFormat(&enc);
+	printf("[%s] encoded: type=%d rate=%g ch=%u fmt=0x%x frames=%lld\n", what, (int)enc.type,
+		enc.u.raw_audio.frame_rate, (unsigned)enc.u.raw_audio.channel_count,
+		(unsigned)enc.u.raw_audio.format, (long long)track->CountFrames());
+
+	media_format want;
+	memset(&want, 0, sizeof(want));
+	want.type = B_MEDIA_RAW_AUDIO;
+	want.u.raw_audio = media_raw_audio_format::wildcard;
+	want.u.raw_audio.format = media_raw_audio_format::B_AUDIO_FLOAT;
+	want.u.raw_audio.byte_order = B_MEDIA_HOST_ENDIAN;
+	status_t err = track->DecodedFormat(&want);
+	if (err == B_OK && want.type == B_MEDIA_RAW_AUDIO && want.u.raw_audio.channel_count > 0)
+		fmt = want;
+	else{
+		fmt = enc;
+		track->DecodedFormat(&fmt);		// как раньше: пусть выберет сам
+		printf("[%s] float refused (%s), decoder format used\n", what, strerror(err));
+	}
+	printf("[%s] decoded: fmt=0x%x ch=%u rate=%g bufsize=%u order=%d\n", what,
+		(unsigned)fmt.u.raw_audio.format, (unsigned)fmt.u.raw_audio.channel_count,
+		fmt.u.raw_audio.frame_rate, (unsigned)fmt.u.raw_audio.buffer_size, (int)fmt.u.raw_audio.byte_order);
+}
+
 int ImportAudioFile(const entry_ref &ref, SourceRef &out)
 {
 	out.reset();
@@ -55,7 +84,7 @@ int ImportAudioFile(const entry_ref &ref, SourceRef &out)
 		if (track == NULL && f.IsAudio()){
 			track = t;
 			format = f;
-			t->DecodedFormat(&format);		// так же, как при открытии файла
+			RequestDecodedFormat(t, format, "drop");
 		}else{
 			file.ReleaseTrack(t);
 		}
@@ -97,8 +126,12 @@ int ImportAudioFile(const entry_ref &ref, SourceRef &out)
 				int64 framesRead = 0;
 				media_header mh;
 				memset(buffer, 0, bufSize);
-				if (track->ReadFrames(buffer, &framesRead, &mh) != B_OK || framesRead <= 0)
+				status_t rerr = track->ReadFrames(buffer, &framesRead, &mh);
+				if (rerr != B_OK || framesRead <= 0){
+					printf("[drop] read stop: err=%s frames=%lld done=%lld of %lld\n", strerror(rerr),
+						(long long)framesRead, (long long)done, (long long)frameCount);
 					break;
+				}
 				if (swap) swap->Swap(buffer, bufSize);
 				if (done + framesRead > frameCount) framesRead = frameCount - done;
 				for (int64 f = 0; f < framesRead; f++)
