@@ -40,7 +40,7 @@ Core::Core() : fRate(44100.0f), fA4(440.0f), fPreset(0), fPushed(0), fLastVoiced
 	fBuf.assign(kBuf, 0.0f);
 	memset(&fLast, 0, sizeof(fLast));
 	fLast.stringIndex = -1;
-	for (int i = 0; i < 5; i++) fHist[i] = 0;
+	for (int i = 0; i < kHist; i++) fHist[i] = 0;
 }
 
 void Core::Init(float sampleRate)
@@ -164,12 +164,18 @@ bool Core::Detect(float fmin, float fmax, float *freq)
 	return *freq > 0;
 }
 
+// Устойчивое среднее: сортировка, отбрасывание крайних четвертей (выбросы), среднее остального.
+// Чем длиннее история, тем спокойнее показание; при малом числе оценок - медиана.
 static float Median5(const float *h, int n)
 {
-	float a[5];
+	float a[kHist];
 	for (int i = 0; i < n; i++) a[i] = h[i];
 	for (int i = 1; i < n; i++) { float v = a[i]; int j = i - 1; while (j >= 0 && a[j] > v) { a[j + 1] = a[j]; j--; } a[j + 1] = v; }
-	return a[n / 2];
+	if (n < 5) return a[n / 2];
+	const int cut = n / 4;
+	float s = 0;
+	for (int i = cut; i < n - cut; i++) s += a[i];
+	return s / (n - 2 * cut);
 }
 
 Reading Core::Update()
@@ -188,9 +194,9 @@ Reading Core::Update()
 		const float m = FreqToMidi(f, fA4);
 		// новая оценка далеко от предыдущих (> 60 центов) - начинаем накопление заново
 		if (fHistN > 0 && fabsf(m - Median5(fHist, fHistN)) > 0.6f) { fHistN = 0; fActive = false; }
-		if (fHistN < 5) fHist[fHistN++] = m;
-		else { for (int i = 0; i < 4; i++) fHist[i] = fHist[i + 1]; fHist[4] = m; }
-		if (fHistN >= 2) fActive = true;
+		if (fHistN < kHist) fHist[fHistN++] = m;
+		else { for (int i = 0; i < kHist - 1; i++) fHist[i] = fHist[i + 1]; fHist[kHist - 1] = m; }
+		if (fHistN >= 3) fActive = true;
 		if (fActive) {
 			const float med = Median5(fHist, fHistN);
 			r.voiced = true;

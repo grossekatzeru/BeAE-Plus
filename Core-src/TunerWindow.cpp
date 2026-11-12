@@ -38,7 +38,7 @@ static rgb_color Green(int v) { return make_color(0, v, (uint8)(v * 0.35f)); }
 TunerView::TunerView()
 	: BView("Tuner view", B_WILL_DRAW | B_PULSE_NEEDED | B_FULL_UPDATE_ON_RESIZE),
 	fCoreRate(0), fRunning(false), fPreset(sPreset), fA4(sA4), fNotation(sNotation),
-	fShown(0), fLevelShown(-60)
+	fShown(0), fShownFreq(0), fShownCents(0), fNumbersAt(0), fLevelShown(-60)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 	SetExplicitMinSize(BSize(440, 260));
@@ -146,9 +146,18 @@ void TunerView::Pulse()
 		fReading = fCore.Update();
 	// маркер движется плавно
 	const float target = fReading.voiced ? fmaxf(-50.0f, fminf(50.0f, fReading.cents)) : 0.0f;
-	fShown += (target - fShown) * 0.35f;
+	fShown += (target - fShown) * 0.18f;
 	const float lvl = fReading.levelDb;
 	fLevelShown += ((lvl < -60 ? -60 : lvl) - fLevelShown) * 0.4f;
+	// числа (Гц и центы) меняются не чаще пяти раз в секунду и на целые центы: глаз успевает прочитать
+	const bigtime_t now = system_time();
+	if (!fReading.voiced) {
+		fShownFreq = 0; fShownCents = 0; fNumbersAt = 0;
+	} else if (now - fNumbersAt >= 200000) {
+		fShownFreq = fReading.freq;
+		fShownCents = fReading.cents;
+		fNumbersAt = now;
+	}
 	Invalidate();
 }
 
@@ -161,8 +170,8 @@ void TunerView::Draw(BRect)
 
 	const float cx = w / 2;
 	const Tuner::Preset &pr = Tuner::PresetAt(fPreset);
-	const bool inTune = fReading.voiced && fabsf(fReading.cents) <= 3.0f;
-	const bool nearTune = fReading.voiced && fabsf(fReading.cents) <= 15.0f;
+	const bool inTune = fReading.voiced && fabsf(fShown) <= 3.0f;
+	const bool nearTune = fReading.voiced && fabsf(fShown) <= 15.0f;
 	const rgb_color bright = make_color(60, 255, 110);
 	const rgb_color amber = make_color(255, 176, 32);
 
@@ -247,8 +256,8 @@ void TunerView::Draw(BRect)
 	// лампы: ниже строя / в строю / выше строя
 	{
 		const float ly = ry - tickBig - 38;
-		const bool low = fReading.voiced && fReading.cents < -3.0f;
-		const bool high = fReading.voiced && fReading.cents > 3.0f;
+		const bool low = fReading.voiced && fShown < -3.0f;
+		const bool high = fReading.voiced && fShown > 3.0f;
 		SetHighColor(low ? amber : Green(60));
 		FillTriangle(BPoint(cx - 70, ly), BPoint(cx - 52, ly - 10), BPoint(cx - 52, ly + 10));
 		SetHighColor(inTune ? bright : Green(60));
@@ -288,7 +297,7 @@ void TunerView::Draw(BRect)
 		// частота и отклонение, либо подсказка
 		if (fReading.voiced) {
 			char buf[64];
-			snprintf(buf, sizeof(buf), "%.2f Hz    %+.0f \xC2\xA2", fReading.freq, fReading.cents);
+			snprintf(buf, sizeof(buf), "%.1f Hz    %+.0f \xC2\xA2", fShownFreq, fShownCents);
 			SetHighColor(Green(200));
 			DrawString(buf, BPoint(cx - StringWidth(buf) / 2, ry + tickBig + 36));
 		} else if (fStatus.Length()) {

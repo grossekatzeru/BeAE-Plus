@@ -44,6 +44,8 @@ private:
 	int				fNotation;
 	Tuner::Reading	fReading;
 	float			fShown;			// плавно движущийся маркер, центы
+	float			fShownFreq, fShownCents;	// числа на экране (обновляются реже)
+	bigtime_t		fNumbersAt;
 	float			fLevelShown;
 	BString			fStatus;		// ключ языка или пусто
 };

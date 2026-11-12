@@ -46,6 +46,8 @@ struct Reading {
 	float	levelDb;		// уровень сигнала, дБ (0 - полная шкала)
 };
 
+enum { kHist = 12 };		// длина истории оценок высоты (сглаживание)
+
 class Core {
 public:
 	Core();
@@ -72,7 +74,7 @@ private:
 	std::vector<float> fBuf;
 	uint64_t fPushed;
 	uint64_t fLastVoiced;
-	float	fHist[5];
+	float	fHist[kHist];
 	int		fHistN;
 	bool	fActive;				// уже было подтверждение
 	Reading	fLast;
