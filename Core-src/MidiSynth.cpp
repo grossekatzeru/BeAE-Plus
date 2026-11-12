@@ -29,7 +29,12 @@ struct Chan {
 	int		vol, expr;
 	bool	sustain;
 	double	bend;		// полутоны
-	Chan() : bank(0), program(0), vol(127), expr(127), sustain(false), bend(0) {}
+	int		bendRaw;	// последнее значение колеса -8192..8191
+	double	bendRange;	// диапазон колеса в полутонах (RPN 0, по умолчанию 2)
+	int		rpnMsb, rpnLsb;	// выбранный параметр RPN (127/127 - не выбран)
+	int		rangeSemi, rangeCents;	// значения Data Entry для диапазона колеса
+	Chan() : bank(0), program(0), vol(127), expr(127), sustain(false), bend(0), bendRaw(0), bendRange(2.0),
+		rpnMsb(127), rpnLsb(127), rangeSemi(2), rangeCents(0) {}
 };
 
 double TimeSec(int timecents) { return pow(2.0, timecents / 1200.0); }
@@ -182,9 +187,19 @@ bool RenderMidiTrack(const MidiTrackData &track, const SoundFont &sf, float rate
 			case ME_NOTE_ON: noteOn(e); break;
 			case ME_NOTE_OFF: noteOff(e); break;
 			case ME_PROGRAM: c.program = e.a; break;
-			case ME_BEND: c.bend = (e.a / 8192.0) * 2.0; break;
+			case ME_BEND: c.bendRaw = e.a; c.bend = (e.a / 8192.0) * c.bendRange; break;
 			case ME_CC:
-				if (e.a == 0) c.bank = e.b;
+				if (e.a == 101) c.rpnMsb = e.b;
+				else if (e.a == 100) c.rpnLsb = e.b;
+				else if (e.a == 6 || e.a == 38) {		// Data Entry: при выбранном RPN 0 это диапазон колеса высоты
+					if (c.rpnMsb == 0 && c.rpnLsb == 0) {
+						if (e.a == 6) { if (e.b <= 24) c.rangeSemi = e.b; }		// нелепые значения (48, 76...) игнорируем
+						else c.rangeCents = e.b > 99 ? 99 : e.b;
+						c.bendRange = c.rangeSemi + c.rangeCents / 100.0;
+						c.bend = (c.bendRaw / 8192.0) * c.bendRange;
+					}
+				}
+				else if (e.a == 0) c.bank = e.b;
 				else if (e.a == 7) c.vol = e.b;
 				else if (e.a == 11) c.expr = e.b;
 				else if (e.a == 64) {

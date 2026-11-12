@@ -128,6 +128,10 @@ int main()
 	// pitch bend вверх до упора: +2 полутона
 	CHECK(RenderMidiTrack(Track({ E(0, ME_BEND, 0, 8191), E(0, ME_NOTE_ON, 0, 69, 127), E(0.5, ME_NOTE_OFF, 0, 69) }), sf, R, o));
 	CHECK(fabs(Freq(o, 0.05, 0.45, R) - 441 * pow(2.0, 2.0 / 12)) < 10);
+	// RPN 0 (диапазон колеса): 4 полутона, затем нелепое значение 60 игнорируется; бенд вверх до упора = +4 полутона
+	CHECK(RenderMidiTrack(Track({ E(0, ME_CC, 0, 101, 0), E(0, ME_CC, 0, 100, 0), E(0, ME_CC, 0, 6, 4), E(0, ME_CC, 0, 6, 60),
+		E(0, ME_BEND, 0, 8191), E(0, ME_NOTE_ON, 0, 69, 127), E(0.5, ME_NOTE_OFF, 0, 69) }), sf, R, o));
+	CHECK(fabs(Freq(o, 0.05, 0.45, R) - 441 * pow(2.0, 4.0 / 12)) < 12);
 	// педаль: нота отпущена в 0.2, педаль снята в 0.6
 	CHECK(RenderMidiTrack(Track({ E(0, ME_CC, 0, 64, 127), E(0, ME_NOTE_ON, 0, 69, 127), E(0.2, ME_NOTE_OFF, 0, 69), E(0.6, ME_CC, 0, 64, 0) }), sf, R, o));
 	CHECK(PeakIn(o, 0.3, 0.55, R) > 0.4f);
