@@ -75,6 +75,16 @@ void Preferences::Init(){
 	if(prefs.FindString("midi_soundfont",&midi_soundfont) != B_OK)
 		midi_soundfont.SetTo("");
 
+	// внешние кодировщики для сжатых форматов
+	{
+		const char *keys[4] = { "enc_mp3", "enc_ogg", "enc_flac", "enc_opus" };
+		for(int i = 0; i < 4; i++)
+			if(prefs.FindString(keys[i], &encSettings[i]) != B_OK)
+				encSettings[i].SetTo("");
+		if(prefs.FindInt32("enc_last", &encLast) != B_OK)
+			encLast = -1;
+	}
+
    // Get the temp dir
 	if(prefs.FindString("temp_dir",&temp_dir) != B_OK)
 		temp_dir.SetTo("/tmp");
@@ -232,6 +242,12 @@ void Preferences::Sync(){
 	prefs.SetString("Language_Name",Language.Name());
 	prefs.SetString("temp_dir",temp_dir.String());
 	prefs.SetString("midi_soundfont",midi_soundfont.String());
+	{
+		const char *keys[4] = { "enc_mp3", "enc_ogg", "enc_flac", "enc_opus" };
+		for(int i = 0; i < 4; i++)
+			prefs.SetString(keys[i], encSettings[i].String());
+		prefs.SetInt32("enc_last", encLast);
+	}
 	prefs.SetRect("window_frame", frame);
 
 	prefs.SetRect("sample_scope_frame", sample_scope_pos);
@@ -359,6 +375,8 @@ void Preferences::FactorySettings(){
 	lang_name.SetTo("English");
 	temp_dir.SetTo("/tmp");
 	midi_soundfont.SetTo("");
+	for(int i = 0; i < 4; i++) encSettings[i].SetTo("");
+	encLast = -1;
 
 	frame.Set(50,50,800,600);
 

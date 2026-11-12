@@ -70,12 +70,15 @@ class SavePanel : public BFilePanel, public BHandler {
 	// несжатый: WAV (кодек Raw audio или NULL); сжатый: format == NULL (пока не реализован)
 	void GetSelectedFormatInfo(media_file_format **format, media_codec_info **audio);
 	bool CompressedSelected() const;
+	// выбранный внешний кодировщик (ExtEncoder::Id) для сжатого формата или -1
+	int SelectedEncoder() const;
 	void SetFormatInfo(media_file_format *format, media_codec_info *audio);
 
   private:
 	void FindWavFormat();
 	void BuildFormatMenu();
 	void UpdateControls();
+	void RememberEncoder();
 
 	BMenuField	*fFormatMenu;
 	BMenuField	*fAudioMenu;

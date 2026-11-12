@@ -37,6 +37,9 @@
 
 #include "Globals.h"
 #include "SavePanel.h"
+#include "ExtEncoder.h"
+#include "EncoderOptionsWindow.h"
+#include "Preferences.h"
 
 // выбор формата и кодека запоминается до конца работы; по умолчанию WAV и несжатый звук
 static BString sLastFormat, sLastCodec, sLastCodecFormat;
@@ -203,10 +206,15 @@ void SavePanel::MessageReceived(BMessage *message) {
 	}
 
 	case PANEL_CODEC:
+		RememberEncoder();
 		break;
 
-	case PANEL_OPTIONS:				// настройки выбранного кодека: пока заготовка
+	case PANEL_OPTIONS:				// настройки выбранного кодировщика (качество, режим, теги)
+	{
+		const int id = SelectedEncoder();
+		if (id >= 0) new EncoderOptionsWindow((ExtEncoder::Id)id, Window());
 		break;
+	}
 
 	default:
 		BHandler::MessageReceived(message);
@@ -269,14 +277,52 @@ void SavePanel::BuildFormatMenu() {
 	fCompressed = false;
 }
 
-// кодек и «Опции...» работают только для сжатого формата; список кодеков пока пуст
+// Кодек и «Опции...» работают только для сжатого формата. Кодеки - найденные в системе внешние программы
+// (lame, oggenc, flac, opusenc); если ни одной нет, вместо списка подсказка.
 void SavePanel::UpdateControls()
 {
 	BMenu *menu = fAudioMenu->Menu();
 	BMenuItem *item;
 	while ((item = menu->RemoveItem((int32)0)) != NULL) delete item;
-	fAudioMenu->SetEnabled(fCompressed);
-	fOptions->SetEnabled(fCompressed);
+	bool any = false;
+	if (fCompressed) {
+		const std::vector<ExtEncoder::Id> found = ExtEncoder::Available();
+		for (size_t i = 0; i < found.size(); i++) {
+			BMessage *m = new BMessage(PANEL_CODEC);
+			m->AddInt32("encoder", (int32)found[i]);
+			item = new BMenuItem(ExtEncoder::GetProfile(found[i]).title, m);
+			item->SetTarget(this);
+			menu->AddItem(item);
+			if ((int32)found[i] == Prefs.encLast) item->SetMarked(true);
+			any = true;
+		}
+		if (any && menu->FindMarked() == NULL) menu->ItemAt(0)->SetMarked(true);
+		if (!any) {
+			item = new BMenuItem(Language.get("ENC_NONE"), NULL);
+			item->SetEnabled(false);
+			menu->AddItem(item);
+			item->SetMarked(true);
+		}
+	}
+	fAudioMenu->SetEnabled(fCompressed && any);
+	fOptions->SetEnabled(fCompressed && any);
+	RememberEncoder();
+}
+
+void SavePanel::RememberEncoder()
+{
+	const int id = SelectedEncoder();
+	if (id >= 0) Prefs.encLast = id;
+}
+
+int SavePanel::SelectedEncoder() const
+{
+	if (!fCompressed || fAudioMenu == NULL) return -1;
+	BMenuItem *item = fAudioMenu->Menu()->FindMarked();
+	if (item == NULL || item->Message() == NULL) return -1;
+	int32 id;
+	if (item->Message()->FindInt32("encoder", &id) != B_OK) return -1;
+	return (int)id;
 }
 
 /*******************************************************

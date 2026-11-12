@@ -1445,10 +1445,6 @@ void MainWindow::MessageReceived(BMessage *message)
 		entry_ref dir;
 		const char *name = NULL;
 		if (message->FindRef("directory", &dir) != B_OK || message->FindString("name", &name) != B_OK) break;
-		if (gMixdownPanel && gMixdownPanel->CompressedSelected()){		// сжатые форматы пока не реализованы
-			(new BAlert(NULL, Language.get("SAVE_COMPRESSED_SOON"), Language.get("OK")))->Go();
-			break;
-		}
 		BString err;
 		std::vector<float> mix;
 		int64 total = 0;
@@ -1457,7 +1453,15 @@ void MainWindow::MessageReceived(BMessage *message)
 			(new BAlert(NULL, err.String(), Language.get("OK")))->Go();
 			break;
 		}
-		// несжатый: WAV float (32 бита), как раньше; сжатые форматы - через MediaWriteFloat, когда будут готовы
+		if (gMixdownPanel && gMixdownPanel->CompressedSelected()){		// сжатый формат: внешний кодировщик
+			const int enc = gMixdownPanel->SelectedEncoder();
+			if (enc < 0)
+				(new BAlert(NULL, Language.get("ENC_NONE"), Language.get("OK")))->Go();
+			else
+				SaveWithExternalEncoder(enc, dir, name, &mix[0], total, 2, rate);
+			break;
+		}
+		// несжатый: WAV float (32 бита), как раньше
 		BString fn(name);
 		if (fn.Length() < 4 || fn.IFindLast(".wav") != fn.Length() - 4) fn << ".wav";
 		BPath p(&dir);

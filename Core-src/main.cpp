@@ -41,6 +41,7 @@
 #include "main.h"
 #include "OpenPanel.h"
 #include "SavePanel.h"
+#include "MediaWriter.h"
 #include "PeakFile.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
@@ -407,8 +408,15 @@ void MyApplication::Save(BMessage *message){
 		if (dir.InitCheck() != B_OK)
 			return;
 
-		if (fSavePanel->CompressedSelected()){				// сжатые форматы пока не реализованы
-			(new BAlert(NULL, Language.get("SAVE_COMPRESSED_SOON"), Language.get("OK")))->Go();
+		if (fSavePanel->CompressedSelected()){				// сжатый формат: внешний кодировщик (lame, oggenc, flac, opusenc)
+			const int enc = fSavePanel->SelectedEncoder();
+			if (enc < 0){
+				(new BAlert(NULL, Language.get("ENC_NONE"), Language.get("OK")))->Go();
+				return;
+			}
+			if (Pool.sample_type < 1 || Pool.sample_type > 2 || save_end <= save_start) return;
+			SaveWithExternalEncoder(enc, dir_ref, name, Pool.sample_memory + save_start * Pool.sample_type,
+				save_end - save_start, Pool.sample_type, Pool.frequency);
 			return;
 		}
 

@@ -48,6 +48,8 @@ class Preferences{
  public:
 	// Non-user set prefs
 	BString lang_name, temp_dir;
+	BString encSettings[4];		// настройки внешних кодировщиков по номеру ExtEncoder::Id (mp3, ogg, flac, opus), см. ExtEncoder::ToString
+	int32	encLast;			// последний выбранный кодировщик (Id), -1 - ещё не выбирали
 	BString midi_soundfont;	// полный путь к *.sf2 для импорта MIDI (пусто - первый найденный)
 
 	rgb_color	index_back_color, index_left_color, index_mid_color, index_mid_selected_color;

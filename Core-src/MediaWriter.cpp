@@ -1,4 +1,10 @@
 #include "MediaWriter.h"
+#include "ExtEncoder.h"
+#include "Globals.h"
+#include "CommonPool.h"
+#include "Preferences.h"
+#include <Alert.h>
+#include <Path.h>
 
 #include <Entry.h>
 #include <File.h>
@@ -132,4 +138,48 @@ bool MediaWriteFloat(const entry_ref &dirRef, const char *name, const media_file
 	if (!ok || (newFile.GetSize(&size) == B_OK && size == 0))
 		entry.Remove();						// пустой или недописанный файл не оставляем
 	return ok;
+}
+
+// ------------------------------------------------------------------ внешние кодировщики
+
+static bool EncProgress(double fraction, void *user)
+{
+	// запись временного WAV - ход по доле, индикатор общий с обычным сохранением
+	long long *last = (long long *)user;
+	const long long now = (long long)(fraction * 100);
+	if (now > *last) { Pool.ProgressUpdate((int32)(now - *last)); *last = now; }
+	return true;
+}
+
+bool SaveWithExternalEncoder(int encoder, const entry_ref &dirRef, const char *name, const float *data, long long frames,
+	int channels, float rate)
+{
+	using namespace ExtEncoder;
+	if (encoder < 0 || encoder >= COUNT) return false;
+	const Id id = (Id)encoder;
+	const Profile &p = GetProfile(id);
+
+	// имя с расширением кодека
+	BString fn(name);
+	BString dot(".");
+	dot << p.extension;
+	if (fn.Length() < dot.Length() || fn.IFindLast(dot.String()) != fn.Length() - dot.Length()) fn << dot;
+	BString base(fn);
+	base.Truncate(fn.Length() - dot.Length());
+
+	BPath dir(&dirRef);
+	BPath out(dir.Path(), fn.String());
+	const Settings s = FromString(id, Prefs.encSettings[id].String());
+
+	Pool.StartProgress(Language.get("ENC_ENCODING"), 100);
+	long long last = 0;
+	std::string err;
+	const bool ok = Encode(id, s, Prefs.temp_dir.String(), base.String(), data, frames, channels, rate, out.Path(), err,
+		EncProgress, NULL, &last);
+	Pool.HideProgress();
+	if (!ok) {
+		(new BAlert(NULL, err.c_str(), Language.get("OK")))->Go();
+		return false;
+	}
+	return true;
 }

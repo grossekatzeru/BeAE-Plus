@@ -16,4 +16,10 @@ bool MediaWriteFloat(const entry_ref &dir, const char *name, const media_file_fo
 // Имя файла с расширением формата (если его ещё нет).
 BString MediaNameWithExtension(const char *name, const media_file_format *ff);
 
+// Сжатый формат через внешний кодировщик (lame, oggenc, flac, opusenc): временный WAV, запуск программы, удаление
+// временного файла. Настройки берутся из Prefs.encSettings. Показывает ход работы и сообщение об ошибке.
+// encoder - ExtEncoder::Id; data - чередующиеся float-кадры. Возвращает false при ошибке/отмене (сообщение уже показано).
+bool SaveWithExternalEncoder(int encoder, const entry_ref &dir, const char *name, const float *data, long long frames,
+	int channels, float rate);
+
 #endif
