@@ -38,7 +38,6 @@
 
 #include "Globals.h"
 #include "MainWindow.h"
-#include "VUView.h"
 #include "main.h"
 #include "TransportView.h"
 #include "PointersView.h"
@@ -509,12 +508,7 @@ MainWindow::MainWindow(BRect frame)
 	mainMenuBar = NULL;
 	AddMenu();
 
-	BRect r(0,0,31,62);				// VU meters
-	r.OffsetTo(229,Bounds().bottom - 62);
-	AddChild(VU_view = new VUView(r));
-	Pool.m_VU_View = VU_view;		// add a pointer for the player
-
-	r.Set(0,0,228,62);				// Transport buttons
+	BRect r(0,0,228,62);				// Transport buttons
 	r.OffsetTo(0,Bounds().bottom - 62);
 	AddChild(transport_view = new TransportView(r));
 
@@ -530,7 +524,7 @@ MainWindow::MainWindow(BRect frame)
 
 	r = Bounds();					// Big LCD
 	r.top = r.bottom - 62;
-	r.left = 261;
+	r.left = 229;					// маленький VU-индикатор убран (дублировал индикаторы Master), его место занял большой экран
 	r.right -= 260;
 	AddChild(new BigView(r));		// внутри: большой таймер и окно темпа, по центру
 

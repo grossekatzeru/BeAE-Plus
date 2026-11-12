@@ -64,7 +64,7 @@ class MainWindow : public BWindow {
  	friend class SampleView;
 	BMenuBar	*mainMenuBar;
 	BMenu		*recent_menu;
-	BView		*VU_view, *index_view, *sample_view, *pointer_view;
+	BView		*index_view, *sample_view, *pointer_view;
 	TransportView *transport_view;
 };
 

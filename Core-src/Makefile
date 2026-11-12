@@ -38,7 +38,7 @@ SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp AnalyzeWindow.cpp Bass
 	ReverbWindow.cpp RoomFilter.cpp SampleScopeWindow.cpp SampleView.cpp SavePanel.cpp MediaWriter.cpp ExtEncoder.cpp EncoderOptionsWindow.cpp \
 	Shortcut.cpp SpectrumWindow.cpp SpinSlider.cpp \
 	SwatchView.cpp TimeBarView.cpp ToolBarView.cpp TransportView.cpp VMSystem.cpp \
-	VUView.cpp ValuesView.cpp YLanguageClass.cpp YPreferences.cpp main.cpp
+	ValuesView.cpp YLanguageClass.cpp YPreferences.cpp main.cpp
 
 #	Specify the resource definition files to use. Full or relative paths can be
 #	used.
