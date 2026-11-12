@@ -1261,32 +1261,25 @@ void MainWindow::MessageReceived(BMessage *message)
 		Pool.RedrawWindow();
 		break;
 	case ZOOM_LEFT:
-		if (Pool.size == 0 || Pool.selection==NONE)	break;
-		x = sample_view->Bounds().IntegerWidth()/6;
-		Pool.l_pointer = Pool.pointer -x/2;				// window to selection
-		if (Pool.l_pointer<0)	Pool.l_pointer = 0;
-		Pool.r_pointer = Pool.l_pointer + x;
-
-		Pool.UpdateToolBar();
-		Pool.update_index = true;
-		Pool.RedrawWindow();
-		break;
 	case ZOOM_RIGHT:
-		if (Pool.size == 0 || Pool.selection==NONE)	break;
-		x = sample_view->Bounds().IntegerWidth()/6;
-		Pool.l_pointer = Pool.r_sel_pointer - x/2;		// window to selection
-		if (Pool.l_pointer<0)	Pool.l_pointer = 0;
-		Pool.r_pointer = Pool.l_pointer + x;
-		if (Pool.r_pointer > Pool.size){
-			Pool.r_pointer = Pool.size;
-			Pool.l_pointer = Pool.r_pointer - x;
-		}
-
+	{	// приближение к левой/правой черте выделения: окно вчетверо уже текущего, черта на расстоянии 20% от края
+		if (Pool.size == 0)	break;
+		const bool left = (message->what == ZOOM_LEFT);
+		int64 pt = (left || Pool.selection == NONE) ? Pool.pointer : Pool.r_sel_pointer;
+		int64 w = (Pool.r_pointer - Pool.l_pointer) / 4;
+		if (w < 32) w = 32;
+		if (w > Pool.size) w = Pool.size;
+		int64 l = left ? pt - w / 5 : pt - w * 4 / 5;	// слева 20% окна до черты / справа 20% после неё
+		if (l + w > Pool.size) l = Pool.size - w;
+		if (l < 0) l = 0;
+		Pool.l_pointer = l;
+		Pool.r_pointer = l + w;
 		Pool.UpdateToolBar();
 		Pool.update_index = true;
 		Pool.RedrawWindow();
 		break;
-		
+	}
+
 	case EDIT_L:
 		if (Pool.selection != NONE)
 			Pool.selection = LEFT;
