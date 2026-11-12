@@ -46,10 +46,10 @@ void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W
 		v->SetHighColor(255, 255, 255, onBeat ? 90 : 40);
 		v->StrokeLine(BPoint(body.left + x, body.top), BPoint(body.left + x, body.bottom));
 	}
-	// начало каждого такта: чуть толще и тёплым цветом, чтобы было видно, но не кричало
+	// начало каждого такта: тот же цвет, что у ударов, но шире
 	if (bar / dt >= 8.0){
 		v->SetPenSize(2);
-		v->SetHighColor(255, 200, 90, 120);
+		v->SetHighColor(255, 255, 255, 90);		// цвет как у линий на ударах
 		for (long long k = (long long)floor(tl / bar); k * bar <= tl + W * dt + bar; k++){
 			const double t0 = k * bar;
 			if (t0 < 0) continue;
