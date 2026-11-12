@@ -53,8 +53,17 @@ void AudioRecorder::Clear()
 	fChunks.clear();
 	fChunkUsed = kChunkFloats;
 	fFrames = 0;
+	fPeaks.clear();
+	fPeakAcc = 0;
+	fPeakCount = 0;
 	fFormatKnown = false;
 	fOutOfMemory = false;
+}
+
+void AudioRecorder::CopyPeaks(std::vector<float> &out)
+{
+	BAutolock lock(fLock);
+	out = fPeaks;
 }
 
 static const size_t kRingFrames = 1 << 17;		// около 3 с при 44,1 кГц
@@ -277,6 +286,21 @@ void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format
 							   fOutChannels, fChunks.back() + fChunkUsed, &pl, &pr);
 		if (pl > peakL) peakL = pl;
 		if (pr > peakR) peakR = pr;
+		{	// огибающая для показа записи в реальном времени
+			const float *c = fChunks.back() + fChunkUsed;
+			for (size_t k = 0; k < n; k++) {
+				for (int32 q = 0; q < fOutChannels; q++) {
+					float a = c[k * fOutChannels + q];
+					if (a < 0) a = -a;
+					if (a > fPeakAcc) fPeakAcc = a;
+				}
+				if (++fPeakCount >= kPeakBlock) {
+					fPeaks.push_back(fPeakAcc);
+					fPeakAcc = 0;
+					fPeakCount = 0;
+				}
+			}
+		}
 		fChunkUsed += n * fOutChannels;
 		done += n;
 	}

@@ -51,6 +51,10 @@ public:
 
 	void		Clear();
 
+	// Огибающая записанного для живого показа: максимум модуля по блокам kPeakBlock кадров.
+	enum { kPeakBlock = 256 };
+	void		CopyPeaks(std::vector<float> &out);
+
 private:
 	static void	_RecordHook(void *cookie, bigtime_t timestamp, void *data, size_t size,
 							const media_format &format);
@@ -71,6 +75,9 @@ private:
 	std::vector<float*> fChunks;		// блоки по kChunkFloats
 	size_t			fChunkUsed;			// занято в последнем блоке (в float)
 	volatile int64	fFrames;
+	std::vector<float> fPeaks;			// пики по блокам kPeakBlock кадров
+	float			fPeakAcc;			// максимум в ещё не закрытом блоке
+	int32			fPeakCount;			// кадров в нём
 	float			fRate;
 	int32			fOutChannels;
 	int32			fSrcChannels;

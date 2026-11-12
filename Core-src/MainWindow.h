@@ -55,6 +55,7 @@ class MainWindow : public BWindow {
 	void StopRecording();		// остановить и превратить запись в новый файл
 	void FinishRecording();
 	void UpdateRecordingTitle();
+	void RecordingFollow();
 	BMessageRunner	*rec_runner;
 	BString			rec_old_title;
 	double			rec_start_time;		// секунды на общей шкале, откуда пошла запись

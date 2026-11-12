@@ -833,6 +833,33 @@ void MainWindow::UpdateRecordingTitle()
 	SetTitle(s);
 }
 
+// Живой показ записи: вид прокручивается вслед за записью, активная дорожка перерисовывается
+void MainWindow::RecordingFollow()
+{
+	if (!Pool.rec_live || Pool.sample_type == NONE || Pool.frequency < 1.0f || Pool.r_pointer <= Pool.l_pointer)
+		return;
+	const float rate = Recorder.Rate();
+	if (rate < 1.0f) return;
+	const double nowT = Pool.rec_start_time + (double)Recorder.Frames() / rate;
+	const double pf = nowT * Pool.frequency;				// положение записи в кадрах ленты
+	const int64 xx = Pool.r_pointer - Pool.l_pointer;
+	if (Prefs.follow_playing && pf > Pool.r_pointer - xx / 10 && Pool.size > xx){
+		int64 l = (int64)pf - xx / 10;					// запись уходит к левому краю, остаётся 10% слева
+		if (l > Pool.size - xx) l = Pool.size - xx;
+		if (l < 0) l = 0;
+		if (l != Pool.l_pointer){
+			Pool.l_pointer = l;
+			Pool.r_pointer = l + xx;
+			Pool.update_index = true;
+			BView *v;
+			if ((v = FindView("Pointers view")) != NULL) v->Pulse();
+			if ((v = FindView("Big view")) != NULL) v->Pulse();
+			if ((v = FindView("TimeBar view")) != NULL) v->Invalidate();
+		}
+	}
+	if (sample_view) sample_view->Invalidate();
+}
+
 void MainWindow::StartRecording()
 {
 	if (Recorder.IsRecording())
@@ -875,12 +902,14 @@ void MainWindow::StartRecording()
 		return;
 	}
 
+	Pool.rec_start_time = rec_start_time;
+	Pool.rec_live = true;
 	Pool.play_mode = RECORD;
 	Pool.StartTailPlaying(rec_tail_start);		// остальные дорожки играют во время записи
 	rec_old_title = Title();
 	UpdateRecordingTitle();
 	delete rec_runner;
-	rec_runner = new BMessageRunner(BMessenger(this), new BMessage(TRANSPORT_REC_TICK), 250000);
+	rec_runner = new BMessageRunner(BMessenger(this), new BMessage(TRANSPORT_REC_TICK), 100000);
 }
 
 void MainWindow::StopRecording()
@@ -888,6 +917,7 @@ void MainWindow::StopRecording()
 	delete rec_runner;
 	rec_runner = NULL;
 	Recorder.Stop();
+	Pool.rec_live = false;
 	Pool.StopPlaying();					// остановить воспроизведение остальных дорожек
 	play_cookie.tailing = false;
 	FinishRecording();
@@ -1050,8 +1080,10 @@ void MainWindow::MessageReceived(BMessage *message)
 			// ограничение по памяти: ~1 ГБ данных, затем автоматическая остановка
 			if ((int64)Recorder.Frames() * Recorder.Channels() > (int64)256*1024*1024)
 				StopRecording();
-			else
+			else{
 				UpdateRecordingTitle();
+				RecordingFollow();
+			}
 		}
 		break;
 

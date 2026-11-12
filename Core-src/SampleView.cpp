@@ -31,6 +31,8 @@
 #include <stdio.h>
 
 #include "SampleView.h"
+#include <vector>
+#include <math.h>
 #include "MainWindow.h"
 #include "Globals.h"
 #include "PeakFile.h"
@@ -310,6 +312,48 @@ void SampleView::Draw(BRect rect)
 			if (z.IsValid()) FillRect(z);
 		}
 		SetDrawingMode(B_OP_COPY);
+	}
+
+	// запись в реальном времени: растущая волна по огибающей рекордера и красная линия текущего положения
+	if (Pool.rec_live && Recorder.IsRecording() && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f
+		&& Recorder.Rate() > 1.0f){
+		const double tl = (double)Pool.l_pointer / Pool.frequency;
+		const double tr = (double)Pool.r_pointer / Pool.frequency;
+		const float W = Bounds().Width() + 1;
+		const double dt = (tr - tl) / W;						// секунд на пиксель
+		const double rate = Recorder.Rate();
+		const double t0 = Pool.rec_start_time;
+		const double t1 = t0 + (double)Recorder.Frames() / rate;
+		const float x0 = (float)((t0 - tl) / dt), x1 = (float)((t1 - tl) / dt);
+		const float top = POINTER_BAR_HEIGHT, bottom = Bounds().bottom;
+		const float mid = (top + bottom) / 2, half = (bottom - top) / 2 - 2;
+		std::vector<float> peaks;
+		Recorder.CopyPeaks(peaks);
+		BRegion clip(rect);
+		ConstrainClippingRegion(&clip);
+		const float xa = MAX(x0, 0.0f), xb = MIN(x1, W - 1);
+		if (xb > xa){
+			SetHighColor(Prefs.back_color);
+			FillRect(BRect(xa, top, xb, bottom));				// стираем то, что было под записью
+			SetHighColor(make_color(225, 70, 60));
+			for (int32 x = (int32)xa; x <= (int32)xb; x++){
+				const double ta = tl + x * dt - t0, tb = ta + dt;
+				int64 b0 = (int64)floor(ta * rate / AudioRecorder::kPeakBlock);
+				int64 b1 = (int64)floor(tb * rate / AudioRecorder::kPeakBlock);
+				if (b0 < 0) b0 = 0;
+				float pk = 0;
+				for (int64 b = b0; b <= b1 && b < (int64)peaks.size(); b++)
+					if (peaks[b] > pk) pk = peaks[b];
+				if (pk > 1) pk = 1;
+				const float h = pk * half;
+				StrokeLine(BPoint(x, mid - h), BPoint(x, mid + h));
+			}
+		}
+		if (x1 >= 0 && x1 < W){
+			SetHighColor(255, 255, 255);
+			StrokeLine(BPoint(x1, top), BPoint(x1, bottom));
+		}
+		ConstrainClippingRegion(NULL);
 	}
 
 	// остальные клипы той же дорожки (сам активный клип - это волна выше)

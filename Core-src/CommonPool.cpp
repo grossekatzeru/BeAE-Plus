@@ -76,6 +76,8 @@ CommonPool::CommonPool(){
 	// To be save set them to nil 
 	importmenu = NULL;
 	progress = NULL;
+	rec_live = false;
+	rec_start_time = 0;
 	player = NULL;
 	PrefWin = NULL;
 	
