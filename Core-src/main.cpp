@@ -74,6 +74,7 @@ MyApplication::MyApplication():BApplication("application/x-vnd.BeAE-BeAE")
 
 MyApplication::~MyApplication()
 {
+	Pool.ShutdownPlayer();		// Pool - глобальный объект и умирает позже приложения: без этого вход «BeAE» оставался в системном микшере
 	if (fOpenPanel)
 		delete fOpenPanel;
 

@@ -135,6 +135,7 @@ class CommonPool{
 	int32	play_mode;		// to determine the play mode (or record)
 	
 	void	ProgressUpdate(int32 delta);
+	void	ShutdownPlayer();		// при выходе: остановить и удалить плеер, чтобы вход «BeAE» исчез из системного микшера
 	void	StartProgress(const char *label, int32 max = 100);
 	void	HideProgress();
 	void	SetProgressName(const char *name);

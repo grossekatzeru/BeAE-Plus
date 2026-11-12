@@ -164,6 +164,16 @@ void CommonPool::ResetIndexView()
 /*******************************************************
 *   SoundPlayer
 *******************************************************/
+void CommonPool::ShutdownPlayer()
+{
+	if (player){
+		player->SetHasData(false);
+		player->Stop(true, true);
+		delete player;				// закрывает соединение с системным микшером
+		player = NULL;
+	}
+}
+
 void CommonPool::InitBufferPlayer(float f)
 {
 	media_raw_audio_format format;
