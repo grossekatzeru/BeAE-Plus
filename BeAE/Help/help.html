@@ -1,247 +1,298 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
-	<meta http-equiv="Content-Style-Type" content="text/css" />
-	<meta name="robots" content="all" />
-	<title>BeAE - Help</title>
-
+	<title>BeAE-Plus - Справка</title>
 <style type="text/css">
-body {
-    	font-size: 0.9em;
-	line-height: 1.5;
-	margin: 30px;
-	font-family: "DejaVu Sans",Arial,Helvetica,sans-serif;
-}
-td.table-heading {
-	color: #787878;
-	border-bottom: solid thin #454545;
-	border-spacing: 10px;
-}
-td.table-data {
-	background-color: #efefef;
-	padding: 10px;
-}
+body { font-size: 0.95em; line-height: 1.5; margin: 30px; max-width: 60em; font-family: "DejaVu Sans",Arial,Helvetica,sans-serif; }
+h1 { font-size: 1.8em; margin-bottom: 0; }
+h2 { font-size: 1.3em; margin-top: 2em; border-bottom: solid thin #454545; color: #333; }
+h3 { font-size: 1.05em; margin-top: 1.4em; color: #454545; }
+.sub { color: #787878; }
+table.t { border-collapse: collapse; margin: 10px 0; }
+table.t td, table.t th { border: solid thin #bbb; padding: 4px 10px; vertical-align: top; text-align: left; }
+table.t th { background-color: #efefef; }
+.note { background-color: #efefef; padding: 8px 12px; margin: 10px 0; }
+kbd { background-color: #f4f4f4; border: solid thin #aaa; padding: 0 5px; font-family: "DejaVu Sans Mono",monospace; font-size: 0.9em; }
+code { font-family: "DejaVu Sans Mono",monospace; }
 </style>
 </head>
-
 <body>
 
-<table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE Icon" /></td>
-<td><span style="font-size: 1.8em"><b>BeAE</b></span><br />
-<span style="font-size: 1.3em">Help</span><br />
-<span style="font-size: 1.0em; color: #787878"><i>Original Author: Frans van Nispen</i></span><br /></td></tr>
-</table>
-<p><br></p>
+<table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
+<td><h1>BeAE-Plus</h1>
+<span style="font-size: 1.3em">Справка</span><br />
+<span class="sub">Многодорожечный аудиоредактор для Haiku. Основа: BeAE, автор Frans van Nispen.</span></td></tr></table>
 
+<h2>Содержание</h2>
+<ol>
+<li><a href="#start">Быстрый старт</a></li>
+<li><a href="#window">Окно программы</a></li>
+<li><a href="#tracks">Дорожки и панель дорожки</a></li>
+<li><a href="#clips">Клипы</a></li>
+<li><a href="#open">Открытие, запись и перетаскивание файлов</a></li>
+<li><a href="#play">Воспроизведение и запись</a></li>
+<li><a href="#select">Выделение и масштаб</a></li>
+<li><a href="#tempo">Темп, сетка и метроном</a></li>
+<li><a href="#fx">Эффекты дорожек и мастера</a></li>
+<li><a href="#transform">Меню Transform: обработка выделения</a></li>
+<li><a href="#plugins">Плагины BeAE-Plus</a></li>
+<li><a href="#analyze">Анализ: спектр, осциллограф, темп, тюнер</a></li>
+<li><a href="#midi">Вставка из MIDI</a></li>
+<li><a href="#project">Проект (.bemix)</a></li>
+<li><a href="#save">Сохранение и миксдаун</a></li>
+<li><a href="#prefs">Настройки</a></li>
+<li><a href="#keys">Горячие клавиши</a></li>
+<li><a href="#trouble">Частые вопросы</a></li>
+</ol>
 
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Version 1.1</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2">
+<h2 id="start">1. Быстрый старт</h2>
+<ol>
+<li>Перетащите звуковой файл в окно программы (или <b>File → Open...</b>). Звук ляжет клипом на дорожку.</li>
+<li>Добавьте ещё файлы на другие дорожки. Громкость и баланс каждой дорожки регулируются в её панели слева.</li>
+<li>Нажмите <kbd>Пробел</kbd> для воспроизведения.</li>
+<li>Сохраните работу: <b>Save project</b> (проект <code>.bemix</code> со всеми дорожками) или <b>Mixdown as...</b> (готовый звуковой файл).</li>
+</ol>
+<div class="note">Названия пунктов меню в справке даны так, как они называются в английском интерфейсе. Язык интерфейса выбирается в <b>File → Preferences...</b> (страница General).</div>
+
+<h2 id="window">2. Окно программы</h2>
 <ul>
-<li>TODO: Add a full help file</li>
-<li>This one is just a place holder for now</li>
+<li><b>Меню</b> сверху: File, Edit, Transform, Analyze, Help.</li>
+<li><b>Панель инструментов</b>: создать, открыть, сохранить, отмена и повтор, вырезать/копировать/вставить, кнопки инструментов (выделение, рисование, проигрывание, колесо Jogg, перенос дорожки во времени).</li>
+<li><b>Список дорожек</b> слева (панели дорожек) и <b>полосы дорожек</b> справа, где показан звук клипов. Над ними шкала времени.</li>
+<li><b>Master</b>: общая шина внизу списка дорожек с громкостью, отключением звука (M), цепочкой эффектов (FX) и индикаторами уровня L/R.</li>
+<li><b>Транспортная панель</b> внизу: кнопки Stop, Play, Pause, Rewind, Forward, Record, масштаб, счётчики времени (текущее положение, начало, конец и длина выделения), панель темпа.</li>
 </ul>
-<p>An expanded single page How-to guide for BeAE would be nice to have.  If you have the time perhaps you can work on creating one and then email it to haiku@scottmc.com for review and possible inclusion.  The rest of this page is just copied from the history.html file.</p><p></p></td></tr>
+
+<h2 id="tracks">3. Дорожки и панель дорожки</h2>
+<p>В проекте до 64 дорожек. Кнопки <b>+</b> и <b>−</b> над списком добавляют и убирают дорожки. Дорожка, в которую вы щёлкнули, становится активной.</p>
+<table class="t">
+<tr><th>Элемент</th><th>Что делает</th></tr>
+<tr><td>Название</td><td>Поле с именем дорожки: щёлкните, чтобы изменить имя. Двойной щелчок по свободному месту панели дорожки открывает окно смещения дорожки во времени (Offset, мс).</td></tr>
+<tr><td><b>S</b> (Solo)</td><td>Слышна только эта дорожка (и другие с включённым S).</td></tr>
+<tr><td><b>M</b> (Mute)</td><td>Дорожка отключена.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Готовность к записи: запись идёт в дорожку с включённой R.</td></tr>
+<tr><td><b>FX</b></td><td>Открывает окно эффектов дорожки (раздел <a href="#fx">Эффекты</a>).</td></tr>
+<tr><td>Громкость (дБ)</td><td>Верхний ползунок, значение показано справа.</td></tr>
+<tr><td>Баланс</td><td>Нижний ползунок: L, C, R.</td></tr>
+<tr><td><b>Grid</b></td><td>Включает линии сетки на этой дорожке (см. <a href="#tempo">Темп и сетка</a>).</td></tr>
+<tr><td><b>Xfade</b></td><td>Перекрестное затухание там, где клипы дорожки перекрываются.</td></tr>
+<tr><td><b>Sticky</b></td><td>«Липкая сетка»: клипы при переносе прилипают к линиям сетки.</td></tr>
 </table>
-<p><br></p>
+<p>Если дорожек больше, чем помещается на экране, справа от них есть полоса прокрутки.</p>
 
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Beta 2.0</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>Play cursor now draws ok while changing the selection</li>
-<li>When zoomed in on 1 sample, you now can zoom out again</li>
-<li>Clear buffers on bypass filter</li>
-<li>Repeat last filter</li>
-<li>Link in tutorials now like to documentation online</li>
-<li>Keyboard navigation now stays working</li>
-<li>Crashes on Cut removed</li>
-<li>Copy/pase speed boost</li>
-</ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+<h2 id="clips">4. Клипы</h2>
+<p>Звук на дорожке состоит из клипов. Клип можно двигать, копировать, резать, блокировать и объединять в группы.</p>
 <ul>
-<li>Start new instances with 'New'</li>
-<li>Entering of numbers on pointer view</li>
-<li>Context menu on PointerView</li>
-<li>Changable temporary directory</li>
-<li>Files can be dropped on an empty window to load</li>
-<li>A drop of a file when there already is one loaded will open a new instance and load the data</li>
-<li>Added zoom functions to sampleview popup</li>
-<li>Added Play and pause to context menu</li>
-<li>Paste mono/stereo into a single channel of a stereo file</li>
-<li>Copy&Paste between instances</li>
-<li>Paste to new</li>
-<li>Added drag and drop of selections. This is done by a copy&paste. To avoid dragging without intention, the threshold is 4 pixels. It can also be turned off in the preferences.</li>
-<li>CTRL-drag does move the selection</li>
-</ul></td></tr>
-</table>
-<p><br></p>
-
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Alpha 2.3</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>Progress Window not zoomable
-<li>Lockups that happened when analyzers got closed in a certain order</li>
-<li>Amount to keep free in the preferences was not saved</li>
-<li>The peak-value in the preferences was not saved</li>
-<li>Fixed lockup problems when trying to copy/cut or saving undo-data when there is not enough free diskspace</li>
-<li>Drawing of lines in sample-edit mode</li>
-<li>Index view pointer follows while playing</li>
-<li>Better refreshing of the pointer views</li>
-<li>Amplifier negative values not clipped</li>
-<li>Filtering of one channel in a stereo-file works again</li>
-<li>Bug in Rounding macro</li>
-<li>The 20/40/60.. will sometimes have rounding errors</li>
-<li>Antialiasing of the text in the rulers fixed</li>
-<li>Index slider sometimes followed the mouse even after mouse-up</li>
+<li><b>Перенос</b>: перетащите клип мышью в нужное место, в том числе на другую дорожку. При включённом Sticky клип прилипает к сетке.</li>
+<li><b>Выделение нескольких клипов</b>: щёлкайте по клипам с зажатой клавишей <kbd>Ctrl</kbd>. Двойной щелчок по клипу выделяет все клипы дорожки (если включено в настройках: «Double click selects all clips on the track»). Выбранные клипы подкрашиваются одним цветом.</li>
+<li><b>Split</b> (<kbd>Alt</kbd>+<kbd>X</kbd>): разрезать клип по курсору.</li>
+<li><b>Copy</b> (<kbd>Alt</kbd>+<kbd>C</kbd>) и <b>Paste</b> (<kbd>Alt</kbd>+<kbd>V</kbd>): копия клипа вставляется в позицию курсора. <b>Paste clip several times...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>) вставляет клип заданное число раз подряд (удобно для петель).</li>
+<li><b>Delete clip</b>: удалить выбранный клип.</li>
+<li><b>Lock in time</b>: клип нельзя сдвинуть по времени случайно.</li>
+<li><b>Group</b>: объединяет два и более выбранных клипа в группу. Группа красится в свой пастельный цвет, перемещается и выделяется как одно целое. Повторная команда снимает группу.</li>
+<li><b>Save clip as file...</b>: записать клип в звуковой файл.</li>
+<li><b>Paste &amp; mix...</b>: смешать содержимое буфера с клипом под курсором.</li>
 </ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+<p>Контекстное меню клипа (правая кнопка мыши) содержит те же команды, а также Select all, Unselect all, «Zero cross» (подгонка границ выделения к нулевому уровню) и команды масштаба.</p>
+
+<h2 id="open">5. Открытие, запись и перетаскивание файлов</h2>
 <ul>
-<li>PopUp menu on pointers to toggle time/samples</li>
-<li>New drawroutines with gradient blending</li>
-<li>Display follows play-cursor (optional in preferences)</li>
-<li>Extended the selection system to be able to select just one channel in a stereo-file by selecting in the top or bottom border of the sample</li>
-<li>Start an dend of selection pointers are draggable to extend selection</li>
-<li>New draw routines for the indexview</li>
-<li>Play-pointer in indexview</li>
-</ul></td></tr>
-</table>
-<p><br></p>
-
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Alpha 2.0</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>Progress Window not zoomable</li>
-<li>Lockups that happened when analyzers got closed in a certain order</li>
-<li>Amount to keep free in the preferences was not saved</li>
-<li>The peak-value in the preferences was not saved</li>
-<li>Fixed lockup problems when trying to copy/cut or saving undo-data when there is not enough free diskspace</li>
-<li>Drawing of lines in sample-edit mode</li>
-<li>Index view pointer follows while playing</li>
-<li>Better refreshing of the pointer views</li>
-<li>Amplifier negative values not clipped</li>
-<li>Filtering of one channel in a stereo-file works again</li>
+<li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): открывает звуковой файл в активную дорожку. Читаются все форматы, которые понимает Media Kit Haiku (WAV, AIFF, MP3, Ogg, FLAC и другие, в зависимости от установленных декодеров). В подменю недавних показаны только файлы, открытые в BeAE.</li>
+<li><b>Перетаскивание</b> файла из Tracker в окно: звук ложится клипом на дорожку под курсором мыши, в место, где вы отпустили файл. Несколько файлов сразу занимают свободные дорожки. Если перетащить файл <code>.bemix</code>, откроется проект.</li>
+<li><b>Запись</b>: включите <b>R</b> на нужной дорожке и нажмите красную кнопку Record. Запись идёт с системного аудиовхода Haiku. Если ни у одной дорожки не включён R, программа подскажет это сообщением. Остановка: кнопка Stop или повторное нажатие Record.</li>
 </ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
-<ul>
-<li>PopUp menu on pointers to toggle time/samples</li>
-<li>New drawroutines with gradient blending</li>
-<li>Display follows play-cursor</li>
-<li>Extended the selection system to be able to select just one channel in a stereo-file by selecting in the top or bottom border of the sample</li>
-<li>Start and end of selection pointers are draggable to extend selection</li>
-</ul></td></tr>
+<p>Во время записи открывать файлы нельзя.</p>
+
+<h2 id="play">6. Воспроизведение и запись</h2>
+<table class="t">
+<tr><th>Действие</th><th>Клавиша</th></tr>
+<tr><td>Play (с позиции курсора, вдоль выделения)</td><td><kbd>Shift</kbd>+<kbd>Пробел</kbd></td></tr>
+<tr><td>Play to end (до конца)</td><td><kbd>Ctrl</kbd>+<kbd>Пробел</kbd></td></tr>
+<tr><td>Play/Stop (переключатель)</td><td><kbd>Пробел</kbd></td></tr>
+<tr><td>Pause</td><td><kbd>P</kbd></td></tr>
+<tr><td>Loop (повтор выделения)</td><td><kbd>L</kbd></td></tr>
+<tr><td>В начало / в конец</td><td><kbd>Shift</kbd>+<kbd>Home</kbd> / <kbd>Shift</kbd>+<kbd>End</kbd></td></tr>
+<tr><td>Курсор к началу / концу экрана</td><td><kbd>Home</kbd> / <kbd>End</kbd></td></tr>
+<tr><td>Сдвинуть видимую область влево / вправо</td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+<tr><td>Курсор на последнюю позицию воспроизведения</td><td><kbd>Enter</kbd></td></tr>
 </table>
-<p><br></p>
+<p>Размер звукового буфера и задержку записи можно подобрать в <b>Preferences → Audio</b>. Рекомендованный буфер: 2048 кадров.</p>
 
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Beta 1.5</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>SampleView peakView drawing</li>
-<li>SpectrumAnalyzer resizable</li>
-<li>Replay frequency went wrong on some systems</li>
-<li>Odd vertical line that displays on new loaded file removed</li>
-<li>Frame frequency of updating analyzers and pointers</li>
-<li>The VU meters now reflect the output after the realtime effects</li>
+<h2 id="select">7. Выделение и масштаб</h2>
+<h3>Выделение</h3>
+<p>Инструментом выбора (первая кнопка инструментов) протяните мышью по клипу: выделенный участок подсвечивается. Границы можно подправлять, потянув за них, либо удерживая <kbd>Shift</kbd> и щёлкая в нужном месте. Выделение работает в рамках активной дорожки; канал выбирается командами <b>Edit left/right/both channel</b>.</p>
+<ul>
+<li><b>Select all</b> <kbd>Alt</kbd>+<kbd>A</kbd>, <b>Unselect all</b> <kbd>Alt</kbd>+<kbd>U</kbd>.</li>
+<li><b>Clear</b> <kbd>Alt</kbd>+<kbd>B</kbd>: заменить выделенное тишиной.</li>
+<li><b>Trim</b>: оставить только выделенное.</li>
+<li><b>Change frequency...</b> и <b>Resample...</b>: сменить частоту дискретизации (с пересчётом звука или без).</li>
 </ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
-<ul>
-<li>Skeleton for plug-in effects / filters</li>
-<li>Multiple effects / filters open at once</li>
-<li>Filters able to run realtime or not (developer issue)</li>
-<li>Filters will be enabled / disabled by the sample-types it supports</li>
-<li>Bypass function on realtime filters</li>
-<li>BaseClass for filters implemented, so plug-ins will be possible</li>
-<li>PLayTool added. Left-mouse starts playing at mouse position, right-mouse does same but places pointer on last played position</li>
-<li>Jogg Tool</li>
-<li>BassBoost</li>
-<li>Swap Channels</li>
-<li>compressor</li>
-<li>Amplifier</li>
-</ul></td></tr>
+<h3>Масштаб</h3>
+<table class="t">
+<tr><th>Команда</th><th>Клавиша</th></tr>
+<tr><td>Zoom in / Zoom out</td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+<tr><td>View full wave (весь звук)</td><td><kbd>Shift</kbd>+<kbd>↑</kbd></td></tr>
+<tr><td>Zoom to selection (по выделению)</td><td><kbd>Shift</kbd>+<kbd>↓</kbd></td></tr>
+<tr><td>Zoom to left pointer</td><td><kbd>Shift</kbd>+<kbd>←</kbd></td></tr>
+<tr><td>Zoom to right pointer</td><td><kbd>Shift</kbd>+<kbd>→</kbd></td></tr>
 </table>
-<p><br></p>
+<p>«Zoom to left/right pointer» сужает окно вчетверо и ставит левую (правую) черту выделения на расстоянии 20% ширины от левого (правого) края. Команду можно повторять для всё большего увеличения.</p>
 
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Beta 1.2</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>Trails of the play-pointer</li>
-<li>Undo Bug in larger blocks</li>
-<li>Save code</li>
-<li>ALT-Q checks for save-conditions and saves settings too</li>
-<li>Changed the IndexView to an averaged view to show envelope of sample</li>
-<li>Changed IndexView to use peak-file</li>
-<li>Changed the fonts in the LCDs</li>
+<h2 id="tempo">8. Темп, сетка и метроном</h2>
+<p>Панель темпа находится в правой нижней части окна. В ней задаются темп проекта (BPM), размер такта, шаг сетки (например 1/4, 1/8, 1/16) и метроном (включение и громкость).</p>
+<ul>
+<li><b>Сетка</b> отображается на дорожках с включённым Grid. Линии на ударах светлее, начало такта показано линией шире. На мелких масштабах густые линии прореживаются.</li>
+<li><b>Sticky</b> (липкая сетка): при переносе клипы прилипают к линиям сетки с шагом, выбранным на панели темпа.</li>
+<li><b>Метроном</b>: щелчок на каждую долю такта, во время воспроизведения и записи. Размер такта и громкость сохраняются в проекте.</li>
+<li><b>Tempo analyzer</b> (Analyze → Tempo analyzer): определяет темп звука и позволяет принять его как темп проекта.</li>
 </ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+
+<h2 id="fx">9. Эффекты дорожек и мастера</h2>
+<p>Кнопка <b>FX</b> на панели дорожки (и на Master) открывает окно <b>Effects</b>: цепочку эффектов, которые применяются при воспроизведении и при миксдауне. Исходный звук клипов не меняется.</p>
 <ul>
-<li>RealTime Effects</li>
-<li>Zero Crossings</li>
-<li>SHIFT+LEFT as same as Right-mouse in the sample-view</li>
-<li>CTRL+SHIFT+X, Copy & Silence</li>
-<li>CTRL+U, Unselect all</li>
-<li>Add Clear to the Edit menu: DEL, ALT+B: Silence</li>
-<li>if step in SampleView < 1: Iterate and add points to edit</li>
-<li>Catagories to the KeyBindings + extra bindings</li>
-<li>LEFT / RIGTH arrows to move display</li>
-<li>Cursor:<br />
-HOME key: move cursor to the start of the visible area<br />
-END key: move cursor to the end of the visible area<br />
-SHIFT+HOME key: move cursor to the start of the file (and change the view to compensate)<br />
-SHIFT+END key: move cursor to the end of the file (and change the view to compensate)</li>
-<li>Space to toggle play/stop</li>
-<li>Added lastplay-pointer to full-view</li>
-<li>Move cursor to last play-position (RETURN key, S key)</li>
-<li>New drawing with cached peaks</li>
-<li>When zoomed in, all changes to points and lines for edit</li>
-<li>Painting in the samples when zoomed in a lot</li>
-<li>Sample Scope</li>
-</ul></td></tr>
-</table>
-<p><br></p>
-
-
-<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
-<tr><td class="table-heading" align="left"><b>Info on Alpha 2</b></td><td class="table-heading" align="right"><b></b></td></tr>
-<tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
-<ul type="square">
-<li>Loop at end</li>
-<li>Peak settings bug</li>
-<li>Color Schemes redrawing when nothing is selected</li>
-<li>Spelling errors</li>
-<li>Text in save-panel adjust to save selection / save file</li>
-<li>Reset FactorySettings: Language reset</li>
-<li>Bug in undo / clipboard with large files</li>
-<li>Save crash when codec does not support wave settings</li>
-<li>Bug in stereo delay</li>
-<li>Corrected end of delay</li>
-<li>Index view drawing on left size when zoomed in and move to left</li>
+<li><b>Add...</b>: добавить эффект. Встроенные эффекты, плагины LADSPA, а также VST2 (если найдены в системе).</li>
+<li><b>Remove</b>, <b>Up</b>, <b>Down</b>: убрать эффект, поднять или опустить в цепочке.</li>
+<li><b>Enabled</b>: временно отключить эффект.</li>
+<li><b>Defaults</b>: вернуть настройки эффекта по умолчанию.</li>
+<li>Значения параметров сохраняются вместе с проектом.</li>
 </ul>
-<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+<h3>Сайдчейн-приседание (группа BeFX)</h3>
+<p>Встроенный плагин «Сайдчейн-приседание» снижает громкость дорожки, когда играет другая дорожка (ключ), например басу под бочку. В его окне:</p>
 <ul>
-<li>Key Bindings</li>
-<li>Normalize GUI</li>
-<li>Filter Repeat with last settings</li>
-<li>Resample</li>
-<li>mouse wheel roll & track zoom navigation</li>
-<li>Zero Crossings</li>
-<li>Room Effect</li>
-<li>Delay GUI</li>
-<li>Reverb</li>
-</ul></td></tr>
+<li><b>Key track</b>: дорожка-ключ (по названию).</li>
+<li><b>Key range</b>: whole sound (весь звук) или low only (только низ).</li>
+<li><b>Release curve</b>: форма возврата, exponential или linear.</li>
+<li><b>Update key</b>: пересчитать ключ после правок дорожки-ключа. Индикатор показывает состояние ключа и степень сжатия (Reduction).</li>
+</ul>
+
+<h2 id="transform">10. Меню Transform: обработка выделения</h2>
+<p>Эти эффекты работают прямо над звуком выделенного участка активного клипа (результат записывается в звук; можно отменить). Для правки без изменения исходника используйте эффекты дорожки (FX). Меню доступно, когда в активной дорожке есть звук.</p>
+<table class="t">
+<tr><th>Пункт</th><th>Что делает</th></tr>
+<tr><td>Silence</td><td>Заменяет выделение тишиной.</td></tr>
+<tr><td>Fade in / Fade out</td><td>Плавное нарастание или затухание по выделению.</td></tr>
+<tr><td>Normalize</td><td>Доводит максимум до заданного уровня.</td></tr>
+<tr><td>Bass boost</td><td>Усиление низких частот.</td></tr>
+<tr><td>Compressor</td><td>Сжатие динамического диапазона.</td></tr>
+<tr><td>Amplifier</td><td>Усиление или ослабление в децибелах.</td></tr>
+<tr><td>Noise filter</td><td>Шумодав: профиль шума берётся с участка, где есть только шум.</td></tr>
+<tr><td>Delay, Reverb, Room</td><td>Эхо и реверберация.</td></tr>
+<tr><td>Invert</td><td>Инверсия фазы.</td></tr>
+<tr><td>Swap channels</td><td>Поменять левый и правый каналы местами.</td></tr>
+<tr><td>LADSPA plug-ins</td><td>Подменю со всеми найденными LADSPA-плагинами (кнопка «Rescan plug-ins» обновляет список). У плагина своё окно с ползунками, предпрослушиванием в реальном времени и кнопкой Apply.</td></tr>
+<tr><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd>: повторить последний применённый эффект с теми же настройками.</td></tr>
 </table>
-<p><br></p>
 
+<h2 id="plugins">11. Плагины BeAE-Plus</h2>
+<p>В комплект входят плагины LADSPA (собираются командой <code>make</code> в папке <code>plugins</code>, устанавливаются <code>make install</code>). Они появляются в меню Transform → LADSPA и в окне эффектов дорожек.</p>
+<table class="t">
+<tr><th>Плагин</th><th>Назначение</th></tr>
+<tr><td>Ламповое эхо (spring_reverb)</td><td>Пружинный реверб.</td></tr>
+<tr><td>САДП (sadp)</td><td>Адаптивное шумоподавление для плёнок.</td></tr>
+<tr><td>Графический эквалайзер</td><td>6, 12 или 18 полос.</td></tr>
+<tr><td>Параметрический эквалайзер</td><td>3 или 5 полос.</td></tr>
+<tr><td>Многополосный компрессор</td><td>4 полосы с настраиваемыми границами.</td></tr>
+<tr><td>Реверберация, Пластинчатый реверб (EMT 140)</td><td>Алгоритмический и пластинчатый реверберы.</td></tr>
+<tr><td>Вокальная цепочка 80-х</td><td>Слэп-задержка и пластинчатый реверб в одном плагине.</td></tr>
+<tr><td>Фленджер, Хорус</td><td>Модуляционные эффекты.</td></tr>
+<tr><td>Оптический компрессор (LA-2A), Дистрессор</td><td>Компрессоры в духе одноимённых приборов.</td></tr>
+<tr><td>Гейт / экспандер</td><td>Подавление звука ниже порога.</td></tr>
+<tr><td>Овердрайв (Tube Screamer), Дисторшн (DS-1)</td><td>Педали перегруза с 4-кратной передискретизацией.</td></tr>
+<tr><td>Автотюн (вокал)</td><td>Подтягивает ноты голоса к выбранному строю.</td></tr>
+</table>
+<p>Подробные параметры и устройство плагинов описаны в файле <code>plugins/README.md</code>.</p>
 
+<h2 id="analyze">12. Анализ: спектр, осциллограф, темп, тюнер</h2>
+<ul>
+<li><b>Spectrum analyzer</b>: спектр звука.</li>
+<li><b>Sample scope</b>: осциллограф выделенного участка.</li>
+<li><b>Tempo analyzer</b>: определение темпа.</li>
+<li><b>Tuner</b>: тюнер для гитары и баса. Слушает аудиовход без записи. Выберите строй (все ноты, гитара 6 или 7 струн, бас 4 или 5 струн), обозначение нот (C D E или До Ре Ми) и частоту A4. Нажмите Start и сыграйте струну: зелёная шкала покажет отклонение. Во время записи тюнер недоступен.</li>
+</ul>
+
+<h2 id="midi">13. Вставка из MIDI</h2>
+<p><b>File → Insert from MIDI...</b> (<kbd>Alt</kbd>+<kbd>I</kbd>) превращает MIDI-файл в звук с помощью SoundFont (SF2).</p>
+<ol>
+<li>В открывшейся панели выберите MIDI-файл.</li>
+<li>В окне параметров показаны: имя файла, число дорожек с нотами, SoundFont и темп.</li>
+<li>В рамке <b>MIDI Effects</b> включите нужные эффекты: Pan, Reverb, Chorus. Для Reverb и Chorus нужны плагины из этого комплекта.</li>
+<li>Если темп MIDI отличается от темпа проекта, выберите: принять темп MIDI для проекта, подогнать MIDI под темп проекта или оставить оба.</li>
+<li>Нажмите <b>Insert</b>: MIDI синтезируется и ложится на свободные дорожки.</li>
+</ol>
+<p>Банк звуков по умолчанию выбирается в <b>Preferences → Audio</b> (раздел MIDI). SoundFont-файлы <code>*.sf2</code> ищутся в папках синтезаторов Haiku.</p>
+
+<h2 id="project">14. Проект (.bemix)</h2>
+<p>Проект хранит дорожки, клипы, громкость, баланс, эффекты, группы, темп и метроном. Это не звуковой файл, а папка со ссылками на звук и описанием проекта.</p>
+<ul>
+<li><b>New project</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>), <b>Open project...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>), <b>Save project</b>, <b>Save project as...</b>.</li>
+<li>В панели открытия видны папки и файлы <code>*.bemix</code>.</li>
+<li>Файл <code>.bemix</code> можно перетащить в окно BeAE, и он откроется.</li>
+</ul>
+
+<h2 id="save">15. Сохранение и миксдаун</h2>
+<h3>Сохранить звук активной дорожки</h3>
+<p><b>Save</b> (<kbd>Alt</kbd>+<kbd>S</kbd>), <b>Save as...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) и <b>Save selection...</b> (<kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd>) открывают панель сохранения. Расширение добавляется само по выбранному формату.</p>
+<table class="t">
+<tr><th>Поле панели</th><th>Назначение</th></tr>
+<tr><td>Формат</td><td><b>Несжатый (PCM)</b> пишет WAV (16, 24 или 32 бита, как у исходного звука); <b>Сжатый</b> использует внешний кодировщик.</td></tr>
+<tr><td>Кодек</td><td>Доступен при формате «Сжатый». Показывает найденные в системе кодировщики: MP3 (lame), Ogg Vorbis (oggenc), FLAC (flac), Opus (opusenc).</td></tr>
+<tr><td>Опции...</td><td>Параметры выбранного кодировщика (ниже).</td></tr>
+</table>
+<h3>Параметры сжатия (кнопка «Опции...»)</h3>
+<table class="t">
+<tr><th>Кодек</th><th>Параметры</th></tr>
+<tr><td>MP3 (lame)</td><td>Режим VBR / CBR / ABR; качество V (0 лучшее, по умолчанию 2); битрейт 32-320 кбит/с для CBR и ABR; стерео: joint, stereo, mono.</td></tr>
+<tr><td>Ogg Vorbis (oggenc)</td><td>Режим «по качеству» (0-10, по умолчанию 5) или «по битрейту» (32-320 кбит/с).</td></tr>
+<tr><td>FLAC (flac)</td><td>Уровень сжатия 0-8 (по умолчанию 5). Без потерь; больше уровень - меньше файл, дольше кодирование.</td></tr>
+<tr><td>Opus (opusenc)</td><td>Режим VBR или CBR; битрейт 6-510 кбит/с (по умолчанию 128).</td></tr>
+</table>
+<p>Для всех кодеков можно задать теги: исполнитель, альбом, год, комментарий. Название берётся из имени файла. Настройки запоминаются.</p>
+<div class="note">Кодировщики <code>lame</code>, <code>oggenc</code>, <code>flac</code> и <code>opusenc</code> - внешние программы, они должны быть установлены в системе (например, <code>pkgman install lame flac vorbis_tools opus_tools</code>). Если ни одной нет, поле «Кодек» покажет подсказку.</div>
+<h3>Миксдаун</h3>
+<ul>
+<li><b>Mixdown</b> (<kbd>Alt</kbd>+<kbd>M</kbd>): смешивает все дорожки проекта (с учётом громкости, баланса, эффектов, mute/solo) в звуковой файл. Расширение <code>.wav</code> добавляется само.</li>
+<li><b>Mixdown as...</b>: то же с выбором формата. Сжатые форматы - через внешние кодировщики, как выше.</li>
+</ul>
+<p>Если все дорожки пусты или отключены, миксдаун сообщит, что смешивать нечего.</p>
+
+<h2 id="prefs">16. Настройки</h2>
+<p><b>File → Preferences...</b> (<kbd>Alt</kbd>+<kbd>P</kbd>). Страницы:</p>
+<table class="t">
+<tr><th>Страница</th><th>Содержимое</th></tr>
+<tr><td>General</td><td>Разделы Display (сетка, пиковый уровень, цвета), Editing (двойной щелчок выделяет клипы дорожки, следование за воспроизведением), System (язык, временная папка и др.).</td></tr>
+<tr><td>Audio</td><td>Звуковой буфер, задержка записи, MIDI (банк звуков SF2 для импорта).</td></tr>
+<tr><td>Colorset</td><td>Цвета интерфейса: сетка, выбранная сетка, указатели, фон и другие.</td></tr>
+<tr><td>Key bindings</td><td>Назначение горячих клавиш на любые команды.</td></tr>
+</table>
+<p>Отмена (Undo) всегда включена. Изменение языка действует после перезапуска окон; для временной папки - после перезапуска программы.</p>
+
+<h2 id="keys">17. Горячие клавиши</h2>
+<p>Клавиша <kbd>Alt</kbd> на Haiku (по умолчанию) работает как «Command». Все сочетания можно изменить в <b>Preferences → Key bindings</b>.</p>
+<table class="t">
+<tr><th>Команда</th><th>Клавиши</th><th>Команда</th><th>Клавиши</th></tr>
+<tr><td>New</td><td><kbd>Alt</kbd>+<kbd>N</kbd></td><td>Undo</td><td><kbd>Alt</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Open...</td><td><kbd>Alt</kbd>+<kbd>O</kbd></td><td>Redo</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Insert from MIDI...</td><td><kbd>Alt</kbd>+<kbd>I</kbd></td><td>Copy</td><td><kbd>Alt</kbd>+<kbd>C</kbd></td></tr>
+<tr><td>Mixdown</td><td><kbd>Alt</kbd>+<kbd>M</kbd></td><td>Split</td><td><kbd>Alt</kbd>+<kbd>X</kbd></td></tr>
+<tr><td>New project</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></td><td>Paste</td><td><kbd>Alt</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Open project...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></td><td>Paste clip several times...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save</td><td><kbd>Alt</kbd>+<kbd>S</kbd></td><td>Paste &amp; mix...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save as...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Clear</td><td><kbd>Alt</kbd>+<kbd>B</kbd></td></tr>
+<tr><td>Save selection...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Select all / Unselect all</td><td><kbd>Alt</kbd>+<kbd>A</kbd> / <kbd>Alt</kbd>+<kbd>U</kbd></td></tr>
+<tr><td>Preferences...</td><td><kbd>Alt</kbd>+<kbd>P</kbd></td><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd></td></tr>
+<tr><td>Quit</td><td><kbd>Alt</kbd>+<kbd>Q</kbd></td><td>Help...</td><td><kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
+</table>
+<p>Клавиши воспроизведения и масштаба перечислены в разделах <a href="#play">6</a> и <a href="#select">7</a>.</p>
+
+<h2 id="trouble">18. Частые вопросы</h2>
+<p><b>Сжатый формат недоступен, список кодеков пуст.</b><br />Установите нужный кодировщик (lame, oggenc, flac, opusenc). Проверка в Terminal: <code>which lame</code>.</p>
+<p><b>Плагины LADSPA не видны в меню.</b><br />Выполните <code>make install</code> в папке <code>plugins</code> и нажмите «Rescan plug-ins» в подменю LADSPA. Плагины ищутся в папке <code>plugins</code> рядом с программой и в стандартных папках LADSPA.</p>
+<p><b>Запись не начинается.</b><br />Включите <b>R</b> на дорожке, в которую нужно писать.</p>
+<p><b>Файл не открывается.</b><br />Сообщение «This file is not supported» означает, что в системе нет декодера для этого формата. Проверьте, открывается ли файл в MediaPlayer.</p>
+<p><b>Щелчки при воспроизведении.</b><br />Увеличьте звуковой буфер в Preferences → Audio.</p>
+
+<hr />
+<p class="sub">BeAE-Plus: https://github.com/grossekatzeru/BeAE-Plus</p>
 </body>
 </html>
-
