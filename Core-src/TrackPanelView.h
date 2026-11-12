@@ -17,9 +17,11 @@ public:
 	virtual void Pulse();
 	virtual void MouseDown(BPoint);
 private:
-	float	fL, fR;				// сглаженные пики
-	int		fClipHold;			// сколько пульсов держать красный
-	float	fLastL, fLastR;
+	float	fL, fR;				// сглаженные пики выхода (Out)
+	float	fInL, fInR;			// сглаженные пики входа при записи (In)
+	int		fClipHold;			// сколько пульсов держать красный (выход)
+	int		fInClipHold;		// то же для входа
+	float	fLastL, fLastR, fLastInL, fLastInR;
 };
 
 #define TRACKPANEL_WIDTH	136

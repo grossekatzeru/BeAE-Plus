@@ -16,6 +16,7 @@
 #include "TrackPanelView.h"
 #include "OffsetWindow.h"
 #include "FxWindow.h"
+#include "AudioRecorder.h"
 
 #define HEADER_H	INDEXVIEW_HEIGHT		// верхняя полоска - на уровне обзорной панели
 // полоса дорожки: верхние POINTER_BAR_HEIGHT пикселей - как у полоски над волной
@@ -693,7 +694,7 @@ void TrackPanelView::Pulse()
 
 MasterLaneView::MasterLaneView(BRect r)
 	: BView(r, "Master lane", B_FOLLOW_BOTTOM | B_FOLLOW_LEFT_RIGHT, B_WILL_DRAW | B_PULSE_NEEDED | B_FULL_UPDATE_ON_RESIZE),
-	  fL(0), fR(0), fClipHold(0), fLastL(-1), fLastR(-1)
+	  fL(0), fR(0), fInL(0), fInR(0), fClipHold(0), fInClipHold(0), fLastL(-1), fLastR(-1), fLastInL(-1), fLastInR(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -723,12 +724,14 @@ void MasterLaneView::Draw(BRect)
 	if (x1 - x0 < 40) return;
 	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
 	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
-	DrawString("Master", BPoint(6, b.top + 14));
 
-	const float h = 11;
-	const float ys[2] = { b.top + 20, b.top + 20 + h + 3 };
-	const float vals[2] = { fL, fR };
-	for (int ch = 0; ch < 2; ch++){
+	// два индикатора: In (уровень входа при записи) и Out (общий выход); у каждого каналы L и R
+	const float h = 8;
+	const float ys[4] = { b.top + 5, b.top + 14, b.top + 26, b.top + 35 };
+	const float vals[4] = { fInL, fInR, fL, fR };
+	DrawString(Language.get("METER_IN"), BPoint(4, ys[0] + h + 2));
+	DrawString(Language.get("METER_OUT"), BPoint(4, ys[2] + h + 2));
+	for (int ch = 0; ch < 4; ch++){
 		BRect bar(x0, ys[ch], x1, ys[ch] + h);
 		SetHighColor(52, 73, 94);
 		FillRect(bar);
@@ -736,18 +739,18 @@ void MasterLaneView::Draw(BRect)
 		StrokeRect(bar);
 		const float w = (bar.Width() - 2) * PeakToPos(vals[ch]);
 		if (w >= 1){
-			SetHighColor(fClipHold > 0 ? make_color(255, 60, 40) : make_color(40, 210, 70));
+			SetHighColor((ch < 2 ? fInClipHold : fClipHold) > 0 ? make_color(255, 60, 40) : make_color(40, 210, 70));
 			FillRect(BRect(bar.left + 1, bar.top + 1, bar.left + w, bar.bottom - 1));
 		}
 		SetHighColor(tint_color(base, B_DARKEN_4_TINT));
-		DrawString(ch == 0 ? "L" : "R", BPoint(x0 - 10, ys[ch] + h - 2));
+		DrawString((ch & 1) == 0 ? "L" : "R", BPoint(x0 - 10, ys[ch] + h - 1));
 	}
 	// шкала, дБ
 	const int marks[] = { -48, -36, -24, -12, -6, 0 };
 	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
 	for (size_t k = 0; k < sizeof(marks) / sizeof(marks[0]); k++){
 		const float x = floorf(x0 + 1 + (x1 - x0 - 2) * (marks[k] - DB_MIN) / (0.0f - DB_MIN));
-		StrokeLine(BPoint(x, ys[1] + h + 2), BPoint(x, ys[1] + h + 5));
+		StrokeLine(BPoint(x, ys[3] + h + 2), BPoint(x, ys[3] + h + 5));
 		char s[8];
 		snprintf(s, sizeof(s), "%d", marks[k]);
 		DrawString(s, BPoint(x - StringWidth(s) / 2, b.bottom - 1));
@@ -763,14 +766,28 @@ void MasterLaneView::Pulse()
 	if (fR < 0.001f) fR = 0;
 	if (l >= 1.0f || r >= 1.0f) fClipHold = 20;
 	else if (fClipHold > 0) fClipHold--;
-	if (fL != fLastL || fR != fLastR || fClipHold == 19){
-		fLastL = fL; fLastR = fR;
+
+	// вход: пики записи (только пока идёт запись; индикатор VU у кнопок масштаба показывает воспроизведение)
+	float il = 0, ir = 0;
+	if (Recorder.IsRecording())
+		Recorder.ReadLevels(&il, &ir);
+	fInL = il > fInL ? il : fInL * 0.85f;
+	fInR = ir > fInR ? ir : fInR * 0.85f;
+	if (fInL < 0.001f) fInL = 0;
+	if (fInR < 0.001f) fInR = 0;
+	if (il >= 1.0f || ir >= 1.0f) fInClipHold = 20;
+	else if (fInClipHold > 0) fInClipHold--;
+
+	if (fL != fLastL || fR != fLastR || fClipHold == 19
+		|| fInL != fLastInL || fInR != fLastInR || fInClipHold == 19){
+		fLastL = fL; fLastR = fR; fLastInL = fInL; fLastInR = fInR;
 		Invalidate();
 	}
 }
 
 void MasterLaneView::MouseDown(BPoint)
 {
-	fClipHold = 0;				// клик по полосе сбрасывает красную отметку перегрузки
+	fClipHold = 0;				// клик по полосе сбрасывает красные отметки перегрузки
+	fInClipHold = 0;
 	Invalidate();
 }

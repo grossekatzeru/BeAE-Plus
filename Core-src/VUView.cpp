@@ -62,12 +62,8 @@ void VUView::Pulse()
 	left_max -= 0.04;	if (left_max<0.0)	left_max = 0.0;
 	right_max -= 0.04;	if (right_max<0.0)	right_max = 0.0;
 
-	if (Recorder.IsRecording()){
-		float l, r;
-		Recorder.ReadLevels(&l, &r);			// уровень входного сигнала при записи
-		left_max = MAX(left_max, l);
-		right_max = MAX(right_max, r);
-	}else if (!Pool.IsPlaying()){
+	// уровень входа при записи показывает полоса мастера (In), здесь только воспроизведение
+	if (!Pool.IsPlaying()){
 		play_cookie.left = play_cookie.right = 0.0;
 	}else{
 		left_max = MAX(left_max, play_cookie.left);
