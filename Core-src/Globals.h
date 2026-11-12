@@ -97,7 +97,6 @@ enum {MONO=1, STEREO=2};
 #define MIDI_IMPORT_DONE	'mdDn'		// результат рендера MIDI (указатель "result" на MidiImportResult)
 #define APPEND				'apnd'
 #define UNDO				'undo'
-#define UNDO_ENABLE			'undE'
 #define REDO				'redo'
 #define PASTE_MIXED			'pmix'
 #define PASTE_NEW			'pnew'

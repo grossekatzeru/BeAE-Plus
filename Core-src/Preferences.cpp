@@ -112,8 +112,7 @@ void Preferences::Init(){
       show_grid = true;
    if(prefs.FindBool("follow_playing", &follow_playing) != B_OK)
       follow_playing = true;
-   if(prefs.FindBool("save_undo", &save_undo) != B_OK)
-      save_undo = true;
+   save_undo = true;			// отмена всегда включена (пункт меню убран)
    if(prefs.FindBool("play_on_load", &play_when_loaded) != B_OK)
       play_when_loaded = true;
    if(prefs.FindBool("select_all", &select_all_on_double) != B_OK)

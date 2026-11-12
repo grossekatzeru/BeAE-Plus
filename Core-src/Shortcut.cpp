@@ -343,7 +343,6 @@ void Shortcut::InstallDefaults(){
 	Install(0,"EDIT_MENU2",	  		  0, 0,								  0, 0,							SPLITTER		);
 	Install(1,"UNDO",				'Z', B_COMMAND_KEY,					  0, 0,							UNDO			);
 	Install(1,"REDO",				'Z', B_COMMAND_KEY | B_SHIFT_KEY,	  0, 0,							REDO			);
-	Install(1,"UNDO_ENABLE",		'Z', B_COMMAND_KEY | B_CONTROL_KEY,	  0, 0,							UNDO_ENABLE		);
 	Install(1,"COPY",				'C', B_COMMAND_KEY,					  0, 0,							B_COPY			);
 	Install(1,"CUT",				'X', B_COMMAND_KEY,					  0, 0,							B_CUT			);
 	Install(1,"PASTE",			  	'V', B_COMMAND_KEY,					  0, 0,							B_PASTE			);

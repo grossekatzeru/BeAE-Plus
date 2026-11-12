@@ -682,8 +682,6 @@ void MainWindow::AddMenu()
 //	openitem->SetShortcut('O', 0);
 
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_INSERT"), new BMessage(MIDI_IMPORT), KeyBind.GetKey("FILE_INSERT"), KeyBind.GetMod("FILE_INSERT")));
-	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_APPEND"), new BMessage(APPEND), KeyBind.GetKey("FILE_APPEND"), KeyBind.GetMod("FILE_APPEND")));
-	menuItem->SetEnabled(false);
 	menu->AddItem(menuItem = new BMenuItem(Language.get("FILE_MIX"), new BMessage(OPEN_MIX), KeyBind.GetKey("FILE_MIX"), KeyBind.GetMod("FILE_MIX")));
 	menu->AddItem(new BMenuItem(Language.get("FILE_MIX_AS"), new BMessage(MIXDOWN_AS), KeyBind.GetKey("FILE_MIX_AS"), KeyBind.GetMod("FILE_MIX_AS")));
 	menu->AddSeparatorItem();
@@ -710,9 +708,6 @@ void MainWindow::AddMenu()
 	Pool.mn_undo = menuItem;
 	menu->AddItem(menuItem = new BMenuItem(Language.get("REDO"), new BMessage(REDO), KeyBind.GetKey("REDO"), KeyBind.GetMod("REDO")));
 	Pool.mn_redo = menuItem;
-	menu->AddItem(menuItem = new BMenuItem(Language.get("UNDO_ENABLE"), new BMessage(UNDO_ENABLE), KeyBind.GetKey("UNDO_ENABLE"), KeyBind.GetMod("UNDO_ENABLE")));
-	Pool.mn_undo_enable = menuItem;
-	menuItem->SetMarked(Prefs.save_undo);
 	menu->AddSeparatorItem();
 	menu->AddItem(menuItem = new BMenuItem(Language.get("COPY"), new BMessage(B_COPY), KeyBind.GetKey("COPY"), KeyBind.GetMod("COPY")));
 	Pool.mn_copy = menuItem;
@@ -1383,11 +1378,6 @@ void MainWindow::MessageReceived(BMessage *message)
 		Pool.r_pointer = Pool.l_pointer + x;
 		Pool.update_index = true;
 		Pool.RedrawWindow();
-		break;
-	
-	case UNDO_ENABLE:
-		Prefs.save_undo = !Prefs.save_undo;
-		Pool.UpdateToolBar();
 		break;
 	
 	case ABOUT:

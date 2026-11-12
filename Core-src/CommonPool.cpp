@@ -461,7 +461,6 @@ void CommonPool::UpdateMenu()
 	mn_cut->SetEnabled(sample_type != NONE);			// cut = разрезать клип по курсору
 	mn_copy->SetEnabled(sample_type != NONE);			// copy = копировать клип
 	mn_clear->SetEnabled(selection != NONE);			// clear
-	mn_undo_enable->SetMarked(Prefs.save_undo);			// undo enabled
 	mn_undo->SetEnabled(Hist.HasUndo() || Tracks_CanUndo());				// need history class for this
 	mn_paste->SetEnabled(Tracks_HasClipboard());		// paste = вставить клип
 	mn_redo->SetEnabled(Tracks_CanRedo());
