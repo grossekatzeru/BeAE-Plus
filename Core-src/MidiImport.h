@@ -8,6 +8,8 @@
 #define MIDI_IMPORT_H
 
 #include <Window.h>
+#include <FilePanel.h>
+#include <Handler.h>
 #include <Messenger.h>
 #include <Entry.h>
 #include <string>
@@ -52,13 +54,28 @@ class BStringView;
 // Панель «Загрузка MIDI-файла...»: такая же, как панель открытия аудиофайла (кнопки Загрузить/Отмена, справа внизу
 // сведения о выбранном файле: число дорожек и темп). Предпрослушивания нет: для него нужен рендер саундфонтом (см. TODO.md).
 #include <FilePanel.h>
-class MidiOpenPanel : public BFilePanel {
+class BButton;
+class BMessageRunner;
+class BMidiSynthFile;
+
+// Панель выбора MIDI-файла. Кнопка Play включает предпрослушивание системным MIDI-синтезатором Haiku
+// (BMidiSynthFile, банк из настроек Midi системы): нужно лишь составить представление о файле.
+class MidiOpenPanel : public BFilePanel, public BHandler {
 public:
 	MidiOpenPanel(BMessenger target);
 	virtual ~MidiOpenPanel();
 	virtual void SelectionChanged();
+	virtual void WasHidden();
+	virtual void MessageReceived(BMessage *msg);
 private:
+	void	StopPreview();
+	void	StartPreview();
 	BStringView	*fLine1, *fLine2;
+	BButton		*fPlay;
+	BMidiSynthFile *fSynth;
+	BMessageRunner *fTimer;
+	entry_ref	fRef;
+	bool		fHaveRef, fPlaying;
 };
 
 class MidiImportWindow : public BWindow {

@@ -7,6 +7,8 @@
 #include <File.h>
 #include <FilePanel.h>
 #include <FindDirectory.h>
+#include <MessageRunner.h>
+#include <MidiSynthFile.h>
 #include <ListView.h>
 #include <RadioButton.h>
 #include <CheckBox.h>
@@ -368,7 +370,7 @@ public:
 
 MidiOpenPanel::MidiOpenPanel(BMessenger target)
 	: BFilePanel(B_OPEN_PANEL, &target, NULL, B_FILE_NODE, false, new BMessage(MSG_MIDI_FILE), new MidiFilter, true, true),
-	fLine1(NULL), fLine2(NULL)
+	fLine1(NULL), fLine2(NULL), fPlay(NULL), fSynth(NULL), fTimer(NULL), fHaveRef(false), fPlaying(false)
 {
 	if (Window()->Lock()) {
 		float minw, maxw, minh, maxh;
@@ -376,12 +378,20 @@ MidiOpenPanel::MidiOpenPanel(BMessenger target)
 		minw = 480;							// как у панели открытия аудиофайла
 		Window()->SetSizeLimits(minw, maxw, minh, maxh);
 		Window()->ResizeTo(Window()->Frame().Width() > minw ? Window()->Frame().Width() : minw, Window()->Frame().Height());
+		Window()->AddHandler(this);
 		BView *cancel = Window()->FindView("cancel button");
 		BView *view = Window()->ChildAt(0);
 		if (cancel && view) {
 			BRect r(cancel->Frame());
-			r.right = cancel->Frame().left - 8;
+			const float bw = r.Width();				// кнопка Play как у панели открытия аудио: слева, на уровне «Отменить»
 			r.left = view->Bounds().left + 10;
+			r.right = r.left + bw;
+			fPlay = new BButton(r, "PlayStop", Language.get("PLAY"), new BMessage('mpPl'), B_FOLLOW_LEFT | B_FOLLOW_BOTTOM);
+			fPlay->SetTarget(this);
+			fPlay->SetEnabled(false);
+			view->AddChild(fPlay);
+			r.left = r.right + 8;
+			r.right = cancel->Frame().left - 8;
 			r.bottom = r.top + 14;
 			r.OffsetBy(0, -1);
 			fLine1 = new BStringView(r, NULL, "", B_FOLLOW_LEFT | B_FOLLOW_BOTTOM);
@@ -399,13 +409,72 @@ MidiOpenPanel::MidiOpenPanel(BMessenger target)
 
 MidiOpenPanel::~MidiOpenPanel()
 {
+	StopPreview();
 	delete RefFilter();
+}
+
+void MidiOpenPanel::StopPreview()
+{
+	delete fTimer;
+	fTimer = NULL;
+	if (fSynth) {
+		fSynth->Stop();
+		fSynth->UnloadFile();
+		delete fSynth;
+		fSynth = NULL;
+	}
+	fPlaying = false;
+	if (fPlay && fPlay->Window() && fPlay->Window()->LockLooperWithTimeout(100000) == B_OK) {
+		fPlay->SetLabel(Language.get("PLAY"));
+		fPlay->Window()->UnlockLooper();
+	}
+}
+
+// BMidiSynthFile играет файл целиком в своём потоке; Stop() и таймер возвращают кнопку в исходный вид
+void MidiOpenPanel::StartPreview()
+{
+	StopPreview();
+	if (!fHaveRef) return;
+	BMidiSynthFile *s = new BMidiSynthFile();
+	if (s->LoadFile(&fRef) != B_OK) {
+		delete s;
+		if (fLine2) fLine2->SetText(Language.get("MIDI_ERROR"));
+		return;
+	}
+	s->Start();
+	fSynth = s;
+	fPlaying = true;
+	if (fPlay) fPlay->SetLabel(Language.get("STOP"));
+	fTimer = new BMessageRunner(BMessenger(this), new BMessage('mpTk'), 500000);
+}
+
+void MidiOpenPanel::WasHidden()
+{
+	StopPreview();
+}
+
+void MidiOpenPanel::MessageReceived(BMessage *msg)
+{
+	switch (msg->what) {
+	case 'mpPl':
+		if (fPlaying) StopPreview();
+		else StartPreview();
+		break;
+	case 'mpTk':
+		if (fSynth && fSynth->IsFinished()) StopPreview();
+		break;
+	default:
+		BHandler::MessageReceived(msg);
+	}
 }
 
 // выбранный файл читается сразу: число дорожек с нотами и начальный темп
 void MidiOpenPanel::SelectionChanged()
 {
 	if (!fLine1 || !fLine2) return;
+	StopPreview();
+	fHaveRef = false;
+	if (fPlay) fPlay->SetEnabled(false);
 	fLine1->SetText("");
 	fLine2->SetText("");
 	Rewind();
@@ -413,6 +482,9 @@ void MidiOpenPanel::SelectionChanged()
 	if (GetNextSelectedRef(&ref) != B_OK) return;
 	BNode node(&ref);
 	if (node.InitCheck() != B_OK || node.IsDirectory()) return;
+	fRef = ref;
+	fHaveRef = true;
+	if (fPlay) fPlay->SetEnabled(true);
 	BFile file(&ref, B_READ_ONLY);
 	off_t size = 0;
 	std::vector<uint8_t> data;
