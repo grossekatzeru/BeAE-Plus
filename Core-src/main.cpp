@@ -204,7 +204,26 @@ void MyApplication::RefsReceived(BMessage *message)
 				}
 			}
 
-			int64 frameCount, framesRead;
+			if (audTrack == NULL || Pool.size <= 0 || channels < 1
+				|| format.u.raw_audio.buffer_size == 0 || (format.u.raw_audio.format & 0xf) == 0){
+				// нет звуковой дорожки или формат непонятен - не пытаемся читать (раньше цикл мог не завершиться)
+				inFile.ReleaseAllTracks();
+				Pool.HideProgress();
+				Pool.size = 0;
+				Pool.sample_type = NONE;
+				Pool.selection = NONE;
+				play_cookie.pause = temp_pause;
+				(new BAlert(NULL,Language.get("LOADING_NO_AUDIO"),Language.get("OK")))->Go();
+				Pool.sample_view_dirty = true;
+				Pool.update_draw_cache = true;
+				Pool.update_index = true;
+				Pool.update_peak = true;
+				Pool.RedrawWindow();
+				Pool.UpdateToolBar();
+				return;
+			}
+
+			int64 frameCount, framesRead = 0;
 			status_t err;
 			media_header mh;
 			int32 lastPercent, currPercent;
@@ -224,9 +243,11 @@ void MyApplication::RefsReceived(BMessage *message)
 				float *mem = NULL;
 #endif			
 				frameCount = audTrack->CountFrames();
-				int64 count =0;
+				int64 i = 0;							// сколько кадров уже прочитано
+				int zeroReads = 0;
+				const int64 maxFrames = format.u.raw_audio.buffer_size / frame_size;	// сколько кадров помещается в буфер
 				lastPercent = -1;
-				for (int64 i = 0; i < frameCount; i += framesRead) {
+				while (i < frameCount) {
 				
 					#ifdef __VM_SYSTEM	//RAM
 					mem = convert_buffer;
@@ -234,14 +255,21 @@ void MyApplication::RefsReceived(BMessage *message)
 					
 					// clear buffer first
 					memset( buffer, 0, format.u.raw_audio.buffer_size);
+					framesRead = 0;
 					if ((err = audTrack->ReadFrames(buffer, &framesRead, &mh)) != B_OK) {
 						printf("Error reading audio frames: %s\n", strerror(err));
 						break;
 					}
 
-					count += framesRead;			// now correct for crashes if bigger than file
-					if (count > frameCount)
-						framesRead -= (count - frameCount);
+					if (framesRead <= 0){			// декодер ничего не отдал: два раза подряд - файл закончился раньше, чем обещал заголовок
+						if (++zeroReads >= 2) break;
+						continue;
+					}
+					zeroReads = 0;
+					if (framesRead > maxFrames)		// больше, чем влезает в буфер - защита от порчи памяти
+						framesRead = maxFrames;
+					if (i + framesRead > frameCount)	// не больше, чем обещано
+						framesRead = frameCount - i;
 
 					if(byteSwap != NULL)
 						byteSwap->Swap(buffer, format.u.raw_audio.buffer_size);
@@ -305,6 +333,7 @@ void MyApplication::RefsReceived(BMessage *message)
 
 					Pool.ProgressUpdate( framesRead );
 
+					i += framesRead;
 					completePercent = ((float)i) / ((float)frameCount) * 100;
 					currPercent = (int16)floor(completePercent);
 					if (currPercent > lastPercent) {
@@ -312,6 +341,10 @@ void MyApplication::RefsReceived(BMessage *message)
 					}
 				}
 				inFile.ReleaseAllTracks();
+				free(buffer);
+				buffer = NULL;
+				if (i < Pool.size)					// файл оказался короче заголовка - берём только прочитанное
+					Pool.size = i > 0 ? i : 1;
 				#ifdef __VM_SYSTEM	//RAM
 				free(convert_buffer);
 				#endif
