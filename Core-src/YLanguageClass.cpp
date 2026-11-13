@@ -71,6 +71,9 @@
 #include <Roster.h>
 #include <StorageKit.h>
 #include <String.h>
+#include <LocaleRoster.h>
+#include <ctype.h>
+#include <string.h>
 #include <map>
 
 #include <stdio.h>
@@ -197,6 +200,17 @@ void YLanguageClass::LoadLang(){
       }
    }
 
+   // Сначала английский как запас: строки, которых нет в выбранном языке, показываются по-английски,
+   // а не именем ключа (файл перевода может быть неполным).
+   if(LName != "English"){
+      BPath enPath(LanguagePath.Path());
+      enPath.Append("English");
+      BFile *enFile = new BFile(enPath.Path(),B_READ_ONLY);
+      if(enFile->InitCheck() == B_OK)
+         ReadInto(enFile);
+      delete enFile;
+   }
+
    // Creat a file amd make shur its there   
    langfile = new BFile(path.Path(),B_READ_ONLY);
    if((our_status = langfile->InitCheck()) != B_OK){
@@ -204,6 +218,20 @@ void YLanguageClass::LoadLang(){
       delete langfile;
       return;
    }
+   ReadInto(langfile);
+   delete langfile;
+}
+
+/*******************************************************
+*   Читает пары KEY = "text" из открытого файла в список
+*   (повторный ключ заменяет прежний).
+*******************************************************/
+void YLanguageClass::ReadInto(BFile *langfile){
+   BString line;
+   int i;
+   BString Key;
+   BString Text;
+   BString tmp;
    // Читаем файл до конца; пустые строки пропускаются (раньше первая пустая строка
    // обрывала разбор, и всё, что ниже неё, терялось).
    fAtEnd = false;
@@ -290,7 +318,45 @@ void YLanguageClass::LoadLang(){
          
       }
    }
-   delete langfile;
+}
+
+/*******************************************************
+*   Язык по настройкам системы Haiku: имя файла из папки Languages
+*   (первый из предпочитаемых языков, для которого есть перевод; иначе English).
+*******************************************************/
+BString YLanguageClass::SystemName(){
+   static const struct { const char *code; const char *file; } kMap[] = {
+      {"en","English"},{"ru","Russian"},{"de","Deutsch"},{"fr","Francais"},{"es","Spanish"},
+      {"it","Italian"},{"hu","Hungarian"},{"nl","Nederlands"},{"pt","Portugues"}
+   };
+   BString dir;
+   {
+      app_info ai;
+      be_app->GetAppInfo(&ai);
+      BEntry entry(&ai.ref);
+      BPath p;
+      entry.GetPath(&p);
+      p.GetParent(&p);
+      p.Append("Languages");
+      dir = p.Path();
+   }
+   BMessage langs;
+   if(BLocaleRoster::Default() != NULL && BLocaleRoster::Default()->GetPreferredLanguages(&langs) == B_OK){
+      const char *id;
+      for(int32 k = 0; langs.FindString("language", k, &id) == B_OK; k++){
+         if(id == NULL || strlen(id) < 2) continue;
+         char code[3] = { (char)tolower((unsigned char)id[0]), (char)tolower((unsigned char)id[1]), 0 };
+         for(size_t m = 0; m < sizeof(kMap) / sizeof(kMap[0]); m++){
+            if(strcmp(code, kMap[m].code) != 0) continue;
+            BPath f(dir.String());
+            f.Append(kMap[m].file);
+            BEntry e(f.Path(), true);
+            if(e.InitCheck() == B_OK && e.IsFile())
+               return BString(kMap[m].file);
+         }
+      }
+   }
+   return BString("English");
 }
 
 /*******************************************************

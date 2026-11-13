@@ -482,7 +482,7 @@ MainWindow::MainWindow(BRect frame)
 	MoveTo( Prefs.frame.left, Prefs.frame.top );
 
 	// Set Language
-	Language.SetName(Prefs.lang_name.String());
+	Language.SetName(Prefs.lang_name.Length() > 0 ? Prefs.lang_name.String() : Language.SystemName().String());
 	
 	// Now init the keyBindings
 	KeyBind.Init();

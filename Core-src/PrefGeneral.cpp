@@ -141,6 +141,17 @@ void PrefGeneral::AddLanguageMenu()
 	BDirectory directory(path.Path());
 	char name[B_FILE_NAME_LENGTH];
 
+	{	// первый пункт: язык по настройкам системы
+		BMessage *sm = new BMessage(CHANGE_LANGUAGE);
+		sm->AddString("language", "");
+		BMenuItem *sysItem = new BMenuItem(Language.get("LANG_SYSTEM"), sm, 0, 0);
+		sysItem->SetTarget(this);
+		langmenu->AddItem(sysItem);
+		if (Prefs.lang_name.Length() == 0)
+			sysItem->SetMarked(true);
+		langmenu->AddSeparatorItem();
+	}
+
 	while (directory.GetNextEntry(&entry, false) == B_OK){
 		if(entry.IsFile()){
 			entry.GetPath(&path);
@@ -150,7 +161,7 @@ void PrefGeneral::AddLanguageMenu()
 			BMenuItem *menuitem = new BMenuItem(name, m, 0, 0);
 			menuitem->SetTarget(this);
 			langmenu->AddItem(menuitem);
-			if(!strcmp(name,Language.Name())){
+			if(Prefs.lang_name.Length() > 0 && !strcmp(name,Prefs.lang_name.String())){
 				menuitem->SetMarked(true);
 			}
 		}
@@ -202,7 +213,8 @@ void PrefGeneral::MessageReceived(BMessage *msg){
 	switch(msg->what){
 	case CHANGE_LANGUAGE:
 		if(msg->FindString("language",(const char**)&lname) == B_OK){
-			Language.SetName(lname);
+			Prefs.lang_name.SetTo(lname);		// пусто = язык системы
+			Language.SetName(lname[0] ? lname : Language.SystemName().String());
 			Window()->PostMessage(msg);
 			be_app->PostMessage(CHANGE_LANGUAGE);
 		}

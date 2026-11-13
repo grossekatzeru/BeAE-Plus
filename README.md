@@ -37,3 +37,7 @@ for its control ports, a real-time preview and Apply. Supported audio layouts: 1
 2 in/2 out, 1 in/2 out and 2 in/1 out. Parameter values are remembered in
 <code>~/config/settings/BeAE/ladspa/</code>, and "Repeat last filter" works with plug-ins.<br>
 The built-in effects stay available.<br>
+
+## Languages
+
+The interface language follows the system language of Haiku by default (Preferences → General → Language → System default) and can be chosen by hand. Complete: English, Russian. German, French, Spanish and Italian are machine-translated drafts (see the DRAFT note at the top of each file in `BeAE/Languages`); Hungarian, Dutch and Portuguese are partly in English. Missing strings fall back to English. Translations are plain text files (`KEY = "text"`): corrections and new languages are very welcome as pull requests or issues at https://github.com/grossekatzeru/BeAE-Plus

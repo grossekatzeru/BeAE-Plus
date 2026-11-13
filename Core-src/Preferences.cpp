@@ -69,7 +69,7 @@ void Preferences::Init(){
    
    // Get the language name
 	if(prefs.FindString("Language_Name",&lang_name) != B_OK)
-		lang_name.SetTo("English");
+		lang_name.SetTo("");					// пусто = язык системы
    
    // SoundFont для импорта MIDI
 	if(prefs.FindString("midi_soundfont",&midi_soundfont) != B_OK)
@@ -238,7 +238,7 @@ void Preferences::Sync(){
 	YPreferences prefs(SETTINGS_DIR"/BeAE");
 	if (prefs.InitCheck() != B_OK)	return;
    
-	prefs.SetString("Language_Name",Language.Name());
+	prefs.SetString("Language_Name",lang_name.String());
 	prefs.SetString("temp_dir",temp_dir.String());
 	prefs.SetString("midi_soundfont",midi_soundfont.String());
 	{
@@ -371,7 +371,7 @@ Preferences::~Preferences(){
 *
 *******************************************************/
 void Preferences::FactorySettings(){
-	lang_name.SetTo("English");
+	lang_name.SetTo("");					// язык системы
 	temp_dir.SetTo("/tmp");
 	midi_soundfont.SetTo("");
 	for(int i = 0; i < 4; i++) encSettings[i].SetTo("");

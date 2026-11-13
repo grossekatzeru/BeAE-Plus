@@ -74,6 +74,11 @@ class YLanguageClass{
       *   return B_ERROR.
       *******************************************************/
       void SetName(const char* name);
+
+      /*******************************************************
+      *   Имя языкового файла по настройкам системы (Locale).
+      *******************************************************/
+      BString SystemName();
       
       /*******************************************************
       *   Installs a KEY/text pair into the current language
@@ -90,6 +95,7 @@ class YLanguageClass{
       
    private:
       void LoadLang();
+      void ReadInto(BFile*);
       BString ReadLine(BFile*);
       bool fAtEnd;			// ReadLine дошла до конца файла (или ошибка чтения)
       void set(const char*, const char*);
