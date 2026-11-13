@@ -5,6 +5,7 @@
 #include <String.h>
 #include <stdlib.h>
 #include <string.h>
+#include <algorithm>
 #include <vector>
 
 #include "Globals.h"
@@ -91,45 +92,58 @@ int32 Run(void *data)
 	cookie.frame = 0;
 	cookie.silent = false;
 
-	Recorder.Clear();
+	// Замеры бывают двух «кучек» (около 180 и около 235 мс — зависит от фазы буфера),
+	// поэтому делаем несколько попыток и берём нижнюю кучку (2-й по величине снизу результат).
+	const int kTrials = 5;
+	std::vector<double> results;
 	BString error;
-	if (Recorder.Start(&error) != B_OK){
-		delete player;
+	for (int t = 0; t < kTrials; t++){
+		cookie.frame = 0;
+		cookie.silent = false;
 		Recorder.Clear();
-		Reply(target, false, 0, error.Length() > 0 ? error.String() : "REC_ERR_START");
-		return 0;
+		if (Recorder.Start(&error) != B_OK){
+			if (results.empty()){
+				delete player;
+				Recorder.Clear();
+				Reply(target, false, 0, error.Length() > 0 ? error.String() : "REC_ERR_START");
+				return 0;
+			}
+			break;
+		}
+
+		// воспроизведение стартует сразу после запуска записи, как при настоящей записи с дорожками
+		player->Start();
+		player->SetHasData(true);
+		snooze((bigtime_t)(Latency::kTotalSeconds * 1000000.0));
+		player->SetHasData(false);
+		player->Stop();
+		Recorder.Stop();
+
+		const long long frames = Recorder.Frames();
+		const int ch = Recorder.Channels();
+		const double rate = Recorder.Rate();
+		float *mem = Recorder.CopyData(0);
+		double ms = 0;
+		if (mem != NULL && frames > 0 && rate > 1.0){
+			std::vector<float> mono((size_t)frames);
+			for (long long i = 0; i < frames; i++)
+				mono[(size_t)i] = (ch == 2) ? (mem[i * 2] + mem[i * 2 + 1]) * 0.5f : mem[i];
+			if (Latency::MeasureMs(&mono[0], frames, rate, &ms))
+				results.push_back(ms);
+		}
+		free(mem);
+		Recorder.Clear();
+		snooze(300000);
 	}
-
-	// воспроизведение стартует сразу после запуска записи, как при настоящей записи с дорожками
-	player->Start();
-	player->SetHasData(true);
-
-	snooze((bigtime_t)(Latency::kTotalSeconds * 1000000.0));
-
-	player->SetHasData(false);
-	player->Stop();
 	delete player;
-	Recorder.Stop();
 
-	const long long frames = Recorder.Frames();
-	const int ch = Recorder.Channels();
-	const double rate = Recorder.Rate();
-	float *mem = Recorder.CopyData(0);
-	bool ok = false;
-	double ms = 0;
-	if (mem != NULL && frames > 0 && rate > 1.0){
-		std::vector<float> mono((size_t)frames);
-		for (long long i = 0; i < frames; i++)
-			mono[(size_t)i] = (ch == 2) ? (mem[i * 2] + mem[i * 2 + 1]) * 0.5f : mem[i];
-		ok = Latency::MeasureMs(&mono[0], frames, rate, &ms);
-	}
-	free(mem);
-	Recorder.Clear();
-
-	if (!ok)
+	if (results.empty()){
 		Reply(target, false, 0, "CAL_ERR_NO_SIGNAL");
-	else
-		Reply(target, true, (float)ms, "");
+	}else{
+		std::sort(results.begin(), results.end());
+		const size_t idx = results.size() > 1 ? 1 : 0;
+		Reply(target, true, (float)results[idx], "");
+	}
 	return 0;
 }
 
