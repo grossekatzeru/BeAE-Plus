@@ -77,6 +77,7 @@ CommonPool::CommonPool(){
 	importmenu = NULL;
 	progress = NULL;
 	rec_live = false;
+	rec_first_hook = 0;
 	rec_start_time = 0;
 	rec_tl = 0;
 	rec_tr = 10;

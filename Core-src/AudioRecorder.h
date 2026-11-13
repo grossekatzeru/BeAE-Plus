@@ -13,6 +13,7 @@
 #include <MediaNode.h>
 #include <MediaRoster.h>
 #include <MediaRecorder.h>
+#include <TimeSource.h>
 #include <Locker.h>
 #include <String.h>
 #include <vector>
@@ -55,6 +56,8 @@ public:
 	bigtime_t	FirstStamp() const { return fFirstStamp; }
 	bigtime_t	FirstArrival() const { return fFirstArrival; }
 	bigtime_t	InputLatency() const { return fInputLatency; }
+	// метка первого буфера, переведённая в system_time (0, если не удалось)
+	bigtime_t	FirstStampReal() const { return fFirstStampReal; }
 
 	// Огибающая записанного для живого показа: максимум модуля по блокам kPeakBlock кадров.
 	enum { kPeakBlock = 256 };
@@ -95,6 +98,8 @@ private:
 	volatile float	fPeakL, fPeakR;
 	volatile bigtime_t	fFirstStamp, fFirstArrival;
 	bigtime_t		fInputLatency;
+	volatile bigtime_t	fFirstStampReal;
+	BTimeSource		*fTimeSource;
 };
 
 extern AudioRecorder Recorder;

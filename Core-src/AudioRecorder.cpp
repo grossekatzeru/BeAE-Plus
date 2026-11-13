@@ -38,7 +38,9 @@ AudioRecorder::AudioRecorder()
 	fPeakR(0.0f),
 	fFirstStamp(0),
 	fFirstArrival(0),
-	fInputLatency(0)
+	fInputLatency(0),
+	fFirstStampReal(0),
+	fTimeSource(NULL)
 {
 }
 
@@ -63,6 +65,7 @@ void AudioRecorder::Clear()
 	fOutOfMemory = false;
 	fFirstStamp = 0;
 	fFirstArrival = 0;
+	fFirstStampReal = 0;
 }
 
 void AudioRecorder::CopyPeaks(std::vector<float> &out)
@@ -179,6 +182,7 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 
 	fInputLatency = 0;
 	roster->GetLatencyFor(fInputNode, &fInputLatency);
+	fTimeSource = roster->MakeTimeSourceFor(fInputNode);	// для перевода меток буферов в system_time
 	if (listen) fListening = true; else fRecording = true;
 	err = fRecorder->Start();
 	if (err != B_OK) {
@@ -192,6 +196,10 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	return B_OK;
 
 fail:
+	if (fTimeSource) {
+		fTimeSource->Release();
+		fTimeSource = NULL;
+	}
 	delete fRecorder;
 	fRecorder = NULL;
 	roster->ReleaseNode(fInputNode);
@@ -209,6 +217,10 @@ void AudioRecorder::Stop()
 		fRecorder->SetHooks(NULL, NULL, NULL);
 		delete fRecorder;
 		fRecorder = NULL;
+	}
+	if (fTimeSource) {
+		fTimeSource->Release();
+		fTimeSource = NULL;
 	}
 	if (fHaveNode) {
 		BMediaRoster *roster = BMediaRoster::Roster();
@@ -233,6 +245,8 @@ void AudioRecorder::_RecordHook(void *cookie, bigtime_t timestamp, void *data, s
 	if (self->fRecording && self->fFirstArrival == 0) {
 		self->fFirstArrival = system_time();
 		self->fFirstStamp = timestamp;
+		if (self->fTimeSource)
+			self->fFirstStampReal = self->fTimeSource->RealTimeFor(timestamp, 0);
 	}
 	self->OnBuffer(data, size, format);
 }

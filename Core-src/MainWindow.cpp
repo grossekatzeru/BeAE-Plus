@@ -135,6 +135,9 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 		return; 
 	}
 	
+	if (Pool.rec_live && Pool.rec_first_hook == 0)
+		Pool.rec_first_hook = system_time();
+
 	bool stop_needed = false;
 	size_t i; 
 	float *buf = (float *) buffer; 
@@ -915,6 +918,7 @@ void MainWindow::StartRecording()
 	Pool.rec_start_time = rec_start_time;
 	Pool.rec_tl = rec_start_time;
 	Pool.rec_tr = rec_start_time + 10.0;
+	Pool.rec_first_hook = 0;
 	Pool.rec_live = true;
 	Pool.play_mode = RECORD;
 	Pool.StartTailPlaying(rec_tail_start);		// остальные дорожки играют во время записи
@@ -950,6 +954,8 @@ void MainWindow::FinishRecording()
 		return;
 	}
 
+	const bigtime_t recStampReal = Recorder.FirstStampReal();
+	const bigtime_t recFirstHook = Pool.rec_first_hook;
 	float *mem = Recorder.CopyData(256);	// 256 float запаса, как «+1024» при загрузке файла
 	if (mem == NULL){
 		Recorder.Clear();
@@ -960,9 +966,16 @@ void MainWindow::FinishRecording()
 	uint32 srcFormat = Recorder.SourceFormat();
 	Recorder.Clear();
 
-	// компенсация задержки: вход приходит позже воспроизведения, отбрасываем начало записи
+	// компенсация задержки: вход приходит позже воспроизведения, отбрасываем начало записи.
+	// Постоянная часть — измеренная задержка железа (Fine tune); переменную часть (момент старта записи
+	// и воспроизведения у медиасервера каждый раз разный) берём из меток времени.
 	{
-		int64 skip = (int64)((double)Prefs.rec_latency_ms * rate / 1000.0);
+		double skipMs = (double)Prefs.rec_latency_ms;
+		if (recStampReal > 0 && recFirstHook > 0)
+			skipMs += (double)(recFirstHook - recStampReal) / 1000.0;
+		if (skipMs < 0)
+			skipMs = 0;
+		int64 skip = (int64)(skipMs * rate / 1000.0);
 		if (skip > 0 && skip < frames - 2){
 			memmove(mem, mem + skip * channels, (size_t)((frames - skip) * channels) * sizeof(float));
 			frames -= skip;

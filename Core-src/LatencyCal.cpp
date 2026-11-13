@@ -98,8 +98,8 @@ int32 Run(void *data)
 	cookie.frame = 0;
 	cookie.silent = false;
 
-	// Замеры бывают двух «кучек» (около 180 и около 235 мс — зависит от фазы буфера),
-	// поэтому делаем несколько попыток и берём нижнюю кучку (2-й по величине снизу результат).
+	// Несколько попыток; в каждой «сырое» время поправлено на метки времени (см. corr),
+	// затем берём медиану-ish (2-й снизу), чтобы единичный выброс не влиял.
 	const int kTrials = 5;
 	std::vector<double> results;
 	BString diag;
@@ -142,20 +142,29 @@ int32 Run(void *data)
 		double ms = 0;
 		const bigtime_t fh = cookie.firstHook, fa = Recorder.FirstArrival(), fs = Recorder.FirstStamp();
 		bool got = false;
+		double corr = 0;
+		const bigtime_t stampReal = Recorder.FirstStampReal();
 		if (mem != NULL && frames > 0 && rate > 1.0){
 			std::vector<float> mono((size_t)frames);
 			for (long long i = 0; i < frames; i++)
 				mono[(size_t)i] = (ch == 2) ? (mem[i * 2] + mem[i * 2 + 1]) * 0.5f : mem[i];
 			got = Latency::MeasureMs(&mono[0], frames, rate, &ms);
-			if (got)
-				results.push_back(ms);
+			if (got){
+				// убираем «дрожание» старта: метка первого буфера записи против первого вызова проигрывателя
+				if (stampReal > 0 && fh > 0)
+					corr = ms + (double)(stampReal - fh) / 1000.0;
+				else
+					corr = ms;
+				results.push_back(corr);
+			}
 		}
 		snprintf(line, sizeof(line),
-			"#%d: %s%.0f ms | rec.Start %.1f, play.Start %.1f..%.1f | 1st buf %.1f (stamp %.1f) | 1st hook %.1f | in-lat %.1f (all ms from call)\n",
+			"#%d: %s%.0f ms | rec.Start %.1f, play.Start %.1f..%.1f | 1st buf %.1f (stamp %.1f) | 1st hook %.1f | in-lat %.1f | stampReal %.1f | corrected %.1f (ms from call)\n",
 			t + 1, got ? "" : "no signal ", got ? ms : 0.0,
 			(tRecRet - tCall) / 1000.0, (tRecRet - tCall) / 1000.0, (tPlRet - tCall) / 1000.0,
 			fa ? (fa - tCall) / 1000.0 : -1.0, fs ? (fs - tCall) / 1000.0 : -1.0,
-			fh ? (fh - tCall) / 1000.0 : -1.0, (double)Recorder.InputLatency() / 1000.0);
+			fh ? (fh - tCall) / 1000.0 : -1.0, (double)Recorder.InputLatency() / 1000.0,
+			stampReal ? (stampReal - tCall) / 1000.0 : -1.0, got ? corr : 0.0);
 		diag << line;
 		free(mem);
 		Recorder.Clear();

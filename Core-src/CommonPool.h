@@ -163,6 +163,7 @@ class CommonPool{
 	bool	IsChanged(int32 mode=1);			// checks to see if a file is changed after load
 
 	bool	rec_live;				// идёт запись: в активной дорожке рисуется растущая волна
+	volatile bigtime_t rec_first_hook;	// system_time первого вызова проигрывателя после старта записи (0 — ещё не было)
 	double	rec_start_time;			// секунды на ленте, откуда пошла запись
 	double	rec_tl, rec_tr;			// пустой проект: окно показа записи, секунды
 
