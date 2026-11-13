@@ -17,6 +17,7 @@ namespace {
 struct Cookie {
 	long long	frame;
 	double		rate;
+	volatile bool silent;
 };
 
 // поток воспроизведения: выдаёт тестовый сигнал в оба канала
@@ -27,7 +28,7 @@ void PlayHook(void *cookie, void *buffer, size_t size, const media_raw_audio_for
 	const int ch = format.channel_count > 0 ? format.channel_count : 2;
 	const size_t frames = size / (sizeof(float) * ch);
 	for (size_t i = 0; i < frames; i++){
-		const float s = Latency::BurstSample(c->frame++, c->rate);
+		const float s = c->silent ? 0.0f : Latency::BurstSample(c->frame++, c->rate);
 		for (int k = 0; k < ch; k++)
 			out[i * ch + k] = s;
 	}
@@ -68,6 +69,7 @@ int32 Run(void *data)
 	format.byte_order = B_MEDIA_HOST_ENDIAN;
 	Cookie cookie;
 	cookie.frame = 0;
+	cookie.silent = false;
 	cookie.rate = format.frame_rate;
 	BSoundPlayer *player = new BSoundPlayer(&format, "BeAE latency", PlayHook, NULL, &cookie);
 	if (player->InitCheck() != B_OK){
@@ -76,6 +78,19 @@ int32 Run(void *data)
 		return 0;
 	}
 	cookie.rate = player->Format().frame_rate;
+
+	// «прогрев»: основной проигрыватель при записи уже работал раньше (Stop -> Start),
+	// а у только что созданного первый Start дольше. Прогоняем его вхолостую (тишина) и останавливаем.
+	cookie.silent = true;
+	player->Start();
+	player->SetHasData(true);
+	snooze(700000);
+	player->SetHasData(false);
+	player->Stop();
+	snooze(100000);
+	cookie.frame = 0;
+	cookie.silent = false;
+
 	Recorder.Clear();
 	BString error;
 	if (Recorder.Start(&error) != B_OK){
