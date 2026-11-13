@@ -4,7 +4,7 @@
 	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
 	<meta http-equiv="Content-Style-Type" content="text/css" />
 	<meta name="robots" content="all" />
-	<title>BeAE - Version History</title>
+	<title>BeAE-Plus - Version History</title>
 
 <style type="text/css">
 body {
@@ -28,9 +28,43 @@ td.table-data {
 <body>
 
 <table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE Icon" /></td>
-<td><span style="font-size: 1.8em"><b>BeAE</b></span><br />
+<td><span style="font-size: 1.8em"><b>BeAE-Plus</b></span><br />
 <span style="font-size: 1.3em">Version History</span><br />
-<span style="font-size: 1.0em; color: #787878"><i>Original Author: Frans van Nispen</i></span><br /></td></tr>
+<span style="font-size: 1.0em; color: #787878"><i>Original Author: Frans van Nispen</i></span><br />
+<span style="font-size: 1.0em; color: #787878"><i>BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic)</i></span><br /></td></tr>
+</table>
+<p><br></p>
+
+
+<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
+<tr><td class="table-heading" align="left"><b>Version 3.0 (BeAE-Plus)</b></td><td class="table-heading" align="right"><b>November 2026</b></td></tr>
+<tr><td class="table-data" colspan="2"><p>BeAE becomes a multitrack editor. The single sample of the old versions is now a project with tracks and clips, and a mixer, effect chains, a MIDI importer, a tuner and external encoders were added around it.</p>
+<p><i>Fixed:</i></p>
+<ul type="square">
+<li>Opening an audio file could hang forever when the decoder returned no frames; the decoder is now asked for raw float audio and the read loop is guarded</li>
+<li>Saving: files that could not be opened afterwards (8 bit, clipped peaks, mime type set before the file was closed, empty leftovers after errors)</li>
+<li>The open menu showed the recent files of the whole system, now only the files opened in BeAE</li>
+<li>The BeAE input stayed in the system mixer after quitting</li>
+<li>MIDI: pitch bend range (RPN 0) was ignored, bends sounded out of tune</li>
+<li>The tuner readout jumped too fast to read, now smoothed</li>
+<li>Lanes scroll bar now covers the full height of the work area</li>
+<li>Zoom to left/right pointer: the pointer stays at 20% from the edge</li>
+</ul></td></tr>
+<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+<ul>
+<li>Multitrack: up to 64 tracks with Solo, Mute, Record, volume, pan, Grid, Xfade and Sticky; Master strip with In and Out level meters and effects</li>
+<li>Clips on a common timeline: split, copy, paste several times, move between tracks, delete, lock in time, groups, selecting several clips, save clip as a file</li>
+<li>Files can be dropped into the window, a new clip is placed under the mouse</li>
+<li>Recording into the armed track while the other tracks play, with live waveform and a follow-the-record view; automatic measurement of the recording latency (Preferences &rarr; Audio &rarr; Fine tune)</li>
+<li>Projects (.bemix): save, open, save as, new; mixdown of all tracks, Mixdown as...</li>
+<li>Per-track and master effect chains: built-in effects, LADSPA and VST2 plug-ins, parameters with exact value fields, saved in the project</li>
+<li>Plug-ins: spring reverb, adaptive noise reduction, graphic and parametric equalizers, multiband compressor, reverb, plate reverb (EMT 140), 80s vocal chain, flanger, chorus, optical compressor, distressor, gate/expander, Tube Screamer overdrive, DS-1 distortion, auto-tune, sidechain ducking (BeFX)</li>
+<li>Tempo and grid: BPM, time signature, metronome, beat and bar lines, tempo analyzer</li>
+<li>Insert from MIDI: own SoundFont (SF2) synthesizer, MIDI effects (pan, reverb, chorus), tempo import, preview in the file panel</li>
+<li>Tuner (Analyze &rarr; Tuner) for guitar and bass</li>
+<li>Save as: uncompressed (PCM) or compressed through the external encoders lame, oggenc, flac and opusenc, with their options and tags; the file extension is added automatically</li>
+<li>Complete help in the new documentation (Russian) and a cleaned up version history</li>
+</ul></td></tr>
 </table>
 <p><br></p>
 
@@ -58,23 +92,23 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>When zoomed in on 1 sample, you now can zoom out again</li>
 <li>Clear buffers on bypass filter</li>
 <li>Repeat last filter</li>
-<li>Link in tutorials now like to documentation online</li>
+<li>Link in tutorials now links to documentation online</li>
 <li>Keyboard navigation now stays working</li>
 <li>Crashes on Cut removed</li>
-<li>Copy/pase speed boost</li>
-</ul>
+<li>Copy/paste speed boost</li>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>Start new instances with 'New'</li>
 <li>Entering of numbers on pointer view</li>
 <li>Context menu on PointerView</li>
-<li>Changable temporary directory</li>
+<li>Changeable temporary directory</li>
 <li>Files can be dropped on an empty window to load</li>
 <li>A drop of a file when there already is one loaded will open a new instance and load the data</li>
-<li>Added zoom functions to sampleview popup</li>
-<li>Added Play and pause to context menu</li>
+<li>Added zoom functions to the SampleView popup</li>
+<li>Added Play and Pause to the context menu</li>
 <li>Paste mono/stereo into a single channel of a stereo file</li>
-<li>Copy&Paste between instances</li>
+<li>Copy&amp;Paste between instances</li>
 <li>Paste to new</li>
 <li>Added drag and drop of selections. This is done by a copy&paste. To avoid dragging without intention, the threshold is 4 pixels. It can also be turned off in the preferences.</li>
 <li>CTRL-drag does move the selection</li>
@@ -87,7 +121,7 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <tr><td class="table-heading" align="left"><b>Alpha 2.3</b></td><td class="table-heading" align="right"><b></b></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Fixed:</i></p>
 <ul type="square">
-<li>Progress Window not zoomable
+<li>Progress Window not zoomable</li>
 <li>Lockups that happened when analyzers got closed in a certain order</li>
 <li>Amount to keep free in the preferences was not saved</li>
 <li>The peak-value in the preferences was not saved</li>
@@ -101,14 +135,14 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>The 20/40/60.. will sometimes have rounding errors</li>
 <li>Antialiasing of the text in the rulers fixed</li>
 <li>Index slider sometimes followed the mouse even after mouse-up</li>
-</ul>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>PopUp menu on pointers to toggle time/samples</li>
 <li>New drawroutines with gradient blending</li>
 <li>Display follows play-cursor (optional in preferences)</li>
 <li>Extended the selection system to be able to select just one channel in a stereo-file by selecting in the top or bottom border of the sample</li>
-<li>Start an dend of selection pointers are draggable to extend selection</li>
+<li>Start and end of selection pointers are draggable to extend selection</li>
 <li>New draw routines for the indexview</li>
 <li>Play-pointer in indexview</li>
 </ul></td></tr>
@@ -130,7 +164,7 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>Better refreshing of the pointer views</li>
 <li>Amplifier negative values not clipped</li>
 <li>Filtering of one channel in a stereo-file works again</li>
-</ul>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>PopUp menu on pointers to toggle time/samples</li>
@@ -153,7 +187,7 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>Odd vertical line that displays on new loaded file removed</li>
 <li>Frame frequency of updating analyzers and pointers</li>
 <li>The VU meters now reflect the output after the realtime effects</li>
-</ul>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>Skeleton for plug-in effects / filters</li>
@@ -162,7 +196,7 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>Filters will be enabled / disabled by the sample-types it supports</li>
 <li>Bypass function on realtime filters</li>
 <li>BaseClass for filters implemented, so plug-ins will be possible</li>
-<li>PLayTool added. Left-mouse starts playing at mouse position, right-mouse does same but places pointer on last played position</li>
+<li>PlayTool added. Left-mouse starts playing at mouse position, right-mouse does same but places pointer on last played position</li>
 <li>Jogg Tool</li>
 <li>BassBoost</li>
 <li>Swap Channels</li>
@@ -184,18 +218,18 @@ So, the downside is that Sample Studio, a potentially great audio editing app fo
 <li>Changed the IndexView to an averaged view to show envelope of sample</li>
 <li>Changed IndexView to use peak-file</li>
 <li>Changed the fonts in the LCDs</li>
-</ul>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>RealTime Effects</li>
 <li>Zero Crossings</li>
 <li>SHIFT+LEFT as same as Right-mouse in the sample-view</li>
-<li>CTRL+SHIFT+X, Copy & Silence</li>
+<li>CTRL+SHIFT+X, Copy &amp; Silence</li>
 <li>CTRL+U, Unselect all</li>
 <li>Add Clear to the Edit menu: DEL, ALT+B: Silence</li>
-<li>if step in SampleView < 1: Iterate and add points to edit</li>
-<li>Catagories to the KeyBindings + extra bindings</li>
-<li>LEFT / RIGTH arrows to move display</li>
+<li>if step in SampleView &lt; 1: Iterate and add points to edit</li>
+<li>Categories to the KeyBindings + extra bindings</li>
+<li>LEFT / RIGHT arrows to move display</li>
 <li>Cursor:<br />
 HOME key: move cursor to the start of the visible area<br />
 END key: move cursor to the end of the visible area<br />
@@ -228,14 +262,14 @@ SHIFT+END key: move cursor to the end of the file (and change the view to compen
 <li>Bug in stereo delay</li>
 <li>Corrected end of delay</li>
 <li>Index view drawing on left size when zoomed in and move to left</li>
-</ul>
+</ul></td></tr>
 <tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
 <ul>
 <li>Key Bindings</li>
 <li>Normalize GUI</li>
 <li>Filter Repeat with last settings</li>
 <li>Resample</li>
-<li>mouse wheel roll & track zoom navigation</li>
+<li>mouse wheel roll &amp; track zoom navigation</li>
 <li>Zero Crossings</li>
 <li>Room Effect</li>
 <li>Delay GUI</li>
