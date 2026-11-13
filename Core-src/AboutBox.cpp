@@ -32,6 +32,8 @@
 #include <View.h>
 #include <TranslationKit.h>
 #include <Bitmap.h>
+#include <Font.h>
+#include <InterfaceDefs.h>
 
 class AboutView : public BView
 {
@@ -164,8 +166,40 @@ void AboutView::Pulse()
 AboutBox::AboutBox(BPoint p) : BWindow(BRect(p.x,p.y,p.x,p.y),"About",B_MODAL_WINDOW_LOOK,B_MODAL_APP_WINDOW_FEEL,B_ASYNCHRONOUS_CONTROLS|B_NOT_RESIZABLE){//B_NOT_ANCHORED_ON_ACTIVATE|
 	BView *view;
 
-	BBitmap *bitmap = BTranslationUtils::GetBitmapFile("./Bitmaps/SplashBasic.png");
-	if (!bitmap)	bitmap = new BBitmap(BRect(0,0,100,100), B_RGB32);
+	// фон без надписи (ножницы и полоса для бегущего текста); название рисуем сами, чтобы дописать «Plus»
+	BBitmap *bitmap = BTranslationUtils::GetBitmapFile("./Bitmaps/SplashBasicBackground.png");
+	if (!bitmap)	bitmap = new BBitmap(BRect(0,0,464,241), B_RGB32);
+	else{
+		BRect br = bitmap->Bounds();
+		BBitmap *canvas = new BBitmap(br, B_RGB32, true);
+		BView *cv = new BView(br, "canvas", B_FOLLOW_NONE, B_WILL_DRAW);
+		canvas->AddChild(cv);
+		if (canvas->Lock()){
+			cv->DrawBitmap(bitmap, BPoint(0, 0));
+			cv->SetDrawingMode(B_OP_ALPHA);
+			cv->SetBlendingMode(B_PIXEL_ALPHA, B_ALPHA_OVERLAY);
+			cv->SetHighColor(48, 46, 120);
+
+			BFont big(be_bold_font);
+			big.SetSize(100);
+			const float w100 = big.StringWidth("BeAE");
+			if (w100 > 1) big.SetSize(100 * (br.Width() * 0.62f) / w100);	// ширина слова около 62% окна, как раньше
+			cv->SetFont(&big);
+			cv->DrawString("BeAE", BPoint(br.Width() / 2 - big.StringWidth("BeAE") / 2, br.Height() * 0.58f));
+
+			BFont small(be_bold_font);
+			small.SetSize(big.Size() * 0.28f);				// «Plus» заметно меньше названия
+			cv->SetFont(&small);
+			cv->DrawString("Plus", BPoint(br.Width() / 2 - small.StringWidth("Plus") / 2, br.Height() * 0.58f + small.Size() * 1.1f));
+
+			cv->Sync();
+			canvas->Unlock();
+		}
+		canvas->RemoveChild(cv);
+		delete cv;
+		delete bitmap;
+		bitmap = canvas;
+	}
 
 	BRect r = bitmap->Bounds();
 	ResizeTo(r.Width(), r.Height());
