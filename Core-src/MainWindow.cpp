@@ -128,6 +128,8 @@ void MyMenuBar::MakeFocus(bool b)
 
 #ifdef __VM_SYSTEM
 
+static bigtime_t sRecCall = 0, sRecRet = 0, sRecTail = 0;	// для журнала задержки записи
+
 void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_audio_format &format)
 {
 	// We're going to be cheap and only work for floating-point audio 
@@ -907,7 +909,9 @@ void MainWindow::StartRecording()
 	}
 
 	BString error;
+	sRecCall = system_time();
 	status_t err = Recorder.Start(&error);
+	sRecRet = system_time();
 	if (err != B_OK){
 		BString text(Language.get(error.String()));
 		text << "\n(" << strerror(err) << ")";
@@ -922,6 +926,7 @@ void MainWindow::StartRecording()
 	Pool.rec_live = true;
 	Pool.play_mode = RECORD;
 	Pool.StartTailPlaying(rec_tail_start);		// остальные дорожки играют во время записи
+	sRecTail = system_time();
 	rec_old_title = Title();
 	UpdateRecordingTitle();
 	delete rec_runner;
@@ -976,6 +981,18 @@ void MainWindow::FinishRecording()
 		if (skipMs < 0)
 			skipMs = 0;
 		int64 skip = (int64)(skipMs * rate / 1000.0);
+		// журнал для разбора задержки: ~/config/settings/BeAE-Plus_rec_log.txt (дописывается)
+		if (FILE *lf = fopen("/boot/home/config/settings/BeAE-Plus_rec_log.txt", "a")){
+			fprintf(lf, "rec: pref %d ms | skip %.1f ms | Recorder.Start ret +%.1f, tail start +%.1f | "
+				"1st hook %s%.1f | stampReal %s%.1f | hook-stamp %.1f | frames %lld rate %.0f\n",
+				(int)Prefs.rec_latency_ms, skipMs,
+				(sRecRet - sRecCall) / 1000.0, (sRecTail - sRecCall) / 1000.0,
+				recFirstHook > 0 ? "+" : "none ", recFirstHook > 0 ? (recFirstHook - sRecCall) / 1000.0 : 0.0,
+				recStampReal > 0 ? "+" : "none ", recStampReal > 0 ? (recStampReal - sRecCall) / 1000.0 : 0.0,
+				(recStampReal > 0 && recFirstHook > 0) ? (recFirstHook - recStampReal) / 1000.0 : 0.0,
+				(long long)frames, (double)rate);
+			fclose(lf);
+		}
 		if (skip > 0 && skip < frames - 2){
 			memmove(mem, mem + skip * channels, (size_t)((frames - skip) * channels) * sizeof(float));
 			frames -= skip;
