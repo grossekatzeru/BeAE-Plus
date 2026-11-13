@@ -220,7 +220,7 @@ void PrefAudio::MessageReceived(BMessage *msg)
 			snprintf(s, sizeof(s), Language.get("CAL_RESULT"), (int)ms);
 			BString full(s);
 			const char *diag = msg->FindString("diag");
-			if (diag && diag[0])
+			if (diag && diag[0] && getenv("BEAE_LATENCY_DIAG"))
 				full << "\n\n[diag]\n" << diag;
 			(new BAlert(NULL, full.String(), Language.get("OK")))->Go();
 		}else{

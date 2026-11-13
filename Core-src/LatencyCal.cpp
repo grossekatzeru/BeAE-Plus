@@ -16,6 +16,10 @@
 
 namespace {
 
+// Опытная поправка: на Haiku измеренное по сигналу-щелчку значение оказывается на ~7 мс больше,
+// чем нужно для выравнивания записи по ударным (сверено на реальных записях).
+const double kBiasMs = 7.0;
+
 struct Cookie {
 	long long	frame;
 	double		rate;
@@ -177,7 +181,7 @@ int32 Run(void *data)
 	}else{
 		std::sort(results.begin(), results.end());
 		const size_t idx = results.size() > 1 ? 1 : 0;
-		Reply(target, true, (float)results[idx], "", diag.String());
+		Reply(target, true, (float)(results[idx] - kBiasMs), "", diag.String());
 	}
 	return 0;
 }
