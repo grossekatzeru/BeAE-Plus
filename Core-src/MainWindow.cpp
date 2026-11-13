@@ -829,7 +829,7 @@ void MainWindow::UpdateRecordingTitle()
 	float rate = Recorder.Rate();
 	int32 secs = (rate > 0) ? (int32)(Recorder.Frames() / rate) : 0;
 	char s[B_FILE_NAME_LENGTH + 64];
-	sprintf(s, "BeAE - * %s %02d:%02d", Language.get("RECORDING"), (int)(secs / 60), (int)(secs % 60));
+	sprintf(s, "BeAE-Plus - * %s %02d:%02d", Language.get("RECORDING"), (int)(secs / 60), (int)(secs % 60));
 	SetTitle(s);
 }
 

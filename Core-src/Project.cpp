@@ -32,7 +32,7 @@ void Project_Forget()		{ gName = ""; gFolder = ""; }
 
 BString Project_Title(const char *item)
 {
-	BString t("BeAE - ");
+	BString t("BeAE-Plus - ");
 	if (gName.Length() > 0){
 		t << gName;
 		if (item && *item) t << " - " << item;
