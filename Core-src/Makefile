@@ -29,7 +29,7 @@ APP_MIME_SIG =
 #	means this Makefile will not work correctly if two source files with the
 #	same name (source.c or source.cpp) are included from different directories.
 #	Also note that spaces in folder names do not work well with this Makefile.
-SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp AnalyzeWindow.cpp BassBoostFilter.cpp \
+SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp LatencyCal.cpp LatencyCore.cpp AnalyzeWindow.cpp BassBoostFilter.cpp \
 	BigView.cpp TempoView.cpp TempoDetect.cpp ParamSlider.cpp MidiFile.cpp SoundFont.cpp MidiSynth.cpp MidiImport.cpp TempoAnalyzer.cpp ByteSwap.cpp BitmapDrawer.cpp CommonClass.cpp CommonPool.cpp CompressorFilter.cpp \
 	DelayWindow.cpp FileImport.cpp Filters.cpp FreqWindow.cpp LadspaFilter.cpp LadspaHost.cpp NoiseCore.cpp NoiseFilter.cpp Mixer.cpp KeyCache.cpp BeFxSidechain.cpp BeFxSidechainWindow.cpp TunerCore.cpp TunerWindow.cpp Metronome.cpp FxChain.cpp Vst2Host.cpp FxWindow.cpp Tracks.cpp TrackPanelView.cpp OffsetWindow.cpp LanesView.cpp ProjectIO.cpp Project.cpp History.cpp IndexView.cpp LimiterFilter.cpp \
 	MainWindow.cpp MyClipBoard.cpp NormalizeFilter.cpp OpenPanel.cpp PeakFile.cpp \

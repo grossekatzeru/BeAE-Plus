@@ -11,6 +11,7 @@
 #include "AudioRecorder.h"
 #include "PrefAudio.h"
 #include "MidiImport.h"
+#include "LatencyCal.h"
 
 #define BUFFER_SLIDER		'abSl'
 #define BUFFER_TEXT			'abTx'
@@ -189,8 +190,42 @@ void PrefAudio::MessageReceived(BMessage *msg)
 		Prefs.rec_latency_ms = s_latency->Value();
 		break;
 
-	case FINE_TUNE:									// пока пусто
+	case FINE_TUNE:									// измерение задержки записи
+	{
+		if (Recorder.IsRecording() || Pool.IsPlaying()){
+			(new BAlert(NULL, Language.get("CAL_ERR_BUSY"), Language.get("OK")))->Go();
+			break;
+		}
+		BAlert *a = new BAlert(NULL, Language.get("CAL_INTRO"), Language.get("CANCEL"), Language.get("CAL_START"));
+		if (a->Go() != 1)
+			break;
+		b_fine->SetEnabled(false);
+		fFineLabel = b_fine->Label();
+		b_fine->SetLabel(Language.get("CAL_RUNNING"));
+		LatencyCalStart(BMessenger(this));
 		break;
+	}
+
+	case LATENCY_RESULT:							// ответ потока измерения
+	{
+		b_fine->SetEnabled(true);
+		b_fine->SetLabel(fFineLabel.String());
+		if (msg->FindBool("ok")){
+			int32 ms = (int32)(msg->FindFloat("ms") + 0.5f);
+			if (ms < 0) ms = 0;
+			if (ms > 1000) ms = 1000;
+			Prefs.rec_latency_ms = ms;
+			s_latency->SetValue(ms);
+			char s[200];
+			snprintf(s, sizeof(s), Language.get("CAL_RESULT"), (int)ms);
+			(new BAlert(NULL, s, Language.get("OK")))->Go();
+		}else{
+			const char *key = msg->FindString("err");
+			BString text(Language.get(key && key[0] ? key : "CAL_ERR_NO_SIGNAL"));
+			(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
+		}
+		break;
+	}
 
 	case FONT_SELECTED:								// выбран саундфонт для импорта MIDI
 	{

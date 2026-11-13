@@ -29,6 +29,7 @@ private:
 	BStringView		*v_rec_hint;
 	BSpinner		*s_latency;
 	BButton			*b_fine;
+	BString			fFineLabel;		// подпись кнопки до начала измерения
 	BListView		*l_fonts;			// саундфонты для импорта MIDI
 	BStringView		*v_fonts;			// подсказка или «не найдено»
 	std::vector<std::string> fonts;
