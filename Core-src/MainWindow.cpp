@@ -126,9 +126,9 @@ void MyMenuBar::MakeFocus(bool b)
 }
 
 
-#ifdef __VM_SYSTEM
-
 static bigtime_t sRecCall = 0, sRecRet = 0, sRecTail = 0;	// для журнала задержки записи
+
+#ifdef __VM_SYSTEM
 
 void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_audio_format &format)
 {
@@ -290,6 +290,9 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 	}
 	
 // assumes 44.1Khz stereo floats
+
+	if (Pool.rec_live && Pool.rec_first_hook == 0)
+		Pool.rec_first_hook = system_time();
 
 	bool stop_needed = false;
 	size_t i; 
