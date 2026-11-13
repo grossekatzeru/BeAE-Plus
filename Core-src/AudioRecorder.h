@@ -51,6 +51,11 @@ public:
 
 	void		Clear();
 
+	// диагностика задержки: метка первого буфера, момент его прихода (system_time), задержка входа
+	bigtime_t	FirstStamp() const { return fFirstStamp; }
+	bigtime_t	FirstArrival() const { return fFirstArrival; }
+	bigtime_t	InputLatency() const { return fInputLatency; }
+
 	// Огибающая записанного для живого показа: максимум модуля по блокам kPeakBlock кадров.
 	enum { kPeakBlock = 256 };
 	void		CopyPeaks(std::vector<float> &out);
@@ -88,6 +93,8 @@ private:
 
 	BLocker			fLock;
 	volatile float	fPeakL, fPeakR;
+	volatile bigtime_t	fFirstStamp, fFirstArrival;
+	bigtime_t		fInputLatency;
 };
 
 extern AudioRecorder Recorder;

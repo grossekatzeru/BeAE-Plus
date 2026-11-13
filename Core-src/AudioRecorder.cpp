@@ -35,7 +35,10 @@ AudioRecorder::AudioRecorder()
 	fFormatKnown(false),
 	fOutOfMemory(false),
 	fPeakL(0.0f),
-	fPeakR(0.0f)
+	fPeakR(0.0f),
+	fFirstStamp(0),
+	fFirstArrival(0),
+	fInputLatency(0)
 {
 }
 
@@ -58,6 +61,8 @@ void AudioRecorder::Clear()
 	fPeakCount = 0;
 	fFormatKnown = false;
 	fOutOfMemory = false;
+	fFirstStamp = 0;
+	fFirstArrival = 0;
 }
 
 void AudioRecorder::CopyPeaks(std::vector<float> &out)
@@ -172,6 +177,8 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		}
 	}
 
+	fInputLatency = 0;
+	roster->GetLatencyFor(fInputNode, &fInputLatency);
 	if (listen) fListening = true; else fRecording = true;
 	err = fRecorder->Start();
 	if (err != B_OK) {
@@ -219,10 +226,15 @@ void AudioRecorder::ReadLevels(float *left, float *right)
 	fPeakL = fPeakR = 0.0f;
 }
 
-void AudioRecorder::_RecordHook(void *cookie, bigtime_t, void *data, size_t size,
+void AudioRecorder::_RecordHook(void *cookie, bigtime_t timestamp, void *data, size_t size,
 								const media_format &format)
 {
-	static_cast<AudioRecorder *>(cookie)->OnBuffer(data, size, format);
+	AudioRecorder *self = static_cast<AudioRecorder *>(cookie);
+	if (self->fRecording && self->fFirstArrival == 0) {
+		self->fFirstArrival = system_time();
+		self->fFirstStamp = timestamp;
+	}
+	self->OnBuffer(data, size, format);
 }
 
 void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format)

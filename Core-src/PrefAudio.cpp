@@ -218,10 +218,17 @@ void PrefAudio::MessageReceived(BMessage *msg)
 			s_latency->SetValue(ms);
 			char s[200];
 			snprintf(s, sizeof(s), Language.get("CAL_RESULT"), (int)ms);
-			(new BAlert(NULL, s, Language.get("OK")))->Go();
+			BString full(s);
+			const char *diag = msg->FindString("diag");
+			if (diag && diag[0])
+				full << "\n\n[diag]\n" << diag;
+			(new BAlert(NULL, full.String(), Language.get("OK")))->Go();
 		}else{
 			const char *key = msg->FindString("err");
 			BString text(Language.get(key && key[0] ? key : "CAL_ERR_NO_SIGNAL"));
+			const char *diag = msg->FindString("diag");
+			if (diag && diag[0])
+				text << "\n\n[diag]\n" << diag;
 			(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
 		}
 		break;
