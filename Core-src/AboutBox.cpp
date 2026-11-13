@@ -61,7 +61,7 @@ static const char *txt[] = {
 "BeAE-Plus 3.0: Stas Korobov (grossekatze1@gmail.com),",
 "developed together with Claude (Anthropic).",
 "© 2000 Xentronix Software http://www.xentronix.com",
-"Now hosted on HaikuArchives@GitHub.",
+"Hosted on GitHub: grossekatzeru/BeAE-Plus (fork of HaikuArchives/BeAE).",
 "Special thanks goes to:",
 "Preference & Language classes: John 'YNOP' Talton,",
 "Nicholas Blachford, for helping with the filters and effects,",
@@ -103,7 +103,7 @@ void AboutView::Draw(BRect rect)
 	SetLowColor(255, 255, 255);
 	SetHighColor(0,0,0);
 	DrawString(version, BPoint(rect.right - font.StringWidth(version)-5, rect.bottom-5)); 
-	DrawString("https://github.com/HaikuArchives/BeAE/", BPoint(rect.left+5, rect.bottom-5)); 
+	DrawString("https://github.com/grossekatzeru/BeAE-Plus/", BPoint(rect.left+5, rect.bottom-5)); 
 	
 	SetLowColor(224,238,252);
 	SetHighColor(r,g,b);

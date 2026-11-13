@@ -106,7 +106,7 @@ cookie_record play_cookie;
 
 // URL to the homepage/Tutorials/others
 //char *TUTORIALS_URL = "http://www.xentronix.com/module.php?mod=document";
-const char *HOMEPAGE_URL = "https://github.com/HaikuArchives/BeAE/";
+const char *HOMEPAGE_URL = "https://github.com/grossekatzeru/BeAE-Plus/";
 
 
 class MyMenuBar : public BMenuBar{
