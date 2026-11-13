@@ -57,15 +57,8 @@ int32 Run(void *data)
 		return 0;
 	}
 
-	Recorder.Clear();
-	BString error;
-	if (Recorder.Start(&error) != B_OK){
-		Recorder.Clear();
-		Reply(target, false, 0, error.Length() > 0 ? error.String() : "REC_ERR_START");
-		return 0;
-	}
-
-	// воспроизведение стартует сразу после запуска записи, как при настоящей записи с дорожками
+	// сначала создаём проигрыватель (как в настоящей записи он уже существует),
+	// затем запускаем запись и сразу воспроизведение
 	media_raw_audio_format format;
 	memset(&format, 0, sizeof(format));
 	format.frame_rate = (Pool.system_frequency > 1.0f) ? Pool.system_frequency : 44100.0f;
@@ -79,12 +72,20 @@ int32 Run(void *data)
 	BSoundPlayer *player = new BSoundPlayer(&format, "BeAE latency", PlayHook, NULL, &cookie);
 	if (player->InitCheck() != B_OK){
 		delete player;
-		Recorder.Stop();
-		Recorder.Clear();
 		Reply(target, false, 0, "CAL_ERR_PLAYER");
 		return 0;
 	}
 	cookie.rate = player->Format().frame_rate;
+	Recorder.Clear();
+	BString error;
+	if (Recorder.Start(&error) != B_OK){
+		delete player;
+		Recorder.Clear();
+		Reply(target, false, 0, error.Length() > 0 ? error.String() : "REC_ERR_START");
+		return 0;
+	}
+
+	// воспроизведение стартует сразу после запуска записи, как при настоящей записи с дорожками
 	player->Start();
 	player->SetHasData(true);
 
