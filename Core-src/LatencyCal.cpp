@@ -181,7 +181,13 @@ int32 Run(void *data)
 	}else{
 		std::sort(results.begin(), results.end());
 		const size_t idx = results.size() > 1 ? 1 : 0;
-		Reply(target, true, (float)(results[idx] - kBiasMs), "", diag.String());
+		const double applied = results[idx] - kBiasMs;
+		snprintf(line, sizeof(line),
+			"=> hardware latency %.0f ms, bias %+.0f ms, applied %.0f ms\n(%d of %d trials, spread %.1f ms)\n",
+			results[idx], -kBiasMs, applied, (int)results.size(), kTrials,
+			results.back() - results.front());
+		diag << line;
+		Reply(target, true, (float)applied, "", diag.String());
 	}
 	return 0;
 }
