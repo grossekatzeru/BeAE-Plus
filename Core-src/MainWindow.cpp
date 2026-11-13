@@ -836,10 +836,20 @@ void MainWindow::UpdateRecordingTitle()
 // Живой показ записи: вид прокручивается вслед за записью, активная дорожка перерисовывается
 void MainWindow::RecordingFollow()
 {
-	if (!Pool.rec_live || Pool.sample_type == NONE || Pool.frequency < 1.0f || Pool.r_pointer <= Pool.l_pointer)
-		return;
+	if (!Pool.rec_live) return;
 	const float rate = Recorder.Rate();
 	if (rate < 1.0f) return;
+	if (Pool.sample_type == NONE || Pool.frequency < 1.0f || Pool.r_pointer <= Pool.l_pointer){
+		// пустой проект: ленты нет, показываем запись в собственном окне (10 секунд), сдвигаем его, когда запись доходит до края
+		const double nowT = Pool.rec_start_time + (double)Recorder.Frames() / rate;
+		const double w = Pool.rec_tr - Pool.rec_tl;
+		if (w > 0 && nowT > Pool.rec_tr - w / 10){
+			Pool.rec_tl = nowT - w / 10;
+			Pool.rec_tr = Pool.rec_tl + w;
+		}
+		if (sample_view) sample_view->Invalidate();
+		return;
+	}
 	const double nowT = Pool.rec_start_time + (double)Recorder.Frames() / rate;
 	const double pf = nowT * Pool.frequency;				// положение записи в кадрах ленты
 	const int64 xx = Pool.r_pointer - Pool.l_pointer;
@@ -903,6 +913,8 @@ void MainWindow::StartRecording()
 	}
 
 	Pool.rec_start_time = rec_start_time;
+	Pool.rec_tl = rec_start_time;
+	Pool.rec_tr = rec_start_time + 10.0;
 	Pool.rec_live = true;
 	Pool.play_mode = RECORD;
 	Pool.StartTailPlaying(rec_tail_start);		// остальные дорожки играют во время записи

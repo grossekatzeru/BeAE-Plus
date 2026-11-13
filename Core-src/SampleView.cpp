@@ -284,41 +284,12 @@ void SampleView::Draw(BRect rect)
 
 	DrawBitmapAsync( OffScreen, rect, rect);
 
-	if (Pool.sample_type == NONE){
-		Looper()->Unlock();
-		return;
-	}
-
-	// как в Audacity: тишина, которую добавила лента времени (до начала звука и после его конца), затемнена
-	if (Pool.r_pointer > Pool.l_pointer && (Pool.pad_lead > 0 || Pool.pad_tail > 0)){
-		const double span = (double)(Pool.r_pointer - Pool.l_pointer);
-		const float W = Bounds().Width();
-		float xs = (float)((Pool.pad_lead - Pool.l_pointer) * (double)W / span);
-		float xe = (float)((Pool.size - Pool.pad_tail - Pool.l_pointer) * (double)W / span);
-		BRect zone(0, POINTER_BAR_HEIGHT, 0, Bounds().bottom);
-		SetDrawingMode(B_OP_ALPHA);
-		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
-		SetHighColor(0, 0, 0, 110);
-		if (Pool.pad_lead > 0 && xs > 0){
-			zone.left = 0;
-			zone.right = MIN(xs, W);
-			BRect z = zone & rect;
-			if (z.IsValid()) FillRect(z);
-		}
-		if (Pool.pad_tail > 0 && xe < W){
-			zone.left = MAX(xe, 0.0f);
-			zone.right = W;
-			BRect z = zone & rect;
-			if (z.IsValid()) FillRect(z);
-		}
-		SetDrawingMode(B_OP_COPY);
-	}
-
 	// запись в реальном времени: растущая волна по огибающей рекордера и красная линия текущего положения
-	if (Pool.rec_live && Recorder.IsRecording() && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f
-		&& Recorder.Rate() > 1.0f){
-		const double tl = (double)Pool.l_pointer / Pool.frequency;
-		const double tr = (double)Pool.r_pointer / Pool.frequency;
+	const bool haveTape = (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f);
+	if (Pool.rec_live && Recorder.IsRecording() && Recorder.Rate() > 1.0f && (haveTape || Pool.sample_type == NONE)){
+		// есть лента: окно как у дорожек; пустой проект: собственное окно записи (секунды)
+		const double tl = haveTape ? (double)Pool.l_pointer / Pool.frequency : Pool.rec_tl;
+		const double tr = haveTape ? (double)Pool.r_pointer / Pool.frequency : Pool.rec_tr;
 		const float W = Bounds().Width() + 1;
 		const double dt = (tr - tl) / W;						// секунд на пиксель
 		const double rate = Recorder.Rate();
@@ -354,6 +325,36 @@ void SampleView::Draw(BRect rect)
 			StrokeLine(BPoint(x1, top), BPoint(x1, bottom));
 		}
 		ConstrainClippingRegion(NULL);
+	}
+
+	if (Pool.sample_type == NONE){
+		Looper()->Unlock();
+		return;
+	}
+
+	// как в Audacity: тишина, которую добавила лента времени (до начала звука и после его конца), затемнена
+	if (Pool.r_pointer > Pool.l_pointer && (Pool.pad_lead > 0 || Pool.pad_tail > 0)){
+		const double span = (double)(Pool.r_pointer - Pool.l_pointer);
+		const float W = Bounds().Width();
+		float xs = (float)((Pool.pad_lead - Pool.l_pointer) * (double)W / span);
+		float xe = (float)((Pool.size - Pool.pad_tail - Pool.l_pointer) * (double)W / span);
+		BRect zone(0, POINTER_BAR_HEIGHT, 0, Bounds().bottom);
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		SetHighColor(0, 0, 0, 110);
+		if (Pool.pad_lead > 0 && xs > 0){
+			zone.left = 0;
+			zone.right = MIN(xs, W);
+			BRect z = zone & rect;
+			if (z.IsValid()) FillRect(z);
+		}
+		if (Pool.pad_tail > 0 && xe < W){
+			zone.left = MAX(xe, 0.0f);
+			zone.right = W;
+			BRect z = zone & rect;
+			if (z.IsValid()) FillRect(z);
+		}
+		SetDrawingMode(B_OP_COPY);
 	}
 
 	// остальные клипы той же дорожки (сам активный клип - это волна выше)

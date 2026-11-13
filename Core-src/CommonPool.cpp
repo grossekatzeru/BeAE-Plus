@@ -78,6 +78,8 @@ CommonPool::CommonPool(){
 	progress = NULL;
 	rec_live = false;
 	rec_start_time = 0;
+	rec_tl = 0;
+	rec_tr = 10;
 	player = NULL;
 	PrefWin = NULL;
 	

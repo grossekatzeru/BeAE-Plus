@@ -164,6 +164,7 @@ class CommonPool{
 
 	bool	rec_live;				// идёт запись: в активной дорожке рисуется растущая волна
 	double	rec_start_time;			// секунды на ленте, откуда пошла запись
+	double	rec_tl, rec_tr;			// пустой проект: окно показа записи, секунды
 
 	ProgressWindow *progress;
 	BView	*m_SampleView;			// pointer to the sample-view to update the pointer
