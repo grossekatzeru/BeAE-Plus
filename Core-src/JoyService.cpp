@@ -1,3 +1,5 @@
+#include <StorageKit.h>
+#include <String.h>
 #include "JoyService.h"
 
 #include <math.h>
