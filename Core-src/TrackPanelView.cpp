@@ -149,6 +149,12 @@ BRect TrackPanelView::ShowPanRect(int index) const
 	return BRect(v.left, v.top + 17, v.right, v.bottom + 17);
 }
 
+BRect TrackPanelView::ClearRect(int index, int row) const
+{
+	BRect g = (row == 0) ? ShowVolRect(index) : ShowPanRect(index);
+	return BRect(g.right - 30, g.top + 1, g.right - 18, g.top + 12);
+}
+
 BRect TrackPanelView::XfadeRect(int index) const
 {
 	BRect g = GridRect(index);
@@ -386,6 +392,16 @@ void TrackPanelView::Draw(BRect update)
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
 				SetPenSize(1);
 			}
+			{	// «C» - очистить кривую (серая, если кривой нет)
+				const bool has = (row == 0) ? !t->volEnv.Empty() : !t->panEnv.Empty();
+				BRect cb = ClearRect(i, row);
+				SetHighColor(tint_color(base, has ? B_LIGHTEN_2_TINT : B_NO_TINT));
+				FillRect(cb);
+				SetHighColor(tint_color(base, B_DARKEN_4_TINT));
+				StrokeRect(cb);
+				SetHighColor(has ? make_color(0, 0, 0) : tint_color(base, B_DARKEN_2_TINT));
+				DrawString("C", BPoint(cb.left + (cb.Width() - StringWidth("C")) / 2 + 0.5f, cb.bottom - 2));
+			}
 			SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 			StrokeLine(BPoint(g.left, g.bottom + 1), BPoint(g.right, g.bottom + 1));
 			SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
@@ -524,6 +540,8 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 			if (st.Contains(p) && p.y >= HEADER_H){
 				index = i;
 				if (!Mix.Track(i)->autoOpen) return HIT_NONE;
+				if (ClearRect(i, 0).Contains(p)) return HIT_CLEARVOL;
+				if (ClearRect(i, 1).Contains(p)) return HIT_CLEARPAN;
 				if (ShowVolRect(i).Contains(p)) return HIT_SHOWVOL;
 				if (ShowPanRect(i).Contains(p)) return HIT_SHOWPAN;
 				return HIT_NONE;
@@ -676,6 +694,17 @@ void TrackPanelView::MouseDown(BPoint p)
 		Pool.changed = true;
 		Invalidate();
 		break;
+	case HIT_CLEARVOL:
+	case HIT_CLEARPAN: {
+		Envelope ev, ep;
+		Mix.GetEnvelopes(index, ev, ep);
+		if (what == HIT_CLEARVOL) ev.Clear(); else ep.Clear();
+		Mix.SetEnvelopes(index, ev, ep);
+		Pool.changed = true;
+		Pool.RedrawWindow();
+		Invalidate();
+		break;
+	}
 	case HIT_SHOWVOL:
 		Mix.SetShowAuto(index, !Mix.Track(index)->showVol, Mix.Track(index)->showPan);
 		Pool.changed = true;

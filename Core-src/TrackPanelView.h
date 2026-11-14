@@ -39,7 +39,7 @@ public:
 	virtual void MessageReceived(BMessage *msg);
 
 private:
-	enum { HIT_NONE, HIT_NAME, HIT_NAMEBOX, HIT_SOLO, HIT_MUTE, HIT_REC, HIT_VOL, HIT_PAN, HIT_FX, HIT_GRID, HIT_XFADE, HIT_STICKY, HIT_SHOWVOL, HIT_SHOWPAN, HIT_ADD, HIT_REMOVE, HIT_MASTER_MUTE, HIT_MASTER_FX, HIT_MASTER_VOL, HIT_MASTER };
+	enum { HIT_NONE, HIT_NAME, HIT_NAMEBOX, HIT_SOLO, HIT_MUTE, HIT_REC, HIT_VOL, HIT_PAN, HIT_FX, HIT_GRID, HIT_XFADE, HIT_STICKY, HIT_SHOWVOL, HIT_SHOWPAN, HIT_CLEARVOL, HIT_CLEARPAN, HIT_ADD, HIT_REMOVE, HIT_MASTER_MUTE, HIT_MASTER_FX, HIT_MASTER_VOL, HIT_MASTER };
 
 	BRect	StripRect(int index) const;				// прямоугольник дорожки в координатах вида
 	BRect	ButtonRect(int index, int which) const;	// 0=S 1=M 2=R 3=FX
@@ -48,6 +48,7 @@ private:
 	BRect	XfadeRect(int index) const;				// чекбокс Xfade: кроссфейд перекрывающихся клипов
 	BRect	AutoRect(int index) const;				// место под дорожкой (под полосой автоматизации) в координатах вида
 	BRect	ShowVolRect(int index) const;			// чекбокс «Громкость»: показывать кривую громкости
+	BRect	ClearRect(int index, int row) const;		// маленькая кнопка «C» (очистить кривую) слева от чекбокса; row 0 - громкость, 1 - панорама
 	BRect	ShowPanRect(int index) const;			// чекбокс «Панорама»
 	BRect	NameRect(int index) const;				// белое поле имени
 	BRect	MeterRect(int index) const;				// вертикальный индикатор у левого края
