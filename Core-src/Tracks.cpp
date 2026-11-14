@@ -1187,12 +1187,44 @@ int Tracks_SlotAt(int rank)
 	return -1;
 }
 
+static bool gStripOpen[MIX_MAX_TRACKS];			// развёрнута ли полоса автоматизации (по слотам)
+
+bool Tracks_StripOpen(int slot)
+{
+	return slot >= 0 && slot < MIX_MAX_TRACKS && gStripOpen[slot];
+}
+
+void Tracks_SetStripOpen(int slot, bool open)
+{
+	if (slot >= 0 && slot < MIX_MAX_TRACKS && gStripOpen[slot] != open){
+		gStripOpen[slot] = open;
+		Mix.Touch();								// перерисовать полосы
+	}
+}
+
+float Tracks_StripHeight(int rank)
+{
+	return Tracks_StripOpen(Tracks_SlotAt(rank)) ? (float)STRIP_OPEN_H : (float)STRIP_CLOSED_H;
+}
+
+static float StripsBefore(int rank)					// сумма высот полос автоматизации у дорожек выше rank
+{
+	float s = 0;
+	for (int r = 0; r < rank; r++) s += Tracks_StripHeight(r);
+	return s;
+}
+
 float Tracks_LaneHeight(float areaHeight)
 {
 	int n = Tracks_Count();
 	if (n < 1) n = 1;
-	float h = floorf(areaHeight / n);
+	float h = floorf((areaHeight - StripsBefore(Tracks_Count())) / n);
 	return (h < MIN_LANE_HEIGHT) ? (float)MIN_LANE_HEIGHT : h;
+}
+
+float Tracks_TotalHeight(float areaHeight)
+{
+	return Tracks_LaneHeight(areaHeight) * Tracks_Count() + StripsBefore(Tracks_Count());
 }
 
 float Tracks_Scroll()
@@ -1202,7 +1234,7 @@ float Tracks_Scroll()
 
 void Tracks_SetScroll(float scroll, float areaHeight)
 {
-	float total = Tracks_LaneHeight(areaHeight) * Tracks_Count();
+	float total = Tracks_TotalHeight(areaHeight);
 	float max = total - areaHeight;
 	if (max < 0) max = 0;
 	if (scroll > max) scroll = max;
@@ -1213,10 +1245,17 @@ void Tracks_SetScroll(float scroll, float areaHeight)
 void Tracks_LaneSpan(int rank, float areaHeight, float &top, float &bottom)
 {
 	const float h = Tracks_LaneHeight(areaHeight);
-	const int n = Tracks_Count();
 	Tracks_SetScroll(gScroll, areaHeight);			// вдруг дорожек стало меньше
-	top = rank * h - gScroll;
+	top = rank * h + StripsBefore(rank) - gScroll;
 	bottom = top + h - 1;
-	if (rank == n - 1 && n * h <= areaHeight)
+}
+
+void Tracks_StripSpan(int rank, float areaHeight, float &top, float &bottom)
+{
+	float lt, lb;
+	Tracks_LaneSpan(rank, areaHeight, lt, lb);
+	top = lb + 1;
+	bottom = top + Tracks_StripHeight(rank) - 1;
+	if (rank == Tracks_Count() - 1 && Tracks_TotalHeight(areaHeight) <= areaHeight)
 		bottom = areaHeight - 1;					// последняя полоса добирает остаток, пока всё помещается
 }

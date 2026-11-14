@@ -13,6 +13,7 @@
 #include "Tracks.h"
 #include "Preferences.h"
 #include "LanesView.h"
+#include "Envelope.h"
 
 #ifndef MIN
 #define MIN(a,b) ((a)<(b)?(a):(b))
@@ -261,7 +262,7 @@ void LanesScrollBar::Sync()
 {
 	if (!fLanes) return;
 	const float area = fLanes->Bounds().Height() + 1;
-	const float total = Tracks_LaneHeight(area) * Tracks_Count();
+	const float total = Tracks_TotalHeight(area);
 	float max = total - area;
 	if (max < 0) max = 0;
 	float lo, hi;
@@ -355,6 +356,14 @@ void LanesView::MouseDown(BPoint p)
 
 	const float area = Bounds().Height() + 1;
 	const int n = Tracks_Count();
+	for (int rank=0; rank<n; rank++){					// сначала полосы автоматизации
+		float top, bottom;
+		Tracks_StripSpan(rank, area, top, bottom);
+		if (p.y >= top && p.y <= bottom && p.y < area){
+			StripMouseDown(Tracks_SlotAt(rank), BRect(0, top, Bounds().right, bottom), p, buttons);
+			return;
+		}
+	}
 	for (int rank=0; rank<n; rank++){
 		float top, bottom;
 		Tracks_LaneSpan(rank, area, top, bottom);
@@ -559,6 +568,13 @@ void LanesView::Draw(BRect update)
 			continue;									// здесь лежит SampleView
 		DrawLane(slot, BRect(0, top, Bounds().right, bottom));
 	}
+	for (int rank=0; rank<n; rank++){					// полосы автоматизации (у всех дорожек, и у активной)
+		float top, bottom;
+		Tracks_StripSpan(rank, area, top, bottom);
+		if (bottom < update.top || top > update.bottom)
+			continue;
+		DrawStrip(Tracks_SlotAt(rank), BRect(0, top, Bounds().right, bottom));
+	}
 
 	if (Pool.IsPlaying() && fOldPlayX >= 0)
 		DrawPlayLine();
@@ -622,4 +638,159 @@ void LanesView::DrawLane(int slot, BRect lane)
 	float nx = first ? (float)((first->pos - tl) / dt) + 4 : 4;
 	if (nx < 4) nx = 4;
 	DrawString(t->name, BPoint(nx, lane.top + POINTER_BAR_HEIGHT - 3));
+}
+
+
+// ---------------------------------------------------------------- полоса автоматизации
+
+namespace {
+
+const rgb_color kVolColor = {230, 48, 52, 255};		// красная линия - громкость (у верхнего края)
+const rgb_color kPanColor = {52, 112, 232, 255};		// синяя линия - панорама (по середине)
+const float kStripToggleW = 14;						// слева: треугольник свернуть/развернуть
+
+struct StripGeom {
+	BRect	body;			// область линий
+	double	tl, dt;			// время левого края (сек) и секунд на пиксель
+	float VolY(float db) const
+	{
+		if (db < Env::kDbMin) db = Env::kDbMin;
+		if (db > Env::kDbMax) db = Env::kDbMax;
+		return body.top + (Env::kDbMax - db) / (Env::kDbMax - Env::kDbMin) * body.Height();
+	}
+	float PanY(float p) const
+	{
+		if (p < -1) p = -1;
+		if (p > 1) p = 1;
+		return body.top + (1.0f - p) * 0.5f * body.Height();	// выше - правее
+	}
+	float XAt(double t) const { return (float)((t - tl) / dt); }
+};
+
+bool MakeGeom(BRect strip, bool open, float W, StripGeom &g)
+{
+	if (Pool.sample_type == NONE || Pool.r_pointer <= Pool.l_pointer || Pool.frequency < 1.0f)
+		return false;
+	g.tl = (double)Pool.l_pointer / Pool.frequency;
+	const double tr = (double)Pool.r_pointer / Pool.frequency;
+	g.dt = (tr - g.tl) / W;
+	g.body = strip;
+	g.body.InsetBy(0, open ? 6 : 3);
+	return g.dt > 0 && g.body.Height() > 2;
+}
+
+void DrawCurve(BView *v, const StripGeom &g, const Envelope &e, bool isVol, rgb_color col, bool open, float W)
+{
+	const bool has = !e.Empty();
+	const float neutral = isVol ? g.VolY(0.0f) : g.PanY(0.0f);
+	const double tl = g.tl, tr = g.tl + g.dt * W;
+	std::vector<BPoint> pts;
+	if (!has){
+		pts.push_back(BPoint(0, neutral));
+		pts.push_back(BPoint(W, neutral));
+	}else{
+		const float def = 0.0f;
+		pts.push_back(BPoint(0, isVol ? g.VolY(e.Value(tl, def)) : g.PanY(e.Value(tl, def))));
+		for (int i = 0; i < e.Count(); i++){
+			const EnvPoint &p = e.Point(i);
+			if (p.t <= tl || p.t >= tr) continue;
+			pts.push_back(BPoint(g.XAt(p.t), isVol ? g.VolY(p.v) : g.PanY(p.v)));
+		}
+		pts.push_back(BPoint(W, isVol ? g.VolY(e.Value(tr, def)) : g.PanY(e.Value(tr, def))));
+	}
+	v->SetDrawingMode(B_OP_ALPHA);
+	v->SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+	if (has && isVol && open){					// мягкая заливка под линией громкости
+		BPolygon poly;
+		poly.AddPoints(&pts[0], (int32)pts.size());
+		const BPoint corner[2] = { BPoint(W, g.body.bottom + 3), BPoint(0, g.body.bottom + 3) };
+		poly.AddPoints(corner, 2);
+		v->SetHighColor(col.red, col.green, col.blue, 40);
+		v->FillPolygon(&poly);
+	}
+	v->SetHighColor(col.red, col.green, col.blue, has ? 255 : 110);
+	v->SetPenSize(has && open ? 2.0f : 1.0f);
+	for (size_t i = 1; i < pts.size(); i++)
+		v->StrokeLine(pts[i - 1], pts[i]);
+	v->SetPenSize(1.0f);
+	v->SetDrawingMode(B_OP_COPY);
+	if (has && open){							// точки
+		for (int i = 0; i < e.Count(); i++){
+			const EnvPoint &p = e.Point(i);
+			if (p.t < tl || p.t > tr) continue;
+			const float x = g.XAt(p.t), y = isVol ? g.VolY(p.v) : g.PanY(p.v);
+			BRect dot(x - 3, y - 3, x + 3, y + 3);
+			v->SetHighColor(255, 255, 255);
+			v->FillRect(dot);
+			v->SetHighColor(col);
+			v->FillRect(dot.InsetByCopy(1, 1));
+		}
+	}
+}
+
+}	// namespace
+
+void LanesView::DrawStrip(int slot, BRect r)
+{
+	if (!Mix.Track(slot)) return;
+	const bool open = Tracks_StripOpen(slot);
+	const float W = r.Width() + 1;
+
+	SetDrawingMode(B_OP_COPY);
+	SetHighColor(make_color(46, 48, 54));
+	FillRect(r);
+	SetHighColor(make_color(96, 98, 108));
+	StrokeLine(BPoint(r.left, r.top), BPoint(r.right, r.top));
+	SetHighColor(make_color(26, 27, 31));
+	StrokeLine(BPoint(r.left, r.bottom), BPoint(r.right, r.bottom));
+
+	StripGeom g;
+	if (MakeGeom(r, open, W, g)){
+		Envelope vol, pan;
+		Mix.GetEnvelopes(slot, vol, pan);
+		if (open){								// направляющие: 0 дБ и центр панорамы
+			SetDrawingMode(B_OP_ALPHA);
+			SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+			SetHighColor(255, 255, 255, 22);
+			StrokeLine(BPoint(0, g.PanY(0.0f)), BPoint(W, g.PanY(0.0f)));
+			StrokeLine(BPoint(0, g.VolY(Env::kDbMin / 2)), BPoint(W, g.VolY(Env::kDbMin / 2)));
+			SetDrawingMode(B_OP_COPY);
+		}
+		DrawCurve(this, g, pan, false, kPanColor, open, W);
+		DrawCurve(this, g, vol, true, kVolColor, open, W);
+	}
+
+	// переключатель: треугольник и подписи
+	const float cx = r.left + 7, cy = r.top + 7;
+	SetHighColor(make_color(200, 200, 205));
+	if (open)
+		FillTriangle(BPoint(cx - 4, cy - 2), BPoint(cx + 4, cy - 2), BPoint(cx, cy + 3));
+	else
+		FillTriangle(BPoint(cx - 2, cy - 4), BPoint(cx - 2, cy + 4), BPoint(cx + 3, cy));
+	if (open){
+		BFont f;
+		GetFont(&f);
+		BFont small(f);
+		small.SetSize(9);
+		SetFont(&small);
+		SetHighColor(kVolColor);
+		DrawString("Vol", BPoint(r.left + kStripToggleW + 2, r.top + 11));
+		SetHighColor(kPanColor);
+		DrawString("Pan", BPoint(r.left + kStripToggleW + 22, r.top + 11));
+		SetFont(&f);
+	}
+}
+
+// Щелчок по полосе автоматизации. Возвращает true, если событие обработано.
+bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
+{
+	(void)buttons;
+	const bool open = Tracks_StripOpen(slot);
+	if (!open || p.x - strip.left < kStripToggleW){		// свёрнутая разворачивается по щелчку, у развёрнутой - по треугольнику
+		Tracks_SetStripOpen(slot, !open);
+		Relayout();
+		Invalidate();
+		return true;
+	}
+	return false;
 }

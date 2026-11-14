@@ -60,6 +60,8 @@ public:
 
 private:
 	void	DrawLane(int slot, BRect lane);
+	void	DrawStrip(int slot, BRect strip);		// полоса автоматизации под дорожкой
+	bool	StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons);
 	void	DrawPlayLine();
 	float	PlayX() const;
 
