@@ -33,7 +33,7 @@ SRCS = AboutBox.cpp AmplifierFilter.cpp AudioRecorder.cpp LatencyCal.cpp Latency
 	BigView.cpp TempoView.cpp TempoDetect.cpp ParamSlider.cpp MidiFile.cpp SoundFont.cpp MidiSynth.cpp MidiImport.cpp TempoAnalyzer.cpp ByteSwap.cpp BitmapDrawer.cpp CommonClass.cpp CommonPool.cpp CompressorFilter.cpp \
 	DelayWindow.cpp FileImport.cpp Filters.cpp FreqWindow.cpp LadspaFilter.cpp LadspaHost.cpp NoiseCore.cpp NoiseFilter.cpp Mixer.cpp Envelope.cpp KeyCache.cpp BeFxSidechain.cpp BeFxSidechainWindow.cpp TunerCore.cpp TunerWindow.cpp Metronome.cpp FxChain.cpp Vst2Host.cpp FxWindow.cpp Tracks.cpp TrackPanelView.cpp OffsetWindow.cpp LanesView.cpp ProjectIO.cpp Project.cpp History.cpp IndexView.cpp LimiterFilter.cpp \
 	MainWindow.cpp MyClipBoard.cpp NormalizeFilter.cpp OpenPanel.cpp PeakFile.cpp \
-	PointersView.cpp PrefAudio.cpp PrefColors.cpp PrefGeneral.cpp PrefKeys.cpp PrefView.cpp \
+	PointersView.cpp PrefAudio.cpp PrefColors.cpp PrefControllers.cpp PrefGeneral.cpp PrefKeys.cpp PrefView.cpp \
 	PrefWindow.cpp Preferences.cpp ProgressWindow.cpp RealtimeFilter.cpp ResampleWindow.cpp \
 	ReverbWindow.cpp RoomFilter.cpp SampleScopeWindow.cpp SampleView.cpp SavePanel.cpp MediaWriter.cpp ExtEncoder.cpp EncoderOptionsWindow.cpp \
 	Shortcut.cpp SpectrumWindow.cpp SpinSlider.cpp \
@@ -64,7 +64,7 @@ RSRCS =
 #	- 	if your library does not follow the standard library naming scheme,
 #		you need to specify the path to the library and it's name.
 #		(e.g. for mylib.a, specify "mylib.a" or "path/mylib.a")
-LIBS = be tracker media midi translation game $(STDCPPLIBS)
+LIBS = be tracker media midi translation game device $(STDCPPLIBS)
 
 #	Specify additional paths to directories following the standard libXXX.so
 #	or libXXX.a naming scheme. You can specify full paths or paths relative

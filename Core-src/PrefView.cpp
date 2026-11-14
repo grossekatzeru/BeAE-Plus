@@ -41,6 +41,7 @@
 #include "PrefAudio.h"
 #include "PrefKeys.h"
 #include "PrefColors.h"
+#include "PrefControllers.h"
 
 #define PREF_SELECT		'psel'
 
@@ -64,6 +65,7 @@ PrefView::PrefView():BView("Prefs view", B_WILL_DRAW){
 	list->AddItem(new BStringItem(Language.get("AUDIO")));
 	list->AddItem(new BStringItem(Language.get("COLORSET")));
 	list->AddItem(new BStringItem(Language.get("KEYBINDINGS")));
+	list->AddItem(new BStringItem(Language.get("CONTROLLERS")));
 
 	list->Select(0);
 
@@ -150,6 +152,10 @@ void PrefView::MessageReceived(BMessage *msg){
 		case 3:		// keys
 			configBox->AddChild(new PrefKeys());
 			configBox->SetLabel(Language.get("KEYBINDINGS"));
+			break;
+		case 4:		// controllers (joystick)
+			configBox->AddChild(new PrefControllers());
+			configBox->SetLabel(Language.get("CONTROLLERS"));
 			break;
 		case 2:		// colors
 			configBox->AddChild(new PrefColors());
