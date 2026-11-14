@@ -179,8 +179,9 @@ void LanesDrawClips(BView *v, int slot, BRect body, double tl, double dt, float 
 LanesView::LanesView(BRect r)
 	: BView(r, "Lanes view", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS | B_FULL_UPDATE_ON_RESIZE | B_PULSE_NEEDED),
 	  fKeyActive(-1), fKeyCount(-1), fKeyRevision(-1), fKeyScroll(-1), fKeyW(-1), fKeyH(-1),
-	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fStickTol(0), fDropLane(-1), fScrollBar(NULL), fGroupDelta(0)
+	  fKeyL(-1), fKeyR(-1), fKeyPointer(-1), fKeySelection(-1), fOldPlayX(-1), fDragSlot(-1), fDragClip(-1), fDragX0(0), fDragPos0(0), fStickTol(0), fDropLane(-1), fScrollBar(NULL), fGroupDelta(0), fStripSlot(-1), fStripVol(true), fStripPoint(-1)
 {
+	fStripInfo[0] = 0;
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
 
@@ -423,6 +424,10 @@ void LanesView::MouseDown(BPoint p)
 
 void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 {
+	if (fStripSlot >= 0){
+		StripDrag(p);
+		return;
+	}
 	if (Pool.tool_mode == MOVE_TOOL)
 		SetViewCursor(Pool.mouseMove);
 	else
@@ -470,6 +475,13 @@ void LanesView::MouseMoved(BPoint p, uint32, const BMessage *)
 
 void LanesView::MouseUp(BPoint)
 {
+	if (fStripSlot >= 0){
+		fStripSlot = -1;
+		fStripPoint = -1;
+		fStripInfo[0] = 0;
+		Invalidate();
+		return;
+	}
 	if (fDragSlot >= 0){
 		const int slot = fDragSlot, clip = fDragClip;
 		const int drop = fDropLane;
@@ -665,6 +677,23 @@ struct StripGeom {
 		return body.top + (1.0f - p) * 0.5f * body.Height();	// выше - правее
 	}
 	float XAt(double t) const { return (float)((t - tl) / dt); }
+	double TimeAt(float x) const { const double t = tl + x * dt; return t < 0 ? 0 : t; }
+	float VolAt(float y) const				// обратное к VolY, с «прилипанием» к 0 дБ и шагом 0,1 дБ
+	{
+		float db = Env::kDbMax - (y - body.top) / body.Height() * (Env::kDbMax - Env::kDbMin);
+		if (db < Env::kDbMin) db = Env::kDbMin;
+		if (db > Env::kDbMax) db = Env::kDbMax;
+		if (fabsf(db) < 0.6f) db = 0.0f;
+		return floorf(db * 10.0f + 0.5f) / 10.0f;
+	}
+	float PanAt(float y) const				// обратное к PanY, с «прилипанием» к центру
+	{
+		float p = 1.0f - 2.0f * (y - body.top) / body.Height();
+		if (p < -1) p = -1;
+		if (p > 1) p = 1;
+		if (fabsf(p) < 0.05f) p = 0.0f;
+		return floorf(p * 100.0f + 0.5f) / 100.0f;
+	}
 };
 
 bool MakeGeom(BRect strip, bool open, float W, StripGeom &g)
@@ -773,6 +802,10 @@ void LanesView::DrawStrip(int slot, BRect r)
 		BFont small(f);
 		small.SetSize(9);
 		SetFont(&small);
+		if (fStripSlot == slot && fStripInfo[0]){
+			SetHighColor(make_color(235, 235, 240));
+			DrawString(fStripInfo, BPoint(r.right - 8 - small.StringWidth(fStripInfo), r.top + 11));
+		}
 		SetHighColor(kVolColor);
 		DrawString("Vol", BPoint(r.left + kStripToggleW + 2, r.top + 11));
 		SetHighColor(kPanColor);
@@ -782,15 +815,94 @@ void LanesView::DrawStrip(int slot, BRect r)
 }
 
 // Щелчок по полосе автоматизации. Возвращает true, если событие обработано.
+//  - свёрнутая разворачивается; у развёрнутой треугольник слева сворачивает;
+//  - в развёрнутой: щелчок по пустому месту ставит точку на ближайшей кривой и сразу тянет её,
+//    щелчок по точке тянет её, двойной щелчок или правая кнопка по точке удаляет её.
 bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
 {
-	(void)buttons;
 	const bool open = Tracks_StripOpen(slot);
-	if (!open || p.x - strip.left < kStripToggleW){		// свёрнутая разворачивается по щелчку, у развёрнутой - по треугольнику
+	if (!open || p.x - strip.left < kStripToggleW){
 		Tracks_SetStripOpen(slot, !open);
 		Relayout();
 		Invalidate();
 		return true;
 	}
-	return false;
+	const float W = strip.Width() + 1;
+	StripGeom g;
+	if (!MakeGeom(strip, true, W, g))
+		return true;						// нет ленты - рисовать не на чем
+
+	Envelope vol, pan;
+	Mix.GetEnvelopes(slot, vol, pan);
+	int32 clicks = 1;
+	if (Window() && Window()->CurrentMessage())
+		Window()->CurrentMessage()->FindInt32("clicks", &clicks);
+	const bool right = (buttons & B_SECONDARY_MOUSE_BUTTON) != 0;
+
+	// ближайшая точка в пределах 8 пикселей
+	float best = 9.0f;
+	bool bestVol = true;
+	int bestIdx = -1;
+	for (int k = 0; k < 2; k++){
+		const Envelope &e = (k == 0) ? vol : pan;
+		for (int i = 0; i < e.Count(); i++){
+			const float x = g.XAt(e.Point(i).t);
+			const float y = (k == 0) ? g.VolY(e.Point(i).v) : g.PanY(e.Point(i).v);
+			const float d = sqrtf((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y));
+			if (d < best){ best = d; bestVol = (k == 0); bestIdx = i; }
+		}
+	}
+	if (bestIdx >= 0 && (right || clicks >= 2)){
+		(bestVol ? vol : pan).Remove(bestIdx);
+		Mix.SetEnvelopes(slot, vol, pan);
+		Pool.changed = true;
+		Invalidate();
+		return true;
+	}
+	if (bestIdx < 0){
+		if (right)
+			return true;
+		// новая точка на той кривой, которая ближе к щелчку (пустая кривая - это прямая на 0 дБ / по центру)
+		const double t = g.TimeAt(p.x);
+		const float dv = fabsf(p.y - g.VolY(vol.Value(t, 0.0f)));
+		const float dp = fabsf(p.y - g.PanY(pan.Value(t, 0.0f)));
+		bestVol = dv <= dp;
+		bestIdx = bestVol ? vol.Add(t, g.VolAt(p.y)) : pan.Add(t, g.PanAt(p.y));
+		Mix.SetEnvelopes(slot, vol, pan);
+		Pool.changed = true;
+	}
+	fStripSlot = slot;
+	fStripVol = bestVol;
+	fStripPoint = bestIdx;
+	fStripRect = strip;
+	SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+	Invalidate(strip);
+	return true;
+}
+
+// Перетаскивание точки автоматизации.
+void LanesView::StripDrag(BPoint p)
+{
+	StripGeom g;
+	if (!MakeGeom(fStripRect, true, fStripRect.Width() + 1, g) || !Mix.Track(fStripSlot))
+		return;
+	Envelope vol, pan;
+	Mix.GetEnvelopes(fStripSlot, vol, pan);
+	Envelope &e = fStripVol ? vol : pan;
+	if (fStripPoint < 0 || fStripPoint >= e.Count())
+		return;
+	const double t = g.TimeAt(p.x);
+	const float v = fStripVol ? g.VolAt(p.y) : g.PanAt(p.y);
+	fStripPoint = e.Move(fStripPoint, t, v);
+	Mix.SetEnvelopes(fStripSlot, vol, pan);
+	Pool.changed = true;
+	if (fStripVol){
+		if (v <= Env::kDbMin) snprintf(fStripInfo, sizeof(fStripInfo), "-inf dB  %.2f s", t);
+		else snprintf(fStripInfo, sizeof(fStripInfo), "%+.1f dB  %.2f s", (double)v, t);
+	}else{
+		const int pc = (int)floorf(fabsf(v) * 100.0f + 0.5f);
+		if (pc == 0) snprintf(fStripInfo, sizeof(fStripInfo), "C  %.2f s", t);
+		else snprintf(fStripInfo, sizeof(fStripInfo), "%c %d%%  %.2f s", v < 0 ? 'L' : 'R', pc, t);
+	}
+	Invalidate(fStripRect);
 }

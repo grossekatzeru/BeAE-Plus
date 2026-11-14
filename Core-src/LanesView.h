@@ -62,6 +62,7 @@ private:
 	void	DrawLane(int slot, BRect lane);
 	void	DrawStrip(int slot, BRect strip);		// полоса автоматизации под дорожкой
 	bool	StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons);
+	void	StripDrag(BPoint p);
 	void	DrawPlayLine();
 	float	PlayX() const;
 
@@ -80,6 +81,11 @@ private:
 	LanesScrollBar	*fScrollBar;
 	std::vector<ClipRef>	fGroup;		// выделенные клипы, едущие вместе с перетаскиваемым (пусто - одиночный перенос)
 	double		fGroupDelta;		// на сколько секунд сдвинута группа
+	int			fStripSlot;			// полоса автоматизации: дорожка, чью точку тянем (или -1)
+	bool		fStripVol;			// тянем точку громкости (true) или панорамы
+	int			fStripPoint;		// номер тянутой точки
+	BRect		fStripRect;			// полоса, в которой тянем
+	char		fStripInfo[48];		// подпись со значением во время перетаскивания
 };
 
 #endif
