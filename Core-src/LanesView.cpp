@@ -659,6 +659,7 @@ namespace {
 
 const rgb_color kVolColor = {230, 48, 52, 255};		// красная линия - громкость (у верхнего края)
 const rgb_color kPanColor = {52, 112, 232, 255};		// синяя линия - панорама (по середине)
+const float kStripToggleW = 14;						// слева: треугольник свернуть/развернуть
 
 struct StripGeom {
 	BRect	body;			// область линий
@@ -763,7 +764,7 @@ void LanesView::DrawStrip(int slot, BRect r)
 	const MixTrack *tr = Mix.Track(slot);
 	if (!tr) return;
 	const bool showVol = tr->showVol, showPan = tr->showPan;
-	const bool open = showVol || showPan;
+	const bool open = tr->autoOpen;
 	const float W = r.Width() + 1;
 
 	SetDrawingMode(B_OP_COPY);
@@ -773,8 +774,27 @@ void LanesView::DrawStrip(int slot, BRect r)
 	StrokeLine(BPoint(r.left, r.top), BPoint(r.right, r.top));
 	SetHighColor(make_color(26, 27, 31));
 	StrokeLine(BPoint(r.left, r.bottom), BPoint(r.right, r.bottom));
-	if (!open)
-		return;									// кривые скрыты (чекбоксы в панели слева); на звук это не влияет
+
+	// переключатель: треугольник (вниз - развёрнута, вправо - свёрнута)
+	{
+		const float cx = r.left + 7, cy = r.top + 7;
+		SetHighColor(make_color(200, 200, 205));
+		if (open)
+			FillTriangle(BPoint(cx - 4, cy - 2), BPoint(cx + 4, cy - 2), BPoint(cx, cy + 3));
+		else
+			FillTriangle(BPoint(cx - 2, cy - 4), BPoint(cx - 2, cy + 4), BPoint(cx + 3, cy));
+	}
+	if (!open){
+		BFont f0;
+		GetFont(&f0);
+		BFont small0(f0);
+		small0.SetSize(9);
+		SetFont(&small0);
+		SetHighColor(make_color(130, 132, 140));
+		DrawString("Auto", BPoint(r.left + kStripToggleW + 2, r.top + 10));
+		SetFont(&f0);
+		return;									// свёрнута: кривые не видны, но на звук они влияют
+	}
 
 	StripGeom g;
 	if (MakeGeom(r, true, W, g)){
@@ -796,7 +816,7 @@ void LanesView::DrawStrip(int slot, BRect r)
 	BFont small(f);
 	small.SetSize(9);
 	SetFont(&small);
-	float lx = r.left + 4;
+	float lx = r.left + kStripToggleW + 2;
 	if (showVol){
 		SetHighColor(kVolColor);
 		DrawString("Vol", BPoint(lx, r.top + 11));
@@ -820,8 +840,17 @@ void LanesView::DrawStrip(int slot, BRect r)
 bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
 {
 	const MixTrack *tr = Mix.Track(slot);
-	if (!tr || !(tr->showVol || tr->showPan))
-		return true;						// кривые скрыты: рисовать нечего
+	if (!tr)
+		return true;
+	const bool open = tr->autoOpen;
+	if (!open || p.x - strip.left < kStripToggleW){		// свёрнутая разворачивается по щелчку, развёрнутая сворачивается по треугольнику
+		Tracks_SetStripOpen(slot, !open);
+		Relayout();
+		Invalidate();
+		return true;
+	}
+	if (!(tr->showVol || tr->showPan))
+		return true;						// ни одна кривая не отмечена: рисовать нечего
 	const bool canVol = tr->showVol, canPan = tr->showPan;
 	const float W = strip.Width() + 1;
 	StripGeom g;

@@ -364,7 +364,7 @@ void TrackPanelView::Draw(BRect update)
 			StrokeLine(BPoint(g.left, g.bottom + 2), BPoint(g.right, g.bottom + 2));
 		}
 		// под дорожкой (место полосы автоматизации): чекбоксы показа кривых; цвет подписи - цвет кривой
-		for (int row = 0; row < 2; row++){
+		for (int row = 0; row < 2 && t->autoOpen; row++){
 			BRect g = (row == 0) ? ShowVolRect(i) : ShowPanRect(i);
 			const bool on = (row == 0) ? t->showVol : t->showPan;
 			BRect box(g.right - 11, g.top + 1, g.right, g.top + 12);
@@ -505,6 +505,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 			const BRect st = AutoRect(i);
 			if (st.Contains(p) && p.y >= HEADER_H){
 				index = i;
+				if (!Mix.Track(i)->autoOpen) return HIT_NONE;
 				if (ShowVolRect(i).Contains(p)) return HIT_SHOWVOL;
 				if (ShowPanRect(i).Contains(p)) return HIT_SHOWPAN;
 				return HIT_NONE;

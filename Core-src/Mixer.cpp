@@ -254,6 +254,7 @@ void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevis
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
 void Mixer::SetGrid(int i, bool g)	{ if (Track(i)) { fTracks[i].grid = g; fRevision++; } }
 void Mixer::SetSticky(int i, bool s)	{ if (Track(i)) { fTracks[i].sticky = s; fRevision++; } }
+void Mixer::SetAutoOpen(int i, bool open)	{ if (Track(i)) { fTracks[i].autoOpen = open; fRevision++; } }
 void Mixer::SetShowAuto(int i, bool vol, bool pan)	{ if (Track(i)) { fTracks[i].showVol = vol; fTracks[i].showPan = pan; fRevision++; } }
 double Mixer::StickPos(int lane, double pos, double len, double tol, int skipClip, bool skipSelected) const
 {

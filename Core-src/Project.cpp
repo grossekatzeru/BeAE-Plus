@@ -191,6 +191,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		trk << "      \"grid\": " << (t->grid ? "true" : "false") << ",\n";
 		trk << "      \"sticky\": " << (t->sticky ? "true" : "false") << ",\n";
 		trk << "      \"xfade\": " << (t->xfade ? "true" : "false") << ",\n";
+		if (t->autoOpen) trk << "      \"auto_open\": true,\n";
 		if (t->showVol) trk << "      \"show_vol\": true,\n";
 		if (t->showPan) trk << "      \"show_pan\": true,\n";
 		{
@@ -357,6 +358,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetGrid(slot, jt.Boolean("grid", false));
 		Mix.SetCrossfade(slot, jt.Boolean("xfade", false));
 		Mix.SetSticky(slot, jt.Boolean("sticky", false));
+		Mix.SetAutoOpen(slot, jt.Boolean("auto_open", false));
 		Mix.SetShowAuto(slot, jt.Boolean("show_vol", false), jt.Boolean("show_pan", false));
 		{
 			Envelope ve, pe;

@@ -80,6 +80,7 @@ struct MixTrack {
 	bool	grid;			// у дорожки включена липкая сетка
 	bool	sticky;			// «липкие»: края клипов притягиваются друг к другу при перетаскивании (но можно наплыть)
 	bool	xfade;			// перекрывающиеся клипы: false - микшируются, true - кроссфейд
+	bool	autoOpen;			// полоса автоматизации развёрнута (иначе тонкая)
 	bool	showVol, showPan;	// показывать в полосе автоматизации кривые громкости/панорамы (на звук не влияет)
 	char	name[64];
 	std::vector<MixClip>	clips;
@@ -89,7 +90,7 @@ struct MixTrack {
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = grid = xfade = sticky = showVol = showPan = false; name[0] = 0; clips.clear(); volEnv.Clear(); panEnv.Clear();
+		mute = solo = armed = grid = xfade = sticky = autoOpen = showVol = showPan = false; name[0] = 0; clips.clear(); volEnv.Clear(); panEnv.Clear();
 	}
 };
 
@@ -133,6 +134,7 @@ public:
 	void	SetGrid(int i, bool g);
 	void	SetCrossfade(int i, bool x);
 	void	SetSticky(int i, bool s);
+	void	SetAutoOpen(int i, bool open);
 	void	SetShowAuto(int i, bool vol, bool pan);		// какие кривые автоматизации показывать под дорожкой
 	// Притяжка к краям соседних клипов дорожки: начало клипа - к концу соседа, конец клипа - к началу соседа,
 	// если до края не дальше tol секунд; дальше клип свободно наплывает. skipClip - номер двигаемого клипа в

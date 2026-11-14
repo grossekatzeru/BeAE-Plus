@@ -1190,7 +1190,13 @@ int Tracks_SlotAt(int rank)
 bool Tracks_StripOpen(int slot)
 {
 	const MixTrack *t = Mix.Track(slot);
-	return t && (t->showVol || t->showPan);
+	return t && t->autoOpen;
+}
+
+void Tracks_SetStripOpen(int slot, bool open)
+{
+	if (Mix.Track(slot) && Mix.Track(slot)->autoOpen != open)
+		Mix.SetAutoOpen(slot, open);					// счётчик изменений обновит раскладку и перерисовку
 }
 
 float Tracks_StripHeight(int rank)
