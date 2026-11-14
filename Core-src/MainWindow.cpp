@@ -1492,7 +1492,12 @@ void MainWindow::MessageReceived(BMessage *message)
 		BEntry entry(&ai.ref);
 		entry.GetPath(&path);
 		path.GetParent(&path);
-		path.Append("Help/help.html");
+		{	// справка на русском для русского интерфейса, иначе английская (если файл есть)
+			const bool ru = Language.Name() && strcmp(Language.Name(), "Russian") == 0;
+			BPath en(path);
+			en.Append("Help/help_en.html");
+			path.Append((ru || !BEntry(en.Path()).Exists()) ? "Help/help.html" : "Help/help_en.html");
+		}
 		char *help = new char[strlen(path.Path())+1];
 		sprintf(help, path.Path());
 		be_roster->Launch("text/html",1, &help);

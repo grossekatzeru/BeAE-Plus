@@ -1,4 +1,4 @@
-BeAE-Plus 3.0 - multitrack audio editor for Haiku (fork of BeAE by Frans van Nispen).
+BeAE-Plus 3.1 - multitrack audio editor for Haiku (fork of BeAE by Frans van Nispen).
 
 Authors: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic). Original BeAE: Frans van Nispen; see BeAE/Help/history.html for the full version history.
 

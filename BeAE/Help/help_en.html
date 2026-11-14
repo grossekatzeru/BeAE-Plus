@@ -1,0 +1,338 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<title>BeAE-Plus - Help</title>
+<style type="text/css">
+body { font-size: 0.95em; line-height: 1.5; margin: 30px; max-width: 60em; font-family: "DejaVu Sans",Arial,Helvetica,sans-serif; }
+h1 { font-size: 1.8em; margin-bottom: 0; }
+h2 { font-size: 1.3em; margin-top: 2em; border-bottom: solid thin #454545; color: #333; }
+h3 { font-size: 1.05em; margin-top: 1.4em; color: #454545; }
+.sub { color: #787878; }
+table.t { border-collapse: collapse; margin: 10px 0; }
+table.t td, table.t th { border: solid thin #bbb; padding: 4px 10px; vertical-align: top; text-align: left; }
+table.t th { background-color: #efefef; }
+.note { background-color: #efefef; padding: 8px 12px; margin: 10px 0; }
+kbd { background-color: #f4f4f4; border: solid thin #aaa; padding: 0 5px; font-family: "DejaVu Sans Mono",monospace; font-size: 0.9em; }
+code { font-family: "DejaVu Sans Mono",monospace; }
+</style>
+</head>
+<body>
+
+<table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
+<td><h1>BeAE-Plus</h1>
+<span style="font-size: 1.3em">Help</span><br />
+<span class="sub">A multitrack audio editor for Haiku. Version 3.1. Based on BeAE by Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic).</span></td></tr></table>
+
+<h2>Contents</h2>
+<ol>
+<li><a href="#start">Quick start</a></li>
+<li><a href="#window">The program window</a></li>
+<li><a href="#tracks">Tracks and the track panel</a></li>
+<li><a href="#clips">Clips</a></li>
+<li><a href="#open">Opening, recording and dragging files</a></li>
+<li><a href="#play">Playback and recording</a></li>
+<li><a href="#select">Selection and zoom</a></li>
+<li><a href="#tempo">Tempo, grid and metronome</a></li>
+<li><a href="#fx">Track and master effects</a></li>
+<li><a href="#automation">Volume and pan automation</a></li>
+<li><a href="#gamepad">Gamepad control</a></li>
+<li><a href="#transform">The Transform menu: processing the selection</a></li>
+<li><a href="#plugins">BeAE-Plus plug-ins</a></li>
+<li><a href="#analyze">Analysis: spectrum, scope, tempo, tuner</a></li>
+<li><a href="#midi">Insert from MIDI</a></li>
+<li><a href="#project">Project (.bemix)</a></li>
+<li><a href="#save">Saving and mixdown</a></li>
+<li><a href="#prefs">Preferences</a></li>
+<li><a href="#keys">Keyboard shortcuts</a></li>
+<li><a href="#trouble">FAQ</a></li>
+</ol>
+
+<h2 id="start">1. Quick start</h2>
+<ol>
+<li>Drag a sound file into the program window (or use <b>File → Open...</b>). The sound will land on a track as a clip.</li>
+<li>Add more files to other tracks. The volume and balance of each track are adjusted in its panel on the left.</li>
+<li>Press <kbd>Space</kbd> to play.</li>
+<li>Save your work: <b>Save project</b> (a <code>.bemix</code> project with all tracks) or <b>Mixdown as...</b> (a finished sound file).</li>
+</ol>
+<div class="note">Menu item names in this help are given as they appear in the interface. The interface language is chosen in <b>File → Preferences...</b> (General page).</div>
+
+<h2 id="window">2. The program window</h2>
+<ul>
+<li><b>Menu</b> at the top: File, Edit, Transform, Analyze, Help.</li>
+<li><b>Toolbar</b>: new, open, save, undo and redo, cut/copy/paste, tool buttons (select, draw, play, the Jogg wheel, move track in time).</li>
+<li><b>Track list</b> on the left (track panels) and <b>track strips</b> on the right, showing the sound of the clips. The time ruler is above them.</li>
+<li><b>Master</b>: the common bus at the bottom of the track list, with volume, mute (M), an effects chain (FX) and L/R level meters.</li>
+<li><b>Transport panel</b> at the bottom: the Stop, Play, Pause, Rewind, Forward and Record buttons, zoom, time counters (current position, selection start, end and length), the tempo panel.</li>
+</ul>
+
+<h2 id="tracks">3. Tracks and the track panel</h2>
+<p>A project can hold up to 64 tracks. The <b>+</b> and <b>−</b> buttons above the list add and remove tracks. The track you click in becomes the active one.</p>
+<table class="t">
+<tr><th>Element</th><th>What it does</th></tr>
+<tr><td>Name</td><td>A field with the track name: click to change the name. Double-clicking an empty spot on the track panel opens the track time offset window (Offset, ms).</td></tr>
+<tr><td><b>S</b> (Solo)</td><td>Only this track is heard (and others that have S on).</td></tr>
+<tr><td><b>M</b> (Mute)</td><td>The track is muted.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Record arm: recording goes to the track that has R on.</td></tr>
+<tr><td><b>FX</b></td><td>Opens the track effects window (see <a href="#fx">Effects</a>).</td></tr>
+<tr><td>Volume (dB)</td><td>The upper slider, the value is shown on the right.</td></tr>
+<tr><td>Balance</td><td>The lower slider: L, C, R.</td></tr>
+<tr><td><b>Grid</b></td><td>Turns on grid lines on this track (see <a href="#tempo">Tempo and grid</a>).</td></tr>
+<tr><td><b>Xfade</b></td><td>Crossfade where the track's clips overlap.</td></tr>
+<tr><td><b>Sticky</b></td><td>"Sticky grid": clips snap to grid lines when moved.</td></tr>
+</table>
+<p>If there are more tracks than fit on the screen, a scroll bar appears to their right.</p>
+
+<h2 id="clips">4. Clips</h2>
+<p>The sound on a track is made of clips. A clip can be moved, copied, cut, locked and combined into groups.</p>
+<ul>
+<li><b>Moving</b>: drag the clip with the mouse to the desired place, including onto another track. With Sticky on, the clip snaps to the grid.</li>
+<li><b>Selecting several clips</b>: click the clips while holding <kbd>Ctrl</kbd>. Double-clicking a clip selects all clips on the track (if enabled in the preferences: "Double click selects all clips on the track"). Selected clips are tinted with one colour.</li>
+<li><b>Split</b> (<kbd>Alt</kbd>+<kbd>X</kbd>): cut the clip at the cursor.</li>
+<li><b>Copy</b> (<kbd>Alt</kbd>+<kbd>C</kbd>) and <b>Paste</b> (<kbd>Alt</kbd>+<kbd>V</kbd>): a copy of the clip is pasted at the cursor position. <b>Paste clip several times...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>) pastes the clip a given number of times in a row (handy for loops).</li>
+<li><b>Delete clip</b>: delete the selected clip.</li>
+<li><b>Lock in time</b>: the clip cannot be accidentally shifted in time.</li>
+<li><b>Group</b>: combines two or more selected clips into a group. A group is painted in its own pastel colour and is moved and selected as a whole. Running the command again ungroups it.</li>
+<li><b>Save clip as file...</b>: write the clip to a sound file.</li>
+<li><b>Paste &amp; mix...</b>: mix the clipboard contents into the clip under the cursor.</li>
+</ul>
+<p>The clip context menu (right mouse button) contains the same commands, plus Select all, Unselect all, "Zero cross" (snapping the selection boundaries to the zero level) and the zoom commands.</p>
+
+<h2 id="open">5. Opening, recording and dragging files</h2>
+<ul>
+<li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): opens a sound file into the active track. All formats understood by the Haiku Media Kit are read (WAV, AIFF, MP3, Ogg, FLAC and others, depending on the installed decoders). The recent files submenu shows only files that were opened in BeAE.</li>
+<li><b>Dragging</b> a file from Tracker into the window: the sound lands as a clip on the track under the mouse pointer, at the place where you dropped the file. Several files at once take up free tracks. If you drag a <code>.bemix</code> file, the project opens.</li>
+<li><b>Recording</b>: turn on <b>R</b> on the desired track and press the red Record button. Recording comes from the Haiku system audio input. If no track has R on, the program tells you so with a message. To stop, use the Stop button or press Record again.</li>
+</ul>
+<p>Files cannot be opened during recording.</p>
+
+<h2 id="play">6. Playback and recording</h2>
+<table class="t">
+<tr><th>Action</th><th>Key</th></tr>
+<tr><td>Play (from the cursor position, along the selection)</td><td><kbd>Shift</kbd>+<kbd>Space</kbd></td></tr>
+<tr><td>Play to end</td><td><kbd>Ctrl</kbd>+<kbd>Space</kbd></td></tr>
+<tr><td>Play/Stop (toggle)</td><td><kbd>Space</kbd></td></tr>
+<tr><td>Pause</td><td><kbd>P</kbd></td></tr>
+<tr><td>Loop (repeat the selection)</td><td><kbd>L</kbd></td></tr>
+<tr><td>To the start / to the end</td><td><kbd>Shift</kbd>+<kbd>Home</kbd> / <kbd>Shift</kbd>+<kbd>End</kbd></td></tr>
+<tr><td>Cursor to the start / end of the screen</td><td><kbd>Home</kbd> / <kbd>End</kbd></td></tr>
+<tr><td>Scroll the visible area left / right</td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+<tr><td>Cursor to the last playback position</td><td><kbd>Enter</kbd></td></tr>
+</table>
+<p>The audio buffer size and the recording latency can be tuned in <b>Preferences → Audio</b>. Recommended buffer: 2048 frames.</p>
+<p>The <b>Fine tune</b> button measures the recording latency by itself: connect the sound card output to its input with a cable (or put a microphone next to the speakers) and press "Start". The program plays short clicks several times, records them and calculates the latency from the shift (corrected for the media server timestamps); the value found is put into the "Recording latency" field, and a detailed report is shown in the result window. Every new recording is also aligned by timestamps, so the media server's start jitter does not shift the take.</p>
+
+<h2 id="select">7. Selection and zoom</h2>
+<h3>Selection</h3>
+<p>With the select tool (the first tool button) drag the mouse over a clip: the selected part is highlighted. The boundaries can be adjusted by dragging them, or by holding <kbd>Shift</kbd> and clicking at the desired place. The selection works within the active track; the channel is chosen with the <b>Edit left/right/both channel</b> commands.</p>
+<ul>
+<li><b>Select all</b> <kbd>Alt</kbd>+<kbd>A</kbd>, <b>Unselect all</b> <kbd>Alt</kbd>+<kbd>U</kbd>.</li>
+<li><b>Clear</b> <kbd>Alt</kbd>+<kbd>B</kbd>: replace the selection with silence.</li>
+<li><b>Trim</b>: keep only the selection.</li>
+<li><b>Change frequency...</b> and <b>Resample...</b>: change the sample rate (with or without recalculating the sound).</li>
+</ul>
+<h3>Zoom</h3>
+<table class="t">
+<tr><th>Command</th><th>Key</th></tr>
+<tr><td>Zoom in / Zoom out</td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+<tr><td>View full wave (all the sound)</td><td><kbd>Shift</kbd>+<kbd>↑</kbd></td></tr>
+<tr><td>Zoom to selection</td><td><kbd>Shift</kbd>+<kbd>↓</kbd></td></tr>
+<tr><td>Zoom to left pointer</td><td><kbd>Shift</kbd>+<kbd>←</kbd></td></tr>
+<tr><td>Zoom to right pointer</td><td><kbd>Shift</kbd>+<kbd>→</kbd></td></tr>
+</table>
+<p>"Zoom to left/right pointer" narrows the window fourfold and places the left (right) selection line at a distance of 20% of the width from the left (right) edge. The command can be repeated for ever greater magnification.</p>
+
+<h2 id="tempo">8. Tempo, grid and metronome</h2>
+<p>The tempo panel is in the lower right part of the window. It sets the project tempo (BPM), the time signature, the grid step (for example 1/4, 1/8, 1/16) and the metronome (on/off and volume).</p>
+<ul>
+<li>The <b>grid</b> is displayed on tracks that have Grid on. Lines on the beats are lighter, the start of a bar is shown with a wider line. At small zoom levels dense lines are thinned out.</li>
+<li><b>Sticky</b> (sticky grid): when moved, clips snap to grid lines with the step selected on the tempo panel.</li>
+<li><b>Metronome</b>: a click on every beat of the bar, during playback and recording. The time signature and volume are saved in the project.</li>
+<li><b>Tempo analyzer</b> (Analyze → Tempo analyzer): detects the tempo of the sound and lets you accept it as the project tempo.</li>
+</ul>
+
+<h2 id="fx">9. Track and master effects</h2>
+<p>The <b>FX</b> button on the track panel (and on Master) opens the <b>Effects</b> window: a chain of effects that are applied during playback and mixdown. The original sound of the clips is not changed.</p>
+<ul>
+<li><b>Add...</b>: add an effect. Built-in effects, LADSPA plug-ins, and also VST2 (if found in the system).</li>
+<li><b>Remove</b>, <b>Up</b>, <b>Down</b>: remove an effect, move it up or down in the chain.</li>
+<li><b>Enabled</b>: temporarily disable an effect.</li>
+<li><b>Defaults</b>: restore the effect's default settings.</li>
+<li>Parameter values are saved with the project.</li>
+</ul>
+<h3>Sidechain ducking (BeFX group)</h3>
+<p>The built-in "Sidechain ducking" plug-in lowers the volume of a track while another track (the key) is playing, for example the bass under the kick drum. Its window has:</p>
+<ul>
+<li><b>Key track</b>: the key track (by name).</li>
+<li><b>Key range</b>: whole sound or low only.</li>
+<li><b>Release curve</b>: the shape of the recovery, exponential or linear.</li>
+<li><b>Update key</b>: recalculate the key after the key track has been edited. The indicator shows the state of the key and the amount of compression (Reduction).</li>
+</ul>
+
+<h2 id="automation">10. Volume and pan automation</h2>
+<p>The volume and pan of a track can change over time: draw curves right under the track. The curves work during playback and mixdown, the original sound of the clips is not changed.</p>
+<h3>The automation strip</h3>
+<ul>
+<li>Under each track there is a thin strip. Click the triangle (or the strip) and it expands; click again to collapse it.</li>
+<li>The <b>red</b> line is volume, the <b>blue</b> one is pan (the middle of the strip is the centre). For the sound, the curve sets an <i>offset</i> to the track slider: volume in dB (0 dB - as on the slider, the bottom - silence), pan - a shift from the slider position.</li>
+<li><b>Clicking</b> an empty spot adds a point, <b>dragging</b> moves it, <b>right-click</b> or <b>double-click</b> on a point deletes it. If both curves are visible, the point belongs to the nearest one.</li>
+<li>While the strip is expanded, the <b>Volume</b> and <b>Pan</b> checkboxes appear on the track panel opposite it: which curves to show. A hidden curve keeps affecting the sound. The <b>C</b> button to the right of a checkbox clears the curve (grey if there is no curve).</li>
+<li>The curves and the strip state are saved in the project (<code>.bemix</code>).</li>
+</ul>
+<h3>Master</h3>
+<p>Under the Master row there is the same strip: it draws the curve of the overall volume. It is also taken into account during playback and mixdown.</p>
+<h3>Recording movements</h3>
+<p>Curves do not have to be drawn, they can be recorded live with a gamepad (section <a href="#gamepad">Gamepad control</a>): turn on automation recording mode, start playback and move the stick - the volume and pan of the active track are written into the curves instead of moving the sliders.</p>
+
+<h2 id="gamepad">11. Gamepad control</h2>
+<p>The volume and pan of the active track can be controlled with a USB joystick or gamepad. The device and the bindings are set up in <b>Preferences → Controllers</b>.</p>
+<ul>
+<li><b>Device</b>: choose from the list (the "Rescan" button searches again). Below, the axes, hats and buttons are shown live: this is how you check that the controller is visible.</li>
+<li><b>Bindings</b>: each action has a button with its current source. Press it, then press a button or deflect an axis on the controller - the binding is remembered. The "x" button clears a binding, "Defaults" restores the original ones. One source can be assigned to only one action.</li>
+<li>A source is a button or an <i>axis direction</i>. A digital d-pad, which many gamepads report as axes, works like a stick with smooth travel: the further the deflection, the faster the value changes.</li>
+<li>Sliders: <b>Volume speed</b> (dB/s), <b>Pan speed</b> and the axis <b>Dead zone</b>.</li>
+</ul>
+<table class="t">
+<tr><th>Action</th><th>Default</th></tr>
+<tr><td>Volume up / Volume down</td><td>axis 2 up / down</td></tr>
+<tr><td>Pan left / Pan right</td><td>axis 1 left / right</td></tr>
+<tr><td>Play / stop</td><td>button 1</td></tr>
+<tr><td>Previous track / Next track</td><td>buttons 2 / 3</td></tr>
+<tr><td>Hold: master volume</td><td>button 4 (while held, the volume applies to Master)</td></tr>
+<tr><td>Pan to center</td><td>button 5</td></tr>
+<tr><td>Volume 0 dB</td><td>button 6</td></tr>
+<tr><td>Automation write on/off</td><td>button 7 (the window title shows "[Automation write]")</td></tr>
+</table>
+<div class="note">Recording mode works only during playback; without it the same buttons move the sliders. If an axis direction turns out to be reversed, just rebind the action.</div>
+
+<h2 id="transform">12. The Transform menu: processing the selection</h2>
+<p>These effects work directly on the sound of the selected part of the active clip (the result is written into the sound; it can be undone). To edit without changing the original, use the track effects (FX). The menu is available when the active track has sound.</p>
+<table class="t">
+<tr><th>Item</th><th>What it does</th></tr>
+<tr><td>Silence</td><td>Replaces the selection with silence.</td></tr>
+<tr><td>Fade in / Fade out</td><td>A smooth rise or decay across the selection.</td></tr>
+<tr><td>Normalize</td><td>Brings the peak to a given level.</td></tr>
+<tr><td>Bass boost</td><td>Boosts low frequencies.</td></tr>
+<tr><td>Compressor</td><td>Dynamic range compression.</td></tr>
+<tr><td>Amplifier</td><td>Gain or attenuation in decibels.</td></tr>
+<tr><td>Noise filter</td><td>Noise reduction: the noise profile is taken from a section that contains only noise.</td></tr>
+<tr><td>Delay, Reverb, Room</td><td>Echo and reverberation.</td></tr>
+<tr><td>Invert</td><td>Phase inversion.</td></tr>
+<tr><td>Swap channels</td><td>Swap the left and right channels.</td></tr>
+<tr><td>LADSPA plug-ins</td><td>A submenu with all the LADSPA plug-ins found (the "Rescan plug-ins" button refreshes the list). Each plug-in has its own window with sliders, real-time preview and an Apply button.</td></tr>
+<tr><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd>: repeat the last applied effect with the same settings.</td></tr>
+</table>
+
+<h2 id="plugins">13. BeAE-Plus plug-ins</h2>
+<p>The package includes LADSPA plug-ins (built with the <code>make</code> command in the <code>plugins</code> folder, installed with <code>make install</code>). They appear in the Transform → LADSPA menu and in the track effects window.</p>
+<table class="t">
+<tr><th>Plug-in</th><th>Purpose</th></tr>
+<tr><td>Spring reverb (spring_reverb)</td><td>Spring reverb.</td></tr>
+<tr><td>SADP (sadp)</td><td>Adaptive noise reduction for tapes.</td></tr>
+<tr><td>Graphic equalizer</td><td>6, 12 or 18 bands.</td></tr>
+<tr><td>Parametric equalizer</td><td>3 or 5 bands.</td></tr>
+<tr><td>Multiband compressor</td><td>4 bands with adjustable crossover points.</td></tr>
+<tr><td>Reverb, Plate reverb (EMT 140)</td><td>Algorithmic and plate reverbs.</td></tr>
+<tr><td>80s vocal chain</td><td>Slap delay and plate reverb in one plug-in.</td></tr>
+<tr><td>Flanger, Chorus</td><td>Modulation effects.</td></tr>
+<tr><td>Optical compressor (LA-2A), Distressor</td><td>Compressors in the spirit of the units of the same name.</td></tr>
+<tr><td>Gate / expander</td><td>Suppresses sound below a threshold.</td></tr>
+<tr><td>Overdrive (Tube Screamer), Distortion (DS-1)</td><td>Overdrive pedals with 4x oversampling.</td></tr>
+<tr><td>Autotune (vocal)</td><td>Pulls the voice's notes to the chosen tuning.</td></tr>
+</table>
+<p>Detailed parameters and the design of the plug-ins are described in the file <code>plugins/README.md</code>.</p>
+
+<h2 id="analyze">14. Analysis: spectrum, scope, tempo, tuner</h2>
+<ul>
+<li><b>Spectrum analyzer</b>: the spectrum of the sound.</li>
+<li><b>Sample scope</b>: an oscilloscope of the selected part.</li>
+<li><b>Tempo analyzer</b>: tempo detection.</li>
+<li><b>Tuner</b>: a tuner for guitar and bass. It listens to the audio input without recording. Choose a tuning (all notes, guitar 6 or 7 strings, bass 4 or 5 strings), the note naming (C D E or Do Re Mi) and the A4 frequency. Press Start and play a string: the green scale shows the deviation. The tuner is unavailable during recording.</li>
+</ul>
+
+<h2 id="midi">15. Insert from MIDI</h2>
+<p><b>File → Insert from MIDI...</b> (<kbd>Alt</kbd>+<kbd>I</kbd>) turns a MIDI file into sound using a SoundFont (SF2).</p>
+<ol>
+<li>In the panel that opens, choose a MIDI file. The <b>Play</b> button at the bottom left plays it with the Haiku system MIDI synthesizer (the bank from the system Midi settings sounds, not the BeAE SoundFont): this is only to get an idea of the file.</li>
+<li>The parameters window shows: the file name, the number of tracks with notes, the SoundFont and the tempo.</li>
+<li>In the <b>MIDI Effects</b> frame, turn on the effects you need: Pan, Reverb, Chorus. Reverb and Chorus need plug-ins from this package.</li>
+<li>If the MIDI tempo differs from the project tempo, choose: accept the MIDI tempo for the project, fit the MIDI to the project tempo, or keep both.</li>
+<li>Press <b>Insert</b>: the MIDI is synthesized and placed on free tracks.</li>
+</ol>
+<p>The default sound bank is chosen in <b>Preferences → Audio</b> (the MIDI section). <code>*.sf2</code> SoundFont files are searched for in the Haiku synthesizer folders.</p>
+
+<h2 id="project">16. Project (.bemix)</h2>
+<p>A project stores tracks, clips, volume, balance, automation curves, effects, groups, tempo and metronome. It is not a sound file but a folder with links to the sound and a description of the project.</p>
+<ul>
+<li><b>New project</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>), <b>Open project...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>), <b>Save project</b>, <b>Save project as...</b>.</li>
+<li>The open panel shows folders and <code>*.bemix</code> files.</li>
+<li>A <code>.bemix</code> file can be dragged into the BeAE window and it will open.</li>
+</ul>
+
+<h2 id="save">17. Saving and mixdown</h2>
+<h3>Saving the sound of the active track</h3>
+<p><b>Save</b> (<kbd>Alt</kbd>+<kbd>S</kbd>), <b>Save as...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) and <b>Save selection...</b> (<kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd>) open the save panel. The extension is added automatically according to the chosen format.</p>
+<table class="t">
+<tr><th>Panel field</th><th>Purpose</th></tr>
+<tr><td>Format</td><td><b>Uncompressed (PCM)</b> writes WAV (16, 24 or 32 bits, as in the original sound); <b>Compressed</b> uses an external encoder.</td></tr>
+<tr><td>Codec</td><td>Available when the format is "Compressed". Shows the encoders found in the system: MP3 (lame), Ogg Vorbis (oggenc), FLAC (flac), Opus (opusenc).</td></tr>
+<tr><td>Options...</td><td>Settings of the selected encoder (below).</td></tr>
+</table>
+<h3>Compression settings ("Options..." button)</h3>
+<table class="t">
+<tr><th>Codec</th><th>Settings</th></tr>
+<tr><td>MP3 (lame)</td><td>VBR / CBR / ABR mode; V quality (0 is best, default 2); bitrate 32-320 kbps for CBR and ABR; stereo: joint, stereo, mono.</td></tr>
+<tr><td>Ogg Vorbis (oggenc)</td><td>"By quality" mode (0-10, default 5) or "by bitrate" (32-320 kbps).</td></tr>
+<tr><td>FLAC (flac)</td><td>Compression level 0-8 (default 5). Lossless; the higher the level, the smaller the file and the longer the encoding.</td></tr>
+<tr><td>Opus (opusenc)</td><td>VBR or CBR mode; bitrate 6-510 kbps (default 128).</td></tr>
+</table>
+<p>For all codecs you can set tags: artist, album, year, comment. The title is taken from the file name. The settings are remembered.</p>
+<div class="note">The encoders <code>lame</code>, <code>oggenc</code>, <code>flac</code> and <code>opusenc</code> are external programs, they must be installed in the system (for example, <code>pkgman install lame flac vorbis_tools opus_tools</code>). If none is present, the "Codec" field shows a hint.</div>
+<h3>Mixdown</h3>
+<ul>
+<li><b>Mixdown</b> (<kbd>Alt</kbd>+<kbd>M</kbd>): mixes all the project tracks (taking into account volume, balance, automation curves, effects, mute/solo) into a sound file. The <code>.wav</code> extension is added automatically.</li>
+<li><b>Mixdown as...</b>: the same with a choice of format. Compressed formats go through external encoders, as above.</li>
+</ul>
+<p>If all tracks are empty or muted, the mixdown reports that there is nothing to mix.</p>
+
+<h2 id="prefs">18. Preferences</h2>
+<p><b>File → Preferences...</b> (<kbd>Alt</kbd>+<kbd>P</kbd>). Pages:</p>
+<table class="t">
+<tr><th>Page</th><th>Contents</th></tr>
+<tr><td>General</td><td>Sections Display (grid, peak level, colours), Editing (double-click selects the track's clips, follow playback), System (language, temporary folder, etc.).</td></tr>
+<tr><td>Audio</td><td>Audio buffer, recording latency, MIDI (the SF2 sound bank for import).</td></tr>
+<tr><td>Colorset</td><td>Interface colours: grid, selected grid, pointers, background and others.</td></tr>
+<tr><td>Key bindings</td><td>Assigning keyboard shortcuts to any commands.</td></tr>
+<tr><td>Controllers</td><td>Joystick or gamepad: device, button and axis bindings, speeds (section <a href="#gamepad">11</a>).</td></tr>
+</table>
+<p>Undo is always on. A language change takes effect after the windows are restarted; for the temporary folder, after the program is restarted.</p>
+
+<h2 id="keys">19. Keyboard shortcuts</h2>
+<p>The <kbd>Alt</kbd> key on Haiku (by default) works as "Command". All shortcuts can be changed in <b>Preferences → Key bindings</b>.</p>
+<table class="t">
+<tr><th>Command</th><th>Keys</th><th>Command</th><th>Keys</th></tr>
+<tr><td>New</td><td><kbd>Alt</kbd>+<kbd>N</kbd></td><td>Undo</td><td><kbd>Alt</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Open...</td><td><kbd>Alt</kbd>+<kbd>O</kbd></td><td>Redo</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Insert from MIDI...</td><td><kbd>Alt</kbd>+<kbd>I</kbd></td><td>Copy</td><td><kbd>Alt</kbd>+<kbd>C</kbd></td></tr>
+<tr><td>Mixdown</td><td><kbd>Alt</kbd>+<kbd>M</kbd></td><td>Split</td><td><kbd>Alt</kbd>+<kbd>X</kbd></td></tr>
+<tr><td>New project</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></td><td>Paste</td><td><kbd>Alt</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Open project...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></td><td>Paste clip several times...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save</td><td><kbd>Alt</kbd>+<kbd>S</kbd></td><td>Paste &amp; mix...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save as...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Clear</td><td><kbd>Alt</kbd>+<kbd>B</kbd></td></tr>
+<tr><td>Save selection...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Select all / Unselect all</td><td><kbd>Alt</kbd>+<kbd>A</kbd> / <kbd>Alt</kbd>+<kbd>U</kbd></td></tr>
+<tr><td>Preferences...</td><td><kbd>Alt</kbd>+<kbd>P</kbd></td><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd></td></tr>
+<tr><td>Quit</td><td><kbd>Alt</kbd>+<kbd>Q</kbd></td><td>Help...</td><td><kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
+</table>
+<p>The playback and zoom keys are listed in sections <a href="#play">6</a> and <a href="#select">7</a>.</p>
+
+<h2 id="trouble">20. FAQ</h2>
+<p><b>The compressed format is unavailable, the codec list is empty.</b><br />Install the needed encoder (lame, oggenc, flac, opusenc). Check in Terminal: <code>which lame</code>.</p>
+<p><b>LADSPA plug-ins are not visible in the menu.</b><br />Run <code>make install</code> in the <code>plugins</code> folder and press "Rescan plug-ins" in the LADSPA submenu. Plug-ins are searched for in the <code>plugins</code> folder next to the program and in the standard LADSPA folders.</p>
+<p><b>Recording does not start.</b><br />Turn on <b>R</b> on the track you want to record into.</p>
+<p><b>The file does not open.</b><br />The message "This file is not supported" means that the system has no decoder for this format. Check whether the file opens in MediaPlayer.</p>
+<p><b>Clicks during playback.</b><br />Increase the audio buffer in Preferences → Audio.</p>
+
+<hr />
+<p class="sub">BeAE-Plus: https://github.com/grossekatzeru/BeAE-Plus</p>
+</body>
+</html>

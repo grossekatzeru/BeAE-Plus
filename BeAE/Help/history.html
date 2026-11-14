@@ -37,6 +37,30 @@ td.table-data {
 
 
 <table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
+<tr><td class="table-heading" align="left"><b>Version 3.1 (BeAE-Plus)</b></td><td class="table-heading" align="right"><b>November 2026</b></td></tr>
+<tr><td class="table-data" colspan="2"><p>Automation and hardware control: volume and pan curves for every track and the master, and control of the mixer from a USB gamepad, including live recording of the moves into the curves. Recording latency measurement was reworked.</p>
+<p><i>Fixed:</i></p>
+<ul type="square">
+<li>Recording latency (Preferences &rarr; Audio &rarr; Fine tune) is measured stably (about 0.3 ms spread) and recordings made at different times lie on top of each other within about 1.5 ms; the start jitter of the media server no longer shifts a take</li>
+<li>Recording compensation was silently inactive in the RAM build of the player, now both player variants work</li>
+</ul></td></tr>
+<tr><td class="table-data" colspan="2"><p><i>Added:</i></p>
+<ul>
+<li>Automation strips: under every track a thin strip that expands on a click; red line = volume, blue line = pan; click adds a point, drag moves it, right button or double click deletes it; the curves add to the track sliders and are heard in playback and in mixdown (WAV and compressed formats)</li>
+<li>Master automation strip below the Master row (volume curve), with a separator line</li>
+<li>Check boxes Volume / Pan in the free space of the track panel (shown only while the strip is expanded) select which curves are drawn; a hidden curve still works; the small C button next to each clears the curve</li>
+<li>Curves and the state of the strips are saved in the project (.bemix)</li>
+<li>Gamepad / joystick control (Preferences &rarr; Controllers): device selection, live view of axes, hats and buttons, every action can be rebound with Bind (press a button or move an axis on the controller), digital D-pads and analogue sticks are both supported (the speed follows the deflection), adjustable volume speed, pan speed and dead zone; the default bindings are set by the program</li>
+<li>Gamepad actions: volume up/down and pan left/right of the active track, pan to center, volume 0 dB, previous/next track, hold for master volume, play/stop, automation write on/off</li>
+<li>Automation write: with the mode on, moving the stick during playback records the volume and pan moves of the active track (or the master) into the curves; the mode is shown in the window title</li>
+<li>The diagnostic report of Fine tune (per-trial timing and the applied correction) is shown in the result window</li>
+<li>Help rewritten for the new features and translated into English (help_en.html is opened when the interface language is not Russian)</li>
+</ul></td></tr>
+</table>
+<p><br></p>
+
+
+<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
 <tr><td class="table-heading" align="left"><b>Version 3.0 (BeAE-Plus)</b></td><td class="table-heading" align="right"><b>November 2026</b></td></tr>
 <tr><td class="table-data" colspan="2"><p>BeAE becomes a multitrack editor. The single sample of the old versions is now a project with tracks and clips, and a mixer, effect chains, a MIDI importer, a tuner and external encoders were added around it.</p>
 <p><i>Fixed:</i></p>

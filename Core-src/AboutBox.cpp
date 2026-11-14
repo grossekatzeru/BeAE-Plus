@@ -55,12 +55,12 @@ enum {FADE_IN, FADE_OUT, PAUSE};
 #define FADE_STEPS	20
 #define PAUSE_STEPS	30
 
-const char *version = "Version 3.0, " __DATE__;
+const char *version = "Version 3.1, " __DATE__;
 
 static const char *txt[] = {
 "BeAE-Plus - multitrack audio editing for Haiku",
 "Created by Frans van Nispen (frans@xentronix.com)",
-"BeAE-Plus 3.0: Stas Korobov (grossekatze1@gmail.com),",
+"BeAE-Plus 3.1: Stas Korobov (grossekatze1@gmail.com),",
 "developed together with Claude (Anthropic).",
 "© 2000 Xentronix Software http://www.xentronix.com",
 "Hosted on GitHub: grossekatzeru/BeAE-Plus (fork of HaikuArchives/BeAE).",
