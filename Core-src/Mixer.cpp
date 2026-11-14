@@ -24,7 +24,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 
 Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fActiveStart(0), fActiveEnd(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
-	fMasterGain = 1.0f; fMasterMute = false; fMasterAutoOpen = false; fMasterPeakL = fMasterPeakR = 0;
+	fPlayNow = 0; fMasterGain = 1.0f; fMasterMute = false; fMasterAutoOpen = false; fMasterPeakL = fMasterPeakR = 0;
 	fLock.clear();
 	fNextNow = 0; fHaveNext = false;
 	memset(fTmp, 0, sizeof(fTmp));
@@ -446,6 +446,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 	const double dir = (activeRate < 0) ? -1.0 : 1.0;
 	const double tstep = dir / sysRate;
 	const double now = activePos / aRate;		// время на ленте: Pool лежит на ней целиком
+	fPlayNow = now;
 	const bool extras = mixExtras && TryLock();
 
 	// перемотка (скачок позиции): плагинам сбрасываем состояние, иначе из буферов задержки

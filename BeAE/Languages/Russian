@@ -476,3 +476,5 @@ CTRL_NO_DATA = "Устройство не отдаёт данные (драйв�
 CTRL_AXIS = "Ось"
 CTRL_HAT = "Шляпка"
 CTRL_BUTTONS = "Кнопки"
+AUTO_WRITE = "Запись автоматизации"
+CTRL_A_WRITE_TOGGLE = "Запись автоматизации: вкл/выкл"

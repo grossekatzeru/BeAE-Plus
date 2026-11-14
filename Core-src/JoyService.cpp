@@ -8,6 +8,7 @@
 
 #include "AudioRecorder.h"
 #include "CommonPool.h"
+#include "Envelope.h"
 #include "Globals.h"
 #include "Mixer.h"
 #include "Tracks.h"
@@ -21,8 +22,9 @@ static float DbToGain(float db) { return db <= kDbMin + 0.01f ? 0.0f : powf(10.0
 
 JoyService::JoyService()
 	: fStick(NULL), fAxes(0), fHats(0), fButtons(0), fHasData(false), fBad(0),
-	  fLastTick(0), fLastTry(0), fLearn(-1), fLearnBase(false)
+	  fLastTick(0), fLastTry(0), fWrite(false), fWrote(false), fLearn(-1), fLearnBase(false)
 {
+	fWriteT[0] = fWriteT[1] = fWriteT[2] = -1;
 }
 
 JoyService::~JoyService()
@@ -194,7 +196,69 @@ void JoyService::DoLearn()
 	fLearnNotify.SendMessage(&m);
 }
 
+// Записать точку в кривую; пока рука на управлении, точки между прошлой записью и текущим моментом заменяются
+static void WritePoint(Envelope &e, double &lastT, double t, float v)
+{
+	if (lastT >= 0 && t > lastT){
+		for (int i = e.Count() - 1; i >= 0; i--){
+			const double pt = e.Point(i).t;
+			if (pt > lastT && pt < t) e.Remove(i);
+		}
+	}
+	e.Add(t, v);
+	lastT = t;
+}
+
 void JoyService::Apply(const Ctrl::Output &o)
+{
+	const int active = Mix.Active();
+	if (o.writeToggle){
+		SetWriting(!fWrite);
+		fWrote = true;
+	}
+	const bool writing = fWrite && Pool.IsPlaying();
+	if (writing && Mix.Track(active)){
+		const double t = Mix.PlayNow();
+		if (t < fWriteT[0] || t < fWriteT[1] || t < fWriteT[2])		// перемотка назад
+			fWriteT[0] = fWriteT[1] = fWriteT[2] = -1;
+		// громкость: кривая - добавка в дБ к ползунку (0 = как на ползунке)
+		if (o.dVolDb != 0.0 || o.volReset){
+			Envelope ev;
+			Envelope ep;
+			const int slot = o.master ? 2 : 0;
+			if (o.master) Mix.GetMasterEnvelope(ev); else Mix.GetEnvelopes(active, ev, ep);
+			float v = o.volReset ? 0.0f : ev.Value(t, 0.0f) + (float)o.dVolDb;
+			if (v > Env::kDbMax) v = Env::kDbMax;
+			if (v < Env::kDbMin) v = Env::kDbMin;
+			WritePoint(ev, fWriteT[slot], t, v);
+			if (o.master) Mix.SetMasterEnvelope(ev); else Mix.SetEnvelopes(active, ev, ep);
+			fWrote = true;
+			Pool.changed = true;
+		}else{
+			fWriteT[0] = -1; fWriteT[2] = -1;			// рука отпущена: следующее касание начнёт новый участок
+		}
+		if (o.dPan != 0.0 || o.panCenter){
+			Envelope ev, ep;
+			Mix.GetEnvelopes(active, ev, ep);
+			float v = o.panCenter ? 0.0f : ep.Value(t, 0.0f) + (float)o.dPan;
+			if (v > 1.0f) v = 1.0f;
+			if (v < -1.0f) v = -1.0f;
+			WritePoint(ep, fWriteT[1], t, v);
+			Mix.SetEnvelopes(active, ev, ep);
+			fWrote = true;
+			Pool.changed = true;
+		}else{
+			fWriteT[1] = -1;
+		}
+		Ctrl::Output rest = o;							// остальное (дорожки, транспорт) работает как обычно
+		rest.dVolDb = 0; rest.dPan = 0; rest.volReset = false; rest.panCenter = false;
+		ApplyRest(rest);
+		return;
+	}
+	ApplyRest(o);
+}
+
+void JoyService::ApplyRest(const Ctrl::Output &o)
 {
 	const int active = Mix.Active();
 	if (o.dVolDb != 0.0){

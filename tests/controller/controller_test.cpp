@@ -38,7 +38,14 @@ int main()
 		Map m3 = m;
 		CHECK(!m3.FromString("A1-;B2"));						// мало
 		CHECK(!m3.FromString((s + ";B1").c_str()));				// много
-		CHECK(!m3.FromString("junk;;;;;;;;;"));
+		{	// старый формат без последнего действия: остальные берутся, последнее остаётся прежним
+			Map old; old.b[A_WRITE_TOGGLE] = Binding(S_BUTTON, 20);
+			std::string os = s.substr(0, s.rfind(';'));
+			CHECK(old.FromString(os.c_str()));
+			CHECK(old.b[A_WRITE_TOGGLE] == Binding(S_BUTTON, 20));
+			CHECK(old.b[A_PLAY_STOP] == m.b[A_PLAY_STOP]);
+		}
+		CHECK(!m3.FromString("junk;;;;;;;;;;"));
 		for (int i = 0; i < A_COUNT; i++) CHECK(m3.b[i] == m.b[i]);	// карта не изменилась
 	}
 	// --- уровень оси: мёртвая зона и плавность ---
@@ -92,6 +99,8 @@ int main()
 		e.Tick(m, In(0, 0, 1u << 2), 0.02, o); CHECK(o.trackNext);
 		e.Tick(m, In(0, 0, 1u << 4), 0.02, o); CHECK(o.panCenter);
 		e.Tick(m, In(0, 0, 1u << 5), 0.02, o); CHECK(o.volReset);
+		e.Tick(m, In(0, 0, 1u << 6), 0.02, o); CHECK(o.writeToggle);
+		e.Tick(m, In(0, 0, 1u << 6), 0.02, o); CHECK(!o.writeToggle);
 	}
 	// --- мастер удерживается ---
 	{

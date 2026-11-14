@@ -26,6 +26,7 @@ enum Action {
 	A_TRACK_NEXT,		// следующая дорожка
 	A_MASTER_HOLD,		// пока удерживается: громкость относится к мастеру, а не к дорожке
 	A_PLAY_STOP,		// воспроизведение / стоп (по нажатию)
+	A_WRITE_TOGGLE,		// включить/выключить запись автоматизации (по нажатию)
 	A_COUNT
 };
 
@@ -54,7 +55,7 @@ struct Map {
 	Map() { SetDefaults(); }
 	void	SetDefaults();
 	std::string	ToString() const;			// только привязки, через ';'
-	bool		FromString(const char *s);	// ложь, если разбор не удался (карта при этом не меняется)
+	bool		FromString(const char *s);	// ложь, если разбор не удался (карта при этом не меняется); недостающие в конце привязки (старый формат) остаются как были
 	static const char *ActionKey(int a);	// имя действия для языковых файлов, например "CTRL_A_VOL_UP"
 };
 
@@ -68,7 +69,7 @@ struct Output {
 	double	dVolDb;			// сколько прибавить к громкости (дБ) за этот отрезок
 	double	dPan;			// сколько прибавить к панораме (-1..+1)
 	bool	master;			// относить громкость к мастеру
-	bool	trackPrev, trackNext, playStop, panCenter, volReset;
+	bool	trackPrev, trackNext, playStop, panCenter, volReset, writeToggle;
 	Output() { Clear(); }
 	void	Clear() { dVolDb = dPan = 0; master = trackPrev = trackNext = playStop = panCenter = volReset = false; }
 };

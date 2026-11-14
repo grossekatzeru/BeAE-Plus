@@ -1125,9 +1125,21 @@ void MainWindow::MessageReceived(BMessage *message)
 //	message->PrintToStream();
 
 	switch (message->what){
-	case JOY_TICK:
+	case JOY_TICK: {
+		static bool lastWrite = false;
 		Joy.Tick();
+		if (Joy.TakeWrote()){
+			BView *lanes = FindView("Lanes view");
+			if (lanes) lanes->Invalidate();
+			if (Joy.Writing() != lastWrite){			// режим записи автоматизации - в заголовке окна
+				lastWrite = Joy.Writing();
+				BString t = Project_Title();
+				if (lastWrite) t << "  [" << Language.get("AUTO_WRITE") << "]";
+				SetTitle(t.String());
+			}
+		}
 		break;
+	}
 
 	case CHANGE_LANGUAGE:
 		if (mainMenuBar){

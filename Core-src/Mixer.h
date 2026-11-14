@@ -175,6 +175,7 @@ public:
 	// Автоматизация: чтение и замена огибающих целиком (под замком микшера, можно из интерфейса).
 	void	GetEnvelopes(int i, Envelope &vol, Envelope &pan);
 	void	SetEnvelopes(int i, const Envelope &vol, const Envelope &pan);
+	double	PlayNow() const { return fPlayNow; }
 	void	GetMasterEnvelope(Envelope &vol);
 	void	SetMasterEnvelope(const Envelope &vol);
 
@@ -218,6 +219,7 @@ private:
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
 	float		fMasterGain;
 	Envelope	fMasterVol;
+	volatile double	fPlayNow;		// время на ленте начала последнего обработанного блока, сек
 	bool		fMasterMute;
 	bool		fMasterAutoOpen;
 	float		fMasterPeakL, fMasterPeakR;

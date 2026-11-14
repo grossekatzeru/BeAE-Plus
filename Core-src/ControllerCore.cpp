@@ -50,6 +50,7 @@ void Map::SetDefaults()
 	b[A_MASTER_HOLD] = Binding(S_BUTTON, 3);	// кнопка 4 (удерживать)
 	b[A_PAN_CENTER]	= Binding(S_BUTTON, 4);		// кнопка 5
 	b[A_VOL_RESET]	= Binding(S_BUTTON, 5);		// кнопка 6
+	b[A_WRITE_TOGGLE] = Binding(S_BUTTON, 6);	// кнопка 7
 	volRate = 24.0f;
 	panRate = 1.5f;
 	deadZone = 0.3f;
@@ -69,19 +70,18 @@ bool Map::FromString(const char *str)
 {
 	if (!str) return false;
 	Binding tmp[A_COUNT];
+	for (int i = 0; i < A_COUNT; i++) tmp[i] = b[i];
 	const char *p = str;
-	for (int i = 0; i < A_COUNT; i++){
+	int n = 0;
+	while (p){
+		if (n >= A_COUNT) return false;				// лишнее
 		const char *e = strchr(p, ';');
 		std::string tok = e ? std::string(p, e - p) : std::string(p);
-		if (!tmp[i].FromString(tok.c_str())) return false;
-		if (!e){
-			if (i != A_COUNT - 1) return false;		// слишком мало
-			p = NULL;
-			break;
-		}
-		p = e + 1;
+		if (!tmp[n].FromString(tok.c_str())) return false;
+		n++;
+		p = e ? e + 1 : NULL;
 	}
-	if (p && *p) return false;						// лишнее в конце
+	if (n < A_COUNT - 1) return false;				// допускаем только нехватку последних новых действий (старый формат)
 	for (int i = 0; i < A_COUNT; i++) b[i] = tmp[i];
 	return true;
 }
@@ -90,7 +90,7 @@ const char *Map::ActionKey(int a)
 {
 	static const char *k[A_COUNT] = {
 		"CTRL_A_VOL_UP", "CTRL_A_VOL_DOWN", "CTRL_A_PAN_LEFT", "CTRL_A_PAN_RIGHT", "CTRL_A_PAN_CENTER",
-		"CTRL_A_VOL_RESET", "CTRL_A_TRACK_PREV", "CTRL_A_TRACK_NEXT", "CTRL_A_MASTER_HOLD", "CTRL_A_PLAY_STOP"
+		"CTRL_A_VOL_RESET", "CTRL_A_TRACK_PREV", "CTRL_A_TRACK_NEXT", "CTRL_A_MASTER_HOLD", "CTRL_A_PLAY_STOP", "CTRL_A_WRITE_TOGGLE"
 	};
 	return (a >= 0 && a < A_COUNT) ? k[a] : "";
 }
@@ -134,6 +134,7 @@ void Engine::Tick(const Map &map, const Input &in, double dt, Output &out)
 	out.trackPrev = now[A_TRACK_PREV] && !fPrev[A_TRACK_PREV];
 	out.trackNext = now[A_TRACK_NEXT] && !fPrev[A_TRACK_NEXT];
 	out.playStop  = now[A_PLAY_STOP]  && !fPrev[A_PLAY_STOP];
+	out.writeToggle = now[A_WRITE_TOGGLE] && !fPrev[A_WRITE_TOGGLE];
 	for (int a = 0; a < A_COUNT; a++) fPrev[a] = now[a];
 }
 

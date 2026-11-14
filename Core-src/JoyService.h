@@ -36,6 +36,11 @@ public:
 	const Ctrl::Input &Last() const { return fLast; }
 	const std::vector<uint8> &LastHats() const { return fLastHats; }
 
+	// запись автоматизации: пока включена и идёт воспроизведение, громкость/панорама пишутся в кривые, а не двигают ползунки
+	bool	Writing() const { return fWrite; }
+	void	SetWriting(bool on) { fWrite = on; fWriteT[0] = fWriteT[1] = fWriteT[2] = -1; }
+	bool	TakeWrote() { const bool w = fWrote; fWrote = false; return w; }	// были ли правки кривых с прошлого вызова (перерисовать)
+
 	// привязки
 	Ctrl::Map	&Map() { return fMap; }
 	void	LoadFromPrefs();
@@ -47,6 +52,7 @@ public:
 
 private:
 	void	Apply(const Ctrl::Output &o);
+	void	ApplyRest(const Ctrl::Output &o);	// ползунки, дорожки, транспорт
 	void	DoLearn();
 
 	BJoystick	*fStick;
@@ -59,6 +65,8 @@ private:
 	std::vector<uint8>	fLastHats;
 	Ctrl::Map	fMap;
 	Ctrl::Engine	fEngine;
+	bool		fWrite, fWrote;
+	double		fWriteT[3];			// время последней записанной точки: громкость, панорама, мастер (<0 - не пишем)
 	BMessenger	fTarget;
 	int			fLearn;
 	bool		fLearnBase;
