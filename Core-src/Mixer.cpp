@@ -24,7 +24,7 @@ SourceRef MakeSource(const float *data, int64_t frames, int channels, float rate
 
 Mixer::Mixer() : fCount(1), fRecordOffset(0), fActive(0), fActiveStart(0), fActiveEnd(0), fRevision(0), fMeter(Metronome::M44), fMetroVol(0.7f), fMetroOn(false)
 {
-	fMasterGain = 1.0f; fMasterMute = false; fMasterPeakL = fMasterPeakR = 0;
+	fMasterGain = 1.0f; fMasterMute = false; fMasterAutoOpen = false; fMasterPeakL = fMasterPeakR = 0;
 	fLock.clear();
 	fNextNow = 0; fHaveNext = false;
 	memset(fTmp, 0, sizeof(fTmp));
@@ -101,7 +101,7 @@ void Mixer::ResetAll()
 	fBpm = 120.0; fGridDiv = 4; fMeter = Metronome::M44; fMetroVol = 0.7f;
 	Unlock();
 	for (int i=0; i<=MIX_MAX_TRACKS; i++) fFx[i].Clear();
-	fMasterGain = 1.0f; fMasterMute = false;
+	fMasterGain = 1.0f; fMasterMute = false; fMasterAutoOpen = false; fMasterVol.Clear();
 	fRevision++;
 }
 

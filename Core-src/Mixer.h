@@ -170,6 +170,8 @@ public:
 	bool	MasterMute() const { return fMasterMute; }
 	void	SetMasterGain(float g) { fMasterGain = g<0?0:(g>2?2:g); fRevision++; }
 	void	SetMasterMute(bool m) { fMasterMute = m; fRevision++; }
+	bool	MasterAutoOpen() const { return fMasterAutoOpen; }			// развёрнута ли полоса автоматизации мастера
+	void	SetMasterAutoOpen(bool o) { fMasterAutoOpen = o; fRevision++; }
 	// Автоматизация: чтение и замена огибающих целиком (под замком микшера, можно из интерфейса).
 	void	GetEnvelopes(int i, Envelope &vol, Envelope &pan);
 	void	SetEnvelopes(int i, const Envelope &vol, const Envelope &pan);
@@ -217,6 +219,7 @@ private:
 	float		fMasterGain;
 	Envelope	fMasterVol;
 	bool		fMasterMute;
+	bool		fMasterAutoOpen;
 	float		fMasterPeakL, fMasterPeakR;
 	int			fActive;
 	volatile double	fActiveStart, fActiveEnd;

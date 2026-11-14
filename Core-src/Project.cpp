@@ -216,6 +216,7 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"meter\": \"" << Metronome::MeterName(Mix.Meter()) << "\",\n  \"grid_div\": " << Mix.GridDiv() << ",\n  \"metro_volume\": " << Num(Mix.MetroVolume()) << ",\n";
 	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
 	json << "  \"master\": {\"gain\": " << Num(Mix.MasterGain()) << ", \"mute\": " << (Mix.MasterMute() ? "true" : "false");
+	if (Mix.MasterAutoOpen()) json << ", \"auto_open\": true";
 	{
 		Envelope mv;
 		Mix.GetMasterEnvelope(mv);
@@ -405,6 +406,7 @@ bool Project_Open(const char *bemixPath, BString &err)
 		if (jm && jm->type == JValue::Obj){
 			Mix.SetMasterGain((float)jm->Number("gain", 1.0));
 			Mix.SetMasterMute(jm->Boolean("mute", false));
+			Mix.SetMasterAutoOpen(jm->Boolean("auto_open", false));
 			{
 				Envelope mv;
 				EnvFromJson(jm->Get("vol_env"), mv);

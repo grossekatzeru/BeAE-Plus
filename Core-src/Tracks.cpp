@@ -1199,6 +1199,11 @@ void Tracks_SetStripOpen(int slot, bool open)
 		Mix.SetAutoOpen(slot, open);					// счётчик изменений обновит раскладку и перерисовку
 }
 
+float Tracks_MasterAutoHeight()
+{
+	return Mix.MasterAutoOpen() ? (float)STRIP_OPEN_H : (float)STRIP_CLOSED_H;
+}
+
 float Tracks_StripHeight(int rank)
 {
 	return Tracks_StripOpen(Tracks_SlotAt(rank)) ? (float)STRIP_OPEN_H : (float)STRIP_CLOSED_H;

@@ -40,6 +40,26 @@ void LanesTintSelected(BView *v, BRect r);		// выделенные клипы: 
 // Линии сетки дорожки slot (если Grid включён) - тот же масштаб, что и у LanesDrawClips.
 void LanesDrawGrid(BView *v, int slot, BRect body, double tl, double dt, float W);
 
+// Полоса автоматизации мастера: под строкой мастера, над шкалой времени. Только громкость (красная кривая).
+// Свёрнутая тонкая, развёрнутая выше; при смене высоты сама подгоняет соседние виды.
+class MasterAutoView : public BView {
+public:
+	MasterAutoView(BRect r);
+	virtual void Draw(BRect);
+	virtual void MouseDown(BPoint);
+	virtual void MouseMoved(BPoint, uint32, const BMessage *);
+	virtual void MouseUp(BPoint);
+	virtual void Pulse();
+
+private:
+	void	ApplyLayout();					// высота полосы изменилась: подвинуть стопку дорожек и мастер
+	int			fKeyRevision;
+	float		fKeyW;
+	long long	fKeyL, fKeyR;
+	int			fPoint;						// тянемая точка (или -1)
+	char		fInfo[48];
+};
+
 class LanesView : public BView {
 public:
 	LanesView(BRect r);

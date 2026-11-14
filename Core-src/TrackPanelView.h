@@ -56,6 +56,7 @@ private:
 	BRect	AddRect() const;
 	BRect	RemoveRect() const;
 	BRect	MasterRect() const;				// мастер-дорожка: фиксированная полоса внизу панели
+	BRect	MasterAutoRect() const;			// под мастером: место его полосы автоматизации
 	BRect	MasterMeterRect() const;
 	BRect	MasterNameRect() const;
 	BRect	MasterMuteRect() const;

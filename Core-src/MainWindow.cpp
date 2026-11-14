@@ -551,7 +551,7 @@ MainWindow::MainWindow(BRect frame)
 	r = sv;							// wave display
 	r.left += VALUEBAR_WIDTH;
 	r.right -= LANES_SCROLLBAR_WIDTH;				// справа - полоса прокрутки дорожек
-	r.bottom -= TIMEBAR_HEIGHT + MASTER_STRIP_H;		// ниже - мастер-дорожка
+	r.bottom -= TIMEBAR_HEIGHT + MASTER_STRIP_H + STRIP_CLOSED_H;		// ниже - мастер-дорожка и её (свёрнутая) полоса автоматизации
 	r.top += INDEXVIEW_HEIGHT;
 	LanesView *lanes_view = new LanesView(r);		// стопка полос; в полосе активной дорожки - SampleView
 	AddChild(lanes_view);
@@ -574,9 +574,16 @@ MainWindow::MainWindow(BRect frame)
 	r = sv;							// мастер-дорожка (под полосами, над шкалой времени)
 	r.left += VALUEBAR_WIDTH;
 	r.right -= LANES_SCROLLBAR_WIDTH;
-	r.bottom -= TIMEBAR_HEIGHT;
+	r.bottom -= TIMEBAR_HEIGHT + STRIP_CLOSED_H;
 	r.top = r.bottom - MASTER_STRIP_H + 1;
 	AddChild(new MasterLaneView(r));
+
+	r = sv;							// полоса автоматизации мастера (под мастером, над шкалой времени)
+	r.left += VALUEBAR_WIDTH;
+	r.right -= LANES_SCROLLBAR_WIDTH;
+	r.bottom -= TIMEBAR_HEIGHT;
+	r.top = r.bottom - STRIP_CLOSED_H + 1;
+	AddChild(new MasterAutoView(r));
 
 	r = sv;							// bottom timescale
 	r.left += VALUEBAR_WIDTH;

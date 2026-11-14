@@ -87,6 +87,7 @@ void	Tracks_LaneSpan(int rank, float areaHeight, float &top, float &bottom);	// 
 #define STRIP_OPEN_H	72		// развёрнутая: чекбоксы «Громкость» и «Панорама» слева, кривые справа
 bool	Tracks_StripOpen(int slot);					// развёрнута ли полоса автоматизации
 void	Tracks_SetStripOpen(int slot, bool open);
+float	Tracks_MasterAutoHeight();					// высота полосы автоматизации мастера (под строкой мастера)
 float	Tracks_StripHeight(int rank);				// высота полосы автоматизации дорожки (по номеру сверху вниз)
 float	Tracks_TotalHeight(float areaHeight);		// полная высота всех дорожек вместе с полосами автоматизации
 void	Tracks_StripSpan(int rank, float areaHeight, float &top, float &bottom);	// полоса автоматизации под дорожкой, с учётом прокрутки

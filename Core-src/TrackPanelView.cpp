@@ -90,7 +90,7 @@ float TrackPanelView::PosToVol(float pos)
 // область полос по высоте: от низа заголовка до верха шкалы времени (как у полос с волнами)
 static float AreaHeight(BRect b)
 {
-	return b.Height() + 1 - HEADER_H - TIMEBAR_HEIGHT - MASTER_STRIP_H;		// внизу - мастер-дорожка
+	return b.Height() + 1 - HEADER_H - TIMEBAR_HEIGHT - MASTER_STRIP_H - Tracks_MasterAutoHeight();		// внизу - мастер-дорожка и под ней её полоса автоматизации
 }
 
 BRect TrackPanelView::StripRect(int slot) const
@@ -187,6 +187,12 @@ BRect TrackPanelView::MasterRect() const
 {
 	const float top = HEADER_H + AreaHeight(Bounds());
 	return BRect(0, top, Bounds().right, top + MASTER_STRIP_H - 1);
+}
+
+BRect TrackPanelView::MasterAutoRect() const
+{
+	BRect m = MasterRect();
+	return BRect(0, m.bottom + 1, Bounds().right, m.bottom + Tracks_MasterAutoHeight());
 }
 
 BRect TrackPanelView::MasterMeterRect() const
@@ -437,11 +443,23 @@ void TrackPanelView::DrawMaster(BRect)
 
 	SetHighColor(tint_color(base, B_DARKEN_1_TINT));
 	FillRect(s);
-	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+	// разделительная черта между дорожками и мастером: тёмная линия, вдавленная полоса и светлая кромка
+	SetHighColor(tint_color(base, B_DARKEN_4_TINT));
 	StrokeLine(BPoint(s.left, s.top), BPoint(s.right, s.top));
-	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeLine(BPoint(s.left, s.top + 1), BPoint(s.right, s.top + 1));
+	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	StrokeLine(BPoint(s.left, s.top + 2), BPoint(s.right, s.top + 2));
 	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
+	{	// под строкой мастера - место его полосы автоматизации (когда она развёрнута: подпись «Громкость» красным)
+		BRect a = MasterAutoRect();
+		SetHighColor(tint_color(base, B_DARKEN_1_TINT));
+		FillRect(a);
+		if (Mix.MasterAutoOpen()){
+			SetHighColor(make_color(200, 30, 35));
+			DrawString(Language.get("AUTO_VOL"), BPoint(a.left + CONTENT_X, a.top + 14));
+		}
+	}
 
 	// название
 	BRect nb = MasterNameRect();
@@ -775,10 +793,12 @@ void MasterLaneView::Draw(BRect)
 	BRect b = Bounds();
 	SetHighColor(tint_color(base, B_DARKEN_1_TINT));
 	FillRect(b);
-	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+	SetHighColor(tint_color(base, B_DARKEN_4_TINT));			// разделительная черта над мастером (как в панели слева)
 	StrokeLine(BPoint(b.left, b.top), BPoint(b.right, b.top));
-	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeLine(BPoint(b.left, b.top + 1), BPoint(b.right, b.top + 1));
+	SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+	StrokeLine(BPoint(b.left, b.top + 2), BPoint(b.right, b.top + 2));
 
 	SetFont(be_plain_font);
 	SetFontSize(9);

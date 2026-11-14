@@ -757,6 +757,34 @@ void DrawCurve(BView *v, const StripGeom &g, const Envelope &e, bool isVol, rgb_
 	}
 }
 
+// Фон полосы автоматизации, кромки, треугольник-переключатель (и подпись «Auto» у свёрнутой)
+void StripFrame(BView *v, BRect r, bool open)
+{
+	v->SetDrawingMode(B_OP_COPY);
+	v->SetHighColor(make_color(46, 48, 54));
+	v->FillRect(r);
+	v->SetHighColor(make_color(96, 98, 108));
+	v->StrokeLine(BPoint(r.left, r.top), BPoint(r.right, r.top));
+	v->SetHighColor(make_color(26, 27, 31));
+	v->StrokeLine(BPoint(r.left, r.bottom), BPoint(r.right, r.bottom));
+	const float cx = r.left + 7, cy = r.top + 7;
+	v->SetHighColor(make_color(200, 200, 205));
+	if (open)
+		v->FillTriangle(BPoint(cx - 4, cy - 2), BPoint(cx + 4, cy - 2), BPoint(cx, cy + 3));
+	else
+		v->FillTriangle(BPoint(cx - 2, cy - 4), BPoint(cx - 2, cy + 4), BPoint(cx + 3, cy));
+	if (!open){
+		BFont f0;
+		v->GetFont(&f0);
+		BFont small0(f0);
+		small0.SetSize(9);
+		v->SetFont(&small0);
+		v->SetHighColor(make_color(130, 132, 140));
+		v->DrawString("Auto", BPoint(r.left + kStripToggleW + 2, r.top + 10));
+		v->SetFont(&f0);
+	}
+}
+
 }	// namespace
 
 void LanesView::DrawStrip(int slot, BRect r)
@@ -767,34 +795,9 @@ void LanesView::DrawStrip(int slot, BRect r)
 	const bool open = tr->autoOpen;
 	const float W = r.Width() + 1;
 
-	SetDrawingMode(B_OP_COPY);
-	SetHighColor(make_color(46, 48, 54));
-	FillRect(r);
-	SetHighColor(make_color(96, 98, 108));
-	StrokeLine(BPoint(r.left, r.top), BPoint(r.right, r.top));
-	SetHighColor(make_color(26, 27, 31));
-	StrokeLine(BPoint(r.left, r.bottom), BPoint(r.right, r.bottom));
-
-	// переключатель: треугольник (вниз - развёрнута, вправо - свёрнута)
-	{
-		const float cx = r.left + 7, cy = r.top + 7;
-		SetHighColor(make_color(200, 200, 205));
-		if (open)
-			FillTriangle(BPoint(cx - 4, cy - 2), BPoint(cx + 4, cy - 2), BPoint(cx, cy + 3));
-		else
-			FillTriangle(BPoint(cx - 2, cy - 4), BPoint(cx - 2, cy + 4), BPoint(cx + 3, cy));
-	}
-	if (!open){
-		BFont f0;
-		GetFont(&f0);
-		BFont small0(f0);
-		small0.SetSize(9);
-		SetFont(&small0);
-		SetHighColor(make_color(130, 132, 140));
-		DrawString("Auto", BPoint(r.left + kStripToggleW + 2, r.top + 10));
-		SetFont(&f0);
+	StripFrame(this, r, open);
+	if (!open)
 		return;									// свёрнута: кривые не видны, но на звук они влияют
-	}
 
 	StripGeom g;
 	if (MakeGeom(r, true, W, g)){
@@ -931,4 +934,156 @@ void LanesView::StripDrag(BPoint p)
 		else snprintf(fStripInfo, sizeof(fStripInfo), "%c %d%%  %.2f s", v < 0 ? 'L' : 'R', pc, t);
 	}
 	Invalidate(fStripRect);
+}
+
+
+// ---------------------------------------------------------------- полоса автоматизации мастера
+
+MasterAutoView::MasterAutoView(BRect r)
+	: BView(r, "Master auto", B_FOLLOW_BOTTOM | B_FOLLOW_LEFT_RIGHT, B_WILL_DRAW | B_PULSE_NEEDED | B_FULL_UPDATE_ON_RESIZE),
+	  fKeyRevision(-1), fKeyW(-1), fKeyL(-1), fKeyR(-1), fPoint(-1)
+{
+	SetViewColor(B_TRANSPARENT_COLOR);
+	fInfo[0] = 0;
+}
+
+void MasterAutoView::Draw(BRect)
+{
+	const bool open = Mix.MasterAutoOpen();
+	BRect r = Bounds();
+	const float W = r.Width() + 1;
+	StripFrame(this, r, open);
+	if (!open)
+		return;
+	StripGeom g;
+	if (MakeGeom(r, true, W, g)){
+		Envelope mv;
+		Mix.GetMasterEnvelope(mv);
+		SetDrawingMode(B_OP_ALPHA);
+		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		SetHighColor(255, 255, 255, 22);
+		StrokeLine(BPoint(0, g.VolY(Env::kDbMin / 2)), BPoint(W, g.VolY(Env::kDbMin / 2)));
+		SetDrawingMode(B_OP_COPY);
+		DrawCurve(this, g, mv, true, kVolColor, true, W);
+	}
+	BFont f;
+	GetFont(&f);
+	BFont small(f);
+	small.SetSize(9);
+	SetFont(&small);
+	SetHighColor(kVolColor);
+	DrawString("Vol", BPoint(r.left + kStripToggleW + 2, r.top + 11));
+	if (fPoint >= 0 && fInfo[0]){
+		SetHighColor(make_color(235, 235, 240));
+		DrawString(fInfo, BPoint(r.right - 8 - small.StringWidth(fInfo), r.top + 11));
+	}
+	SetFont(&f);
+}
+
+void MasterAutoView::ApplyLayout()
+{
+	BWindow *w = Window();
+	if (!w) return;
+	const float want = Tracks_MasterAutoHeight();
+	const float cur = Bounds().Height() + 1;
+	if (want == cur) return;
+	const float delta = want - cur;
+	BView *lanes = w->FindView("Lanes view");
+	BView *master = w->FindView("Master lane");
+	if (lanes) lanes->ResizeBy(0, -delta);			// стопка дорожек ниже/выше на столько же
+	if (master) master->MoveBy(0, -delta);
+	MoveBy(0, -delta);								// нижний край остаётся над шкалой времени
+	ResizeBy(0, delta);
+	BView *panel = w->FindView("Track panel");
+	if (panel) panel->Invalidate();
+	BView *values = w->FindView("Values view");
+	if (values) values->Invalidate();
+	Invalidate();
+}
+
+void MasterAutoView::Pulse()
+{
+	ApplyLayout();									// например, после открытия проекта с развёрнутой полосой
+	const long long l = Pool.l_pointer, r = Pool.r_pointer;
+	if (fKeyRevision != Mix.Revision() || fKeyW != Bounds().Width() || fKeyL != l || fKeyR != r){
+		fKeyRevision = Mix.Revision();
+		fKeyW = Bounds().Width();
+		fKeyL = l;
+		fKeyR = r;
+		Invalidate();
+	}
+}
+
+void MasterAutoView::MouseDown(BPoint p)
+{
+	uint32 buttons = 0;
+	int32 clicks = 1;
+	if (Window() && Window()->CurrentMessage()){
+		Window()->CurrentMessage()->FindInt32("buttons", (int32 *)&buttons);
+		Window()->CurrentMessage()->FindInt32("clicks", &clicks);
+	}
+	const bool open = Mix.MasterAutoOpen();
+	if (!open || p.x < kStripToggleW){
+		Mix.SetMasterAutoOpen(!open);
+		ApplyLayout();
+		return;
+	}
+	const BRect r = Bounds();
+	StripGeom g;
+	if (!MakeGeom(r, true, r.Width() + 1, g))
+		return;
+	Envelope mv;
+	Mix.GetMasterEnvelope(mv);
+	const bool right = (buttons & B_SECONDARY_MOUSE_BUTTON) != 0;
+	float best = 9.0f;
+	int idx = -1;
+	for (int i = 0; i < mv.Count(); i++){
+		const float x = g.XAt(mv.Point(i).t), y = g.VolY(mv.Point(i).v);
+		const float d = sqrtf((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y));
+		if (d < best){ best = d; idx = i; }
+	}
+	if (idx >= 0 && (right || clicks >= 2)){
+		mv.Remove(idx);
+		Mix.SetMasterEnvelope(mv);
+		Pool.changed = true;
+		Invalidate();
+		return;
+	}
+	if (idx < 0){
+		if (right) return;
+		idx = mv.Add(g.TimeAt(p.x), g.VolAt(p.y));
+		Mix.SetMasterEnvelope(mv);
+		Pool.changed = true;
+	}
+	fPoint = idx;
+	SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
+	Invalidate();
+}
+
+void MasterAutoView::MouseMoved(BPoint p, uint32, const BMessage *)
+{
+	if (fPoint < 0) return;
+	const BRect r = Bounds();
+	StripGeom g;
+	if (!MakeGeom(r, true, r.Width() + 1, g)) return;
+	Envelope mv;
+	Mix.GetMasterEnvelope(mv);
+	if (fPoint >= mv.Count()) return;
+	const double t = g.TimeAt(p.x);
+	const float v = g.VolAt(p.y);
+	fPoint = mv.Move(fPoint, t, v);
+	Mix.SetMasterEnvelope(mv);
+	Pool.changed = true;
+	if (v <= Env::kDbMin) snprintf(fInfo, sizeof(fInfo), "-inf dB  %.2f s", t);
+	else snprintf(fInfo, sizeof(fInfo), "%+.1f dB  %.2f s", (double)v, t);
+	Invalidate();
+}
+
+void MasterAutoView::MouseUp(BPoint)
+{
+	if (fPoint >= 0){
+		fPoint = -1;
+		fInfo[0] = 0;
+		Invalidate();
+	}
 }
