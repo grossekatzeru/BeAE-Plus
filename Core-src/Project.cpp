@@ -534,7 +534,7 @@ bool Project_AnalysisMix(std::vector<float> &mono, float &rate)
 
 bool Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate, BString &err)
 {
-	struct Lane { int idx; std::vector<MixClip> clips; float gl, gr; bool fx; };
+	struct Lane { int idx; std::vector<MixClip> clips; float gl, gr; bool fx; float gain, pan; Envelope ve, pe; bool env; };
 	std::vector<Lane> lanes;
 	bool anySolo = false;
 	for (int i = 0; i < MIX_MAX_TRACKS; i++){
@@ -554,6 +554,10 @@ bool Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate
 		l.gl = t->gain * (t->pan > 0 ? 1.0f - t->pan : 1.0f);
 		l.gr = t->gain * (t->pan < 0 ? 1.0f + t->pan : 1.0f);
 		l.fx = Mix.Fx(i).HasEffects();
+		l.gain = t->gain;
+		l.pan = t->pan;
+		Mix.GetEnvelopes(i, l.ve, l.pe);
+		l.env = !l.ve.Empty() || !l.pe.Empty();		// автоматизация громкости/панорамы
 		for (size_t k = 0; k < l.clips.size(); k++){
 			if (l.clips[k].Rate() > outRate) outRate = l.clips[k].Rate();
 			double e = l.clips[k].End() + (l.fx ? 4.0 : 0.0);	// хвост эффектов
@@ -572,39 +576,50 @@ bool Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate
 	std::vector<float> tmp;
 	for (size_t k = 0; k < lanes.size(); k++){
 		const Lane &l = lanes[k];
-		if (!l.fx){
+		if (!l.fx && !l.env){
 			RenderLaneOffline(l.clips, t_xf(l.idx), &out[0], total, outRate, l.gl, l.gr);
 			continue;
 		}
 		try { tmp.assign((size_t)total * 2, 0.0f); } catch (...) { err = "Not enough memory"; return false; }
 		RenderLaneOffline(l.clips, t_xf(l.idx), &tmp[0], total, outRate, 1.0f, 1.0f);
-		// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
-		FxChain local;
-		FxChain &live = Mix.Fx(l.idx);
-		if (!BeFx::BuildKeysFor(live)){ err = "Sidechain: cannot build the key track"; return false; }
-		for (int e = 0; e < live.Count(); e++){
-			const FxChain::Slot *sl = live.At(e);
-			std::string ferr;
-			if (!sl->enabled) continue;
-			if (!local.AddCopyOf(*sl, outRate, &ferr)){
-				err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
-				return false;
+		if (l.fx){
+			// отдельные экземпляры плагинов на частоте микса, чтобы не мешать воспроизведению
+			FxChain local;
+			FxChain &live = Mix.Fx(l.idx);
+			if (!BeFx::BuildKeysFor(live)){ err = "Sidechain: cannot build the key track"; return false; }
+			for (int e = 0; e < live.Count(); e++){
+				const FxChain::Slot *sl = live.At(e);
+				std::string ferr;
+				if (!sl->enabled) continue;
+				if (!local.AddCopyOf(*sl, outRate, &ferr)){
+					err = sl->plugin.name.c_str(); err << ": " << ferr.c_str();
+					return false;
+				}
+			}
+			for (int64 from = 0; from < total; from += 4096){
+				int nfr = (int)((total - from < 4096) ? total - from : 4096);
+				Key::Scope keyScope((double)from / outRate, 1.0 / outRate);		// время блока для сайдчейна BeFX
+				local.Process(&tmp[(size_t)from * 2], nfr, outRate);
+			}
+			// плагины с задержкой (шумодав): сдвигаем результат назад на их задержку
+			const int64 lat = local.Latency();
+			if (lat > 0 && lat < total){
+				memmove(&tmp[0], &tmp[(size_t)lat * 2], sizeof(float) * 2 * (size_t)(total - lat));
+				memset(&tmp[(size_t)(total - lat) * 2], 0, sizeof(float) * 2 * (size_t)lat);
 			}
 		}
-		for (int64 from = 0; from < total; from += 4096){
-			int nfr = (int)((total - from < 4096) ? total - from : 4096);
-			Key::Scope keyScope((double)from / outRate, 1.0 / outRate);		// время блока для сайдчейна BeFX
-			local.Process(&tmp[(size_t)from * 2], nfr, outRate);
-		}
-		// плагины с задержкой (шумодав): сдвигаем результат назад на их задержку
-		const int64 lat = local.Latency();
-		if (lat > 0 && lat < total){
-			memmove(&tmp[0], &tmp[(size_t)lat * 2], sizeof(float) * 2 * (size_t)(total - lat));
-			memset(&tmp[(size_t)(total - lat) * 2], 0, sizeof(float) * 2 * (size_t)lat);
-		}
-		for (int64 n = 0; n < total; n++){
-			out[(size_t)n*2]   += tmp[(size_t)n*2]   * l.gl;
-			out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * l.gr;
+		if (l.env){
+			// громкость и панорама по времени: та же функция, что при воспроизведении (Mixer::Process)
+			Env::ApplyStereo(&tmp[0], total, 0.0, 1.0 / outRate, l.gain, l.pan, &l.ve, &l.pe);
+			for (int64 n = 0; n < total; n++){
+				out[(size_t)n*2]   += tmp[(size_t)n*2];
+				out[(size_t)n*2+1] += tmp[(size_t)n*2+1];
+			}
+		}else{
+			for (int64 n = 0; n < total; n++){
+				out[(size_t)n*2]   += tmp[(size_t)n*2]   * l.gl;
+				out[(size_t)n*2+1] += tmp[(size_t)n*2+1] * l.gr;
+			}
 		}
 	}
 
@@ -633,8 +648,10 @@ bool Project_MixdownRender(std::vector<float> &out, int64 &total, float &outRate
 	}
 	{
 		const float g = Mix.MasterMute() ? 0.0f : Mix.MasterGain();
-		if (g != 1.0f)
-			for (size_t n = 0; n < (size_t)total * 2; n++) out[n] *= g;
+		Envelope mv;
+		Mix.GetMasterEnvelope(mv);
+		if (g != 1.0f || !mv.Empty())
+			Env::ApplyStereo(&out[0], total, 0.0, 1.0 / outRate, g, 0.0f, &mv, NULL);
 	}
 	return true;
 }
