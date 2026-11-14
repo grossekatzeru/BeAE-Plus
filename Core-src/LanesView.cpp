@@ -659,7 +659,6 @@ namespace {
 
 const rgb_color kVolColor = {230, 48, 52, 255};		// красная линия - громкость (у верхнего края)
 const rgb_color kPanColor = {52, 112, 232, 255};		// синяя линия - панорама (по середине)
-const float kStripToggleW = 14;						// слева: треугольник свернуть/развернуть
 
 struct StripGeom {
 	BRect	body;			// область линий
@@ -761,8 +760,10 @@ void DrawCurve(BView *v, const StripGeom &g, const Envelope &e, bool isVol, rgb_
 
 void LanesView::DrawStrip(int slot, BRect r)
 {
-	if (!Mix.Track(slot)) return;
-	const bool open = Tracks_StripOpen(slot);
+	const MixTrack *tr = Mix.Track(slot);
+	if (!tr) return;
+	const bool showVol = tr->showVol, showPan = tr->showPan;
+	const bool open = showVol || showPan;
 	const float W = r.Width() + 1;
 
 	SetDrawingMode(B_OP_COPY);
@@ -772,46 +773,44 @@ void LanesView::DrawStrip(int slot, BRect r)
 	StrokeLine(BPoint(r.left, r.top), BPoint(r.right, r.top));
 	SetHighColor(make_color(26, 27, 31));
 	StrokeLine(BPoint(r.left, r.bottom), BPoint(r.right, r.bottom));
+	if (!open)
+		return;									// кривые скрыты (чекбоксы в панели слева); на звук это не влияет
 
 	StripGeom g;
-	if (MakeGeom(r, open, W, g)){
+	if (MakeGeom(r, true, W, g)){
 		Envelope vol, pan;
 		Mix.GetEnvelopes(slot, vol, pan);
-		if (open){								// направляющие: 0 дБ и центр панорамы
-			SetDrawingMode(B_OP_ALPHA);
-			SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
-			SetHighColor(255, 255, 255, 22);
-			StrokeLine(BPoint(0, g.PanY(0.0f)), BPoint(W, g.PanY(0.0f)));
-			StrokeLine(BPoint(0, g.VolY(Env::kDbMin / 2)), BPoint(W, g.VolY(Env::kDbMin / 2)));
-			SetDrawingMode(B_OP_COPY);
-		}
-		DrawCurve(this, g, pan, false, kPanColor, open, W);
-		DrawCurve(this, g, vol, true, kVolColor, open, W);
+		SetDrawingMode(B_OP_ALPHA);				// направляющие: центр панорамы и -30 дБ
+		SetBlendingMode(B_CONSTANT_ALPHA, B_ALPHA_OVERLAY);
+		SetHighColor(255, 255, 255, 22);
+		if (showPan) StrokeLine(BPoint(0, g.PanY(0.0f)), BPoint(W, g.PanY(0.0f)));
+		if (showVol) StrokeLine(BPoint(0, g.VolY(Env::kDbMin / 2)), BPoint(W, g.VolY(Env::kDbMin / 2)));
+		SetDrawingMode(B_OP_COPY);
+		if (showPan) DrawCurve(this, g, pan, false, kPanColor, true, W);
+		if (showVol) DrawCurve(this, g, vol, true, kVolColor, true, W);
 	}
 
-	// переключатель: треугольник и подписи
-	const float cx = r.left + 7, cy = r.top + 7;
-	SetHighColor(make_color(200, 200, 205));
-	if (open)
-		FillTriangle(BPoint(cx - 4, cy - 2), BPoint(cx + 4, cy - 2), BPoint(cx, cy + 3));
-	else
-		FillTriangle(BPoint(cx - 2, cy - 4), BPoint(cx - 2, cy + 4), BPoint(cx + 3, cy));
-	if (open){
-		BFont f;
-		GetFont(&f);
-		BFont small(f);
-		small.SetSize(9);
-		SetFont(&small);
-		if (fStripSlot == slot && fStripInfo[0]){
-			SetHighColor(make_color(235, 235, 240));
-			DrawString(fStripInfo, BPoint(r.right - 8 - small.StringWidth(fStripInfo), r.top + 11));
-		}
+	// подписи кривых и значение при перетаскивании
+	BFont f;
+	GetFont(&f);
+	BFont small(f);
+	small.SetSize(9);
+	SetFont(&small);
+	float lx = r.left + 4;
+	if (showVol){
 		SetHighColor(kVolColor);
-		DrawString("Vol", BPoint(r.left + kStripToggleW + 2, r.top + 11));
-		SetHighColor(kPanColor);
-		DrawString("Pan", BPoint(r.left + kStripToggleW + 22, r.top + 11));
-		SetFont(&f);
+		DrawString("Vol", BPoint(lx, r.top + 11));
+		lx += 20;
 	}
+	if (showPan){
+		SetHighColor(kPanColor);
+		DrawString("Pan", BPoint(lx, r.top + 11));
+	}
+	if (fStripSlot == slot && fStripInfo[0]){
+		SetHighColor(make_color(235, 235, 240));
+		DrawString(fStripInfo, BPoint(r.right - 8 - small.StringWidth(fStripInfo), r.top + 11));
+	}
+	SetFont(&f);
 }
 
 // Щелчок по полосе автоматизации. Возвращает true, если событие обработано.
@@ -820,13 +819,10 @@ void LanesView::DrawStrip(int slot, BRect r)
 //    щелчок по точке тянет её, двойной щелчок или правая кнопка по точке удаляет её.
 bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
 {
-	const bool open = Tracks_StripOpen(slot);
-	if (!open || p.x - strip.left < kStripToggleW){
-		Tracks_SetStripOpen(slot, !open);
-		Relayout();
-		Invalidate();
-		return true;
-	}
+	const MixTrack *tr = Mix.Track(slot);
+	if (!tr || !(tr->showVol || tr->showPan))
+		return true;						// кривые скрыты: рисовать нечего
+	const bool canVol = tr->showVol, canPan = tr->showPan;
 	const float W = strip.Width() + 1;
 	StripGeom g;
 	if (!MakeGeom(strip, true, W, g))
@@ -844,6 +840,7 @@ bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
 	bool bestVol = true;
 	int bestIdx = -1;
 	for (int k = 0; k < 2; k++){
+		if (k == 0 ? !canVol : !canPan) continue;
 		const Envelope &e = (k == 0) ? vol : pan;
 		for (int i = 0; i < e.Count(); i++){
 			const float x = g.XAt(e.Point(i).t);
@@ -864,8 +861,8 @@ bool LanesView::StripMouseDown(int slot, BRect strip, BPoint p, uint32 buttons)
 			return true;
 		// новая точка на той кривой, которая ближе к щелчку (пустая кривая - это прямая на 0 дБ / по центру)
 		const double t = g.TimeAt(p.x);
-		const float dv = fabsf(p.y - g.VolY(vol.Value(t, 0.0f)));
-		const float dp = fabsf(p.y - g.PanY(pan.Value(t, 0.0f)));
+		const float dv = canVol ? fabsf(p.y - g.VolY(vol.Value(t, 0.0f))) : 1e9f;
+		const float dp = canPan ? fabsf(p.y - g.PanY(pan.Value(t, 0.0f))) : 1e9f;
 		bestVol = dv <= dp;
 		bestIdx = bestVol ? vol.Add(t, g.VolAt(p.y)) : pan.Add(t, g.PanAt(p.y));
 		Mix.SetEnvelopes(slot, vol, pan);

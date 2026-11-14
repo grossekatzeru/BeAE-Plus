@@ -83,10 +83,9 @@ int		Tracks_SlotAt(int rank);				// слот микшера по номеру с
 float	Tracks_LaneHeight(float areaHeight);		// высота одной полосы: область делится поровну, но не меньше MIN_LANE_HEIGHT
 void	Tracks_LaneSpan(int rank, float areaHeight, float &top, float &bottom);	// с учётом прокрутки
 // Полоса автоматизации (громкость и панорама) под каждой дорожкой: свёрнутая тонкая или развёрнутая.
-#define STRIP_CLOSED_H	14
-#define STRIP_OPEN_H	72
-bool	Tracks_StripOpen(int slot);
-void	Tracks_SetStripOpen(int slot, bool open);
+#define STRIP_CLOSED_H	38		// кривые скрыты: места хватает на два чекбокса «Громкость» и «Панорама» слева
+#define STRIP_OPEN_H	72		// показана хотя бы одна кривая
+bool	Tracks_StripOpen(int slot);					// показана ли хоть одна кривая автоматизации (чекбоксы слева)
 float	Tracks_StripHeight(int rank);				// высота полосы автоматизации дорожки (по номеру сверху вниз)
 float	Tracks_TotalHeight(float areaHeight);		// полная высота всех дорожек вместе с полосами автоматизации
 void	Tracks_StripSpan(int rank, float areaHeight, float &top, float &bottom);	// полоса автоматизации под дорожкой, с учётом прокрутки

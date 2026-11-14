@@ -129,6 +129,26 @@ BRect TrackPanelView::GridRect(int index) const
 	return BRect(s.left + CONTENT_X, s.top + 80, PanRect(index).right + KNOB_W / 2, s.top + 93);
 }
 
+BRect TrackPanelView::AutoRect(int index) const
+{
+	const int rank = Tracks_Rank(index);
+	float top, bottom;
+	Tracks_StripSpan(rank < 0 ? 0 : rank, AreaHeight(Bounds()), top, bottom);
+	return BRect(0, HEADER_H + top, Bounds().right, HEADER_H + bottom);
+}
+
+BRect TrackPanelView::ShowVolRect(int index) const
+{
+	BRect a = AutoRect(index), g = GridRect(index);
+	return BRect(g.left, a.top + 4, g.right, a.top + 17);
+}
+
+BRect TrackPanelView::ShowPanRect(int index) const
+{
+	BRect v = ShowVolRect(index);
+	return BRect(v.left, v.top + 17, v.right, v.bottom + 17);
+}
+
 BRect TrackPanelView::XfadeRect(int index) const
 {
 	BRect g = GridRect(index);
@@ -343,6 +363,28 @@ void TrackPanelView::Draw(BRect update)
 			SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
 			StrokeLine(BPoint(g.left, g.bottom + 2), BPoint(g.right, g.bottom + 2));
 		}
+		// под дорожкой (место полосы автоматизации): чекбоксы показа кривых; цвет подписи - цвет кривой
+		for (int row = 0; row < 2; row++){
+			BRect g = (row == 0) ? ShowVolRect(i) : ShowPanRect(i);
+			const bool on = (row == 0) ? t->showVol : t->showPan;
+			BRect box(g.right - 11, g.top + 1, g.right, g.top + 12);
+			SetHighColor(row == 0 ? make_color(200, 30, 35) : make_color(40, 90, 210));
+			DrawString(Language.get(row == 0 ? "AUTO_VOL" : "AUTO_PAN"), BPoint(g.left, g.bottom - 3));
+			SetHighColor(make_color(255, 255, 255));
+			FillRect(box);
+			SetHighColor(make_color(0, 0, 0));
+			StrokeRect(box);
+			if (on){
+				SetPenSize(2);
+				StrokeLine(BPoint(box.left + 3, box.top + 6), BPoint(box.left + 5, box.bottom - 3));
+				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
+				SetPenSize(1);
+			}
+			SetHighColor(tint_color(base, B_DARKEN_3_TINT));
+			StrokeLine(BPoint(g.left, g.bottom + 1), BPoint(g.right, g.bottom + 1));
+			SetHighColor(tint_color(base, B_LIGHTEN_2_TINT));
+			StrokeLine(BPoint(g.left, g.bottom + 2), BPoint(g.right, g.bottom + 2));
+		}
 
 		// индикатор уровня: вертикальный, у левого края, фон «мокрый асфальт»
 		BRect m = MeterRect(i);
@@ -459,6 +501,15 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 	if (p.y >= MasterRect().top) return HIT_NONE;
 	for (int i=0; i<MIX_MAX_TRACKS; i++){
 		if (!Mix.Track(i)) continue;
+		{	// место под дорожкой: чекбоксы показа кривых автоматизации
+			const BRect st = AutoRect(i);
+			if (st.Contains(p) && p.y >= HEADER_H){
+				index = i;
+				if (ShowVolRect(i).Contains(p)) return HIT_SHOWVOL;
+				if (ShowPanRect(i).Contains(p)) return HIT_SHOWPAN;
+				return HIT_NONE;
+			}
+		}
 		BRect s = StripRect(i);
 		if (!s.Contains(p) || p.y < HEADER_H) continue;
 		index = i;
@@ -603,6 +654,16 @@ void TrackPanelView::MouseDown(BPoint p)
 		break;
 	case HIT_STICKY:
 		Mix.SetSticky(index, !Mix.Track(index)->sticky);
+		Pool.changed = true;
+		Invalidate();
+		break;
+	case HIT_SHOWVOL:
+		Mix.SetShowAuto(index, !Mix.Track(index)->showVol, Mix.Track(index)->showPan);
+		Pool.changed = true;
+		Invalidate();
+		break;
+	case HIT_SHOWPAN:
+		Mix.SetShowAuto(index, Mix.Track(index)->showVol, !Mix.Track(index)->showPan);
 		Pool.changed = true;
 		Invalidate();
 		break;

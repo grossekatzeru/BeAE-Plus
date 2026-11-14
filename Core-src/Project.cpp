@@ -65,6 +65,31 @@ static BString Num(double v)
 	return BString(b);
 }
 
+// Огибающая автоматизации в JSON: [[время, значение], ...]
+static void EnvToJson(const Envelope &e, BString &out)
+{
+	out << "[";
+	for (int k = 0; k < e.Count(); k++){
+		if (k) out << ", ";
+		out << "[" << Num(e.Point(k).t) << ", " << Num(e.Point(k).v) << "]";
+	}
+	out << "]";
+}
+
+static void EnvFromJson(const JValue *j, Envelope &e)
+{
+	e.Clear();
+	if (!j || j->type != JValue::Arr) return;
+	for (size_t k = 0; k < j->a.size(); k++){
+		const JValue &p = j->a[k];
+		if (p.type != JValue::Arr || p.a.size() < 2 || p.a[0].type != JValue::Num || p.a[1].type != JValue::Num) continue;
+		float v = (float)p.a[1].n;
+		if (v != v) continue;										// NaN
+		e.Add(p.a[0].n < 0 ? 0.0 : p.a[0].n, v);
+	}
+}
+
+
 static bool WriteText(const BString &path, const BString &text)
 {
 	BFile f(path.String(), B_WRITE_ONLY | B_CREATE_FILE | B_ERASE_FILE);
@@ -166,6 +191,14 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 		trk << "      \"grid\": " << (t->grid ? "true" : "false") << ",\n";
 		trk << "      \"sticky\": " << (t->sticky ? "true" : "false") << ",\n";
 		trk << "      \"xfade\": " << (t->xfade ? "true" : "false") << ",\n";
+		if (t->showVol) trk << "      \"show_vol\": true,\n";
+		if (t->showPan) trk << "      \"show_pan\": true,\n";
+		{
+			Envelope ve, pe;
+			Mix.GetEnvelopes(i, ve, pe);
+			if (!ve.Empty()){ trk << "      \"vol_env\": "; EnvToJson(ve, trk); trk << ",\n"; }
+			if (!pe.Empty()){ trk << "      \"pan_env\": "; EnvToJson(pe, trk); trk << ",\n"; }
+		}
 		trk << "      \"color\": null,\n";
 		trk << "      \"clips\": [" << clipsJson;
 		if (clips.size() > 0) trk << "\n      ";
@@ -181,7 +214,13 @@ static bool DoSave(const BPath &parent, const char *name, BString &err)
 	json << "  \"active\": " << Mix.Active() << ",\n";
 	json << "  \"bpm\": " << Num(Mix.Bpm()) << ",\n  \"meter\": \"" << Metronome::MeterName(Mix.Meter()) << "\",\n  \"grid_div\": " << Mix.GridDiv() << ",\n  \"metro_volume\": " << Num(Mix.MetroVolume()) << ",\n";
 	json << "  \"sources\": [\n" << srcJson << "\n  ],\n";
-	json << "  \"master\": {\"gain\": " << Num(Mix.MasterGain()) << ", \"mute\": " << (Mix.MasterMute() ? "true" : "false") << ", \"effects\": [";
+	json << "  \"master\": {\"gain\": " << Num(Mix.MasterGain()) << ", \"mute\": " << (Mix.MasterMute() ? "true" : "false");
+	{
+		Envelope mv;
+		Mix.GetMasterEnvelope(mv);
+		if (!mv.Empty()){ json << ", \"vol_env\": "; EnvToJson(mv, json); }
+	}
+	json << ", \"effects\": [";
 	FxToJson(Mix.Fx(MIX_MASTER), json, "  ");
 	json << "]},\n";
 	json << "  \"tracks\": [\n" << trk << "\n  ]\n}\n";
@@ -318,6 +357,13 @@ bool Project_Open(const char *bemixPath, BString &err)
 		Mix.SetGrid(slot, jt.Boolean("grid", false));
 		Mix.SetCrossfade(slot, jt.Boolean("xfade", false));
 		Mix.SetSticky(slot, jt.Boolean("sticky", false));
+		Mix.SetShowAuto(slot, jt.Boolean("show_vol", false), jt.Boolean("show_pan", false));
+		{
+			Envelope ve, pe;
+			EnvFromJson(jt.Get("vol_env"), ve);
+			EnvFromJson(jt.Get("pan_env"), pe);
+			Mix.SetEnvelopes(slot, ve, pe);
+		}
 
 		// клипы: версия 2 - список клипов со ссылками на источники; версия 1 - один файл и смещение
 		const JValue *jc = jt.Get("clips");
@@ -357,6 +403,11 @@ bool Project_Open(const char *bemixPath, BString &err)
 		if (jm && jm->type == JValue::Obj){
 			Mix.SetMasterGain((float)jm->Number("gain", 1.0));
 			Mix.SetMasterMute(jm->Boolean("mute", false));
+			{
+				Envelope mv;
+				EnvFromJson(jm->Get("vol_env"), mv);
+				Mix.SetMasterEnvelope(mv);
+			}
 			LoadFx(Mix.Fx(MIX_MASTER), jm->Get("effects"), warnings);
 		}
 	}

@@ -1187,19 +1187,10 @@ int Tracks_SlotAt(int rank)
 	return -1;
 }
 
-static bool gStripOpen[MIX_MAX_TRACKS];			// развёрнута ли полоса автоматизации (по слотам)
-
 bool Tracks_StripOpen(int slot)
 {
-	return slot >= 0 && slot < MIX_MAX_TRACKS && gStripOpen[slot];
-}
-
-void Tracks_SetStripOpen(int slot, bool open)
-{
-	if (slot >= 0 && slot < MIX_MAX_TRACKS && gStripOpen[slot] != open){
-		gStripOpen[slot] = open;
-		Mix.Touch();								// перерисовать полосы
-	}
+	const MixTrack *t = Mix.Track(slot);
+	return t && (t->showVol || t->showPan);
 }
 
 float Tracks_StripHeight(int rank)

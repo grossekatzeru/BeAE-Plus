@@ -16,6 +16,15 @@ int main(){
 	CHECK(tr->a[0].String("name") == "\xD0\x93\xD0\xB8\xD1\x82\xD0\xB0\xD1\x80\xD0\xB0");
 	CHECK(tr->a[0].Number("offset",0)==1.25 && tr->a[0].Boolean("mute",false)==true);
 	CHECK(tr->a[0].Get("file")->type==JValue::Null);
+	// огибающие автоматизации: массив пар [время, значение]
+	{
+		JValue d; std::string e2;
+		CHECK(JsonParse("{\"vol_env\": [[0, 0], [1.5, -12.5], [3, -60]], \"show_vol\": true}", d, e2));
+		const JValue *ve = d.Get("vol_env");
+		CHECK(ve && ve->type==JValue::Arr && ve->a.size()==3);
+		CHECK(ve->a[1].type==JValue::Arr && ve->a[1].a.size()==2 && ve->a[1].a[0].n==1.5 && ve->a[1].a[1].n==-12.5);
+		CHECK(d.Boolean("show_vol",false)==true && d.Boolean("show_pan",false)==false);
+	}
 	CHECK(!JsonParse("{\"a\":", v, err));
 	CHECK(!JsonParse("{} x", v, err));
 	CHECK(JsonEscape("a\"b\\c\n") == "a\\\"b\\\\c\\n");
