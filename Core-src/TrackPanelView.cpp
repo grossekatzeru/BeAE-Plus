@@ -152,7 +152,7 @@ BRect TrackPanelView::ShowPanRect(int index) const
 BRect TrackPanelView::ClearRect(int index, int row) const
 {
 	BRect g = (row == 0) ? ShowVolRect(index) : ShowPanRect(index);
-	return BRect(g.right - 30, g.top + 1, g.right - 18, g.top + 12);
+	return BRect(g.right + 8, g.top, g.right + 26, g.top + 13);		// размер как у кнопок M S R
 }
 
 BRect TrackPanelView::XfadeRect(int index) const
@@ -392,15 +392,9 @@ void TrackPanelView::Draw(BRect update)
 				StrokeLine(BPoint(box.left + 5, box.bottom - 3), BPoint(box.right - 2, box.top + 3));
 				SetPenSize(1);
 			}
-			{	// «C» - очистить кривую (серая, если кривой нет)
+			{	// «C» - очистить кривую (подсвечена цветом кривой, если она есть)
 				const bool has = (row == 0) ? !t->volEnv.Empty() : !t->panEnv.Empty();
-				BRect cb = ClearRect(i, row);
-				SetHighColor(tint_color(base, has ? B_LIGHTEN_2_TINT : B_NO_TINT));
-				FillRect(cb);
-				SetHighColor(tint_color(base, B_DARKEN_4_TINT));
-				StrokeRect(cb);
-				SetHighColor(has ? make_color(0, 0, 0) : tint_color(base, B_DARKEN_2_TINT));
-				DrawString("C", BPoint(cb.left + (cb.Width() - StringWidth("C")) / 2 + 0.5f, cb.bottom - 2));
+				DrawButton(ClearRect(i, row), "C", has, row == 0 ? make_color(230, 48, 52) : make_color(52, 112, 232));
 			}
 			SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 			StrokeLine(BPoint(g.left, g.bottom + 1), BPoint(g.right, g.bottom + 1));
