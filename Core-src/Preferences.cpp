@@ -129,6 +129,14 @@ void Preferences::Init(){
    if(prefs.FindInt32("rec_latency_ms", &rec_latency_ms) != B_OK)
       rec_latency_ms = 0;
 
+   {
+      if(prefs.FindString("joy_device", &joy_device) != B_OK) joy_device.SetTo("");
+      if(prefs.FindString("joy_map", &joy_map) != B_OK) joy_map.SetTo("");
+      if(prefs.FindFloat("joy_vol_rate", &joy_vol_rate) != B_OK) joy_vol_rate = 12.0f;
+      if(prefs.FindFloat("joy_pan_rate", &joy_pan_rate) != B_OK) joy_pan_rate = 0.8f;
+      if(prefs.FindFloat("joy_dead", &joy_dead) != B_OK) joy_dead = 0.3f;
+   }
+
    if(prefs.FindInt32("cache_size", &cache_size) != B_OK)
       cache_size = CACHE_SIZE;
 
@@ -269,6 +277,11 @@ void Preferences::Sync(){
 	prefs.SetInt32("buffer_size",buffer_size);
 	prefs.SetInt32("rec_latency_ms",rec_latency_ms);
 	prefs.SetInt32("cache_size",cache_size);
+	prefs.SetString("joy_device",joy_device.String());
+	prefs.SetString("joy_map",joy_map.String());
+	prefs.SetFloat("joy_vol_rate",joy_vol_rate);
+	prefs.SetFloat("joy_pan_rate",joy_pan_rate);
+	prefs.SetFloat("joy_dead",joy_dead);
 	prefs.SetInt32("keep_free",keep_free);
 	prefs.SetInt32("display_time",display_time);
 	prefs.SetFloat("peak", peak);
@@ -397,6 +410,11 @@ void Preferences::FactorySettings(){
 	buffer_size = BUFFER_SIZE;
 	rec_latency_ms = 0;
 	cache_size = CACHE_SIZE;
+	joy_device = "";
+	joy_map = "";
+	joy_vol_rate = 12.0f;
+	joy_pan_rate = 0.8f;
+	joy_dead = 0.3f;
 	
 	spectrum_analyzer_pos.Set(50,200,270, 300);
 	sample_scope_pos.Set(50, 50, 270, 150);

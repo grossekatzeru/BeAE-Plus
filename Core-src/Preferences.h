@@ -81,6 +81,10 @@ class Preferences{
 	int32	rec_latency_ms;			// компенсация задержки записи, мс
 	int32	cache_size;				// size of the VM cache
 
+	BString	joy_device;				// имя джойстика (пусто - не использовать)
+	BString	joy_map;				// привязки кнопок/осей, см. ControllerCore
+	float	joy_vol_rate, joy_pan_rate, joy_dead;	// скорость громкости (дБ/с), панорамы (доля/с), мёртвая зона
+
 
 	BRect	filter_pos[40];			// position of the filters
 	BRect	spectrum_analyzer_pos;

@@ -1,5 +1,7 @@
 #include "PrefControllers.h"
 
+#include <GroupLayout.h>
+#include <GroupView.h>
 #include <LayoutBuilder.h>
 #include <stdio.h>
 #include <string.h>
@@ -9,9 +11,13 @@
 #define CTRL_TICK		'ctTk'
 #define CTRL_SELECT		'ctSl'
 #define CTRL_RESCAN		'ctRs'
+#define CTRL_BIND		'ctBd'
+#define CTRL_CLEAR		'ctCl'
+#define CTRL_DEFAULTS	'ctDf'
+#define CTRL_RATES		'ctRt'
 
-static const int kMaxAxesShown = 8;
-static const int kMaxHatsShown = 2;
+static const int kMaxAxesShown = 4;
+static const int kMaxHatsShown = 1;
 static const float kRowH = 16;
 
 // ------------------------------------------------------------------ JoyLiveView
@@ -97,7 +103,7 @@ void JoyLiveView::Draw(BRect)
 // ------------------------------------------------------------------ PrefControllers
 
 PrefControllers::PrefControllers()
-	: BView("Prefs controllers", 0), fStick(NULL), fRunner(NULL), fBadReads(0)
+	: BView("Prefs controllers", 0), fRunner(NULL)
 {
 	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 
@@ -114,6 +120,41 @@ PrefControllers::PrefControllers()
 	fStatus->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
 	fLive = new JoyLiveView();
 
+	BStringView *bindTitle = new BStringView(NULL, Language.get("CTRL_BINDINGS"));
+	bindTitle->SetFont(be_bold_font);
+
+	BGroupLayout *table = new BGroupLayout(B_VERTICAL, 2);
+	BView *tableView = new BView("bind table", 0);
+	tableView->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+	tableView->SetLayout(table);
+	for (int a = 0; a < Ctrl::A_COUNT; a++){
+		BStringView *label = new BStringView(NULL, Language.get(Ctrl::Map::ActionKey(a)));
+		BMessage *bm = new BMessage(CTRL_BIND);
+		bm->AddInt32("action", a);
+		fBind[a] = new BButton("bind", "-", bm);
+		fBind[a]->SetExplicitMinSize(BSize(150, B_SIZE_UNSET));
+		BMessage *cm = new BMessage(CTRL_CLEAR);
+		cm->AddInt32("action", a);
+		BButton *clear = new BButton("clear", "x", cm);
+		clear->SetExplicitMaxSize(BSize(28, B_SIZE_UNLIMITED));
+		BGroupView *row = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(row)
+			.SetInsets(0)
+			.Add(label, 1.0f)
+			.Add(fBind[a])
+			.Add(clear)
+			.End();
+		table->AddView(row);
+	}
+
+	fVolRate = new BSlider("volrate", Language.get("CTRL_VOL_RATE"), new BMessage(CTRL_RATES), 2, 40, B_HORIZONTAL);
+	fPanRate = new BSlider("panrate", Language.get("CTRL_PAN_RATE"), new BMessage(CTRL_RATES), 10, 200, B_HORIZONTAL);
+	fDead = new BSlider("dead", Language.get("CTRL_DEAD"), new BMessage(CTRL_RATES), 5, 60, B_HORIZONTAL);
+	fVolRate->SetValue((int32)(Joy.Map().volRate + 0.5f));
+	fPanRate->SetValue((int32)(Joy.Map().panRate * 100.0f + 0.5f));
+	fDead->SetValue((int32)(Joy.Map().deadZone * 100.0f + 0.5f));
+	BButton *defaults = new BButton("defaults", Language.get("CTRL_DEFAULTS"), new BMessage(CTRL_DEFAULTS));
+
 	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_SMALL_SPACING)
 		.SetInsets(B_USE_DEFAULT_SPACING)
 		.Add(title)
@@ -126,6 +167,15 @@ PrefControllers::PrefControllers()
 		.Add(fInfo)
 		.Add(fStatus)
 		.Add(fLive)
+		.Add(bindTitle)
+		.Add(tableView)
+		.Add(fVolRate)
+		.Add(fPanRate)
+		.Add(fDead)
+		.AddGroup(B_HORIZONTAL)
+			.Add(defaults)
+			.AddGlue()
+		.End()
 		.AddGlue()
 		.End();
 }
@@ -133,16 +183,20 @@ PrefControllers::PrefControllers()
 PrefControllers::~PrefControllers()
 {
 	delete fRunner;
-	CloseDevice();
+}
+
+static void TargetAll(BView *v, BHandler *h)
+{
+	if (BControl *c = dynamic_cast<BControl *>(v))
+		c->SetTarget(h);
+	for (int32 i = 0; i < v->CountChildren(); i++)
+		TargetAll(v->ChildAt(i), h);
 }
 
 void PrefControllers::AttachedToWindow()
 {
 	BView::AttachedToWindow();
-	for (int32 i = 0; i < fMenu->CountItems(); i++)
-		fMenu->ItemAt(i)->SetTarget(this);
-	if (BButton *b = dynamic_cast<BButton *>(FindView("rescan")))
-		b->SetTarget(this);
+	TargetAll(this, this);
 	Rescan();
 	fRunner = new BMessageRunner(BMessenger(this), new BMessage(CTRL_TICK), 40000);	// 25 раз в секунду
 }
@@ -151,95 +205,70 @@ void PrefControllers::DetachedFromWindow()
 {
 	delete fRunner;
 	fRunner = NULL;
-	CloseDevice();
+	Joy.CancelLearn();
 	BView::DetachedFromWindow();
-}
-
-void PrefControllers::CloseDevice()
-{
-	if (fStick){
-		fStick->Close();
-		delete fStick;
-		fStick = NULL;
-	}
 }
 
 void PrefControllers::Rescan()
 {
-	CloseDevice();
 	while (fMenu->CountItems() > 0)
 		delete fMenu->RemoveItem((int32)0);
 
-	BJoystick probe;
-	const int32 n = probe.CountDevices();
-	for (int32 i = 0; i < n; i++){
-		char name[B_OS_NAME_LENGTH];
-		name[0] = 0;
-		if (probe.GetDeviceName(i, name) != B_OK || !name[0])
-			continue;
+	const std::vector<BString> names = Joy.Devices();
+	for (size_t i = 0; i < names.size(); i++){
 		BMessage *m = new BMessage(CTRL_SELECT);
-		m->AddString("name", name);
-		BMenuItem *item = new BMenuItem(name, m);
+		m->AddString("name", names[i].String());
+		BMenuItem *item = new BMenuItem(names[i].String(), m);
 		item->SetTarget(this);
+		if (names[i] == Prefs.joy_device)
+			item->SetMarked(true);
 		fMenu->AddItem(item);
 	}
-	std::vector<int16> noAxes;
-	std::vector<uint8> noHats;
-	fLive->SetState(noAxes, noHats, 0, 0);
+	if (!names.empty()){
+		BMenuItem *marked = fMenu->FindMarked();
+		if (marked == NULL){
+			marked = fMenu->ItemAt(0);
+			marked->SetMarked(true);
+		}
+		if (!Joy.IsOpen() || Joy.Name() != marked->Label()){
+			Joy.Open(marked->Label());
+			Prefs.Sync();
+		}
+	}
+	Refresh();
+}
+
+void PrefControllers::Refresh()
+{
 	if (fMenu->CountItems() == 0){
 		fInfo->SetText(Language.get("CTRL_NONE"));
 		fStatus->SetText("");
-		return;
-	}
-	BMenuItem *first = fMenu->ItemAt(0);
-	first->SetMarked(true);
-	OpenDevice(first->Label());
-}
-
-void PrefControllers::OpenDevice(const char *name)
-{
-	CloseDevice();
-	fBadReads = 0;
-	fStick = new BJoystick();
-	const status_t err = fStick->Open(name);
-	if (err < B_OK){
+	}else if (!Joy.IsOpen()){
 		char s[160];
-		snprintf(s, sizeof(s), Language.get("CTRL_ERR_OPEN"), name, strerror(err));
+		snprintf(s, sizeof(s), Language.get("CTRL_ERR_OPEN"), Joy.Name().String(), "?");
 		fInfo->SetText(s);
 		fStatus->SetText("");
-		delete fStick;
-		fStick = NULL;
-		return;
+	}else{
+		char s[200];
+		snprintf(s, sizeof(s), Language.get("CTRL_INFO"), Joy.Name().String(),
+			(int)Joy.CountAxes(), (int)Joy.CountHats(), (int)Joy.CountButtons());
+		fInfo->SetText(s);
+		fStatus->SetText(Joy.HasData() ? "" : Language.get("CTRL_NO_DATA"));
 	}
-	BString module, ctrl;
-	fStick->GetControllerModule(&module);
-	fStick->GetControllerName(&ctrl);
-	char s[200];
-	snprintf(s, sizeof(s), Language.get("CTRL_INFO"), ctrl.Length() ? ctrl.String() : name,
-		(int)fStick->CountAxes(), (int)fStick->CountHats(), (int)fStick->CountButtons());
-	fInfo->SetText(s);
-	fStatus->SetText(module.Length() ? module.String() : "");
+	const int learning = Joy.LearnAction();
+	for (int a = 0; a < Ctrl::A_COUNT; a++){
+		if (a == learning)
+			fBind[a]->SetLabel(Language.get("CTRL_PRESS"));
+		else
+			fBind[a]->SetLabel(JoyService::Describe(Joy.Map().b[a]).String());
+	}
 }
 
 void PrefControllers::Tick()
 {
-	if (!fStick) return;
-	const status_t err = fStick->Update();
-	if (err < B_OK){
-		if (++fBadReads == 25)						// секунда подряд без данных
-			fStatus->SetText(Language.get("CTRL_NO_DATA"));
-		return;
-	}
-	if (fBadReads >= 25) fStatus->SetText("");
-	fBadReads = 0;
-	const int na = fStick->CountAxes(), nh = fStick->CountHats(), nb = fStick->CountButtons();
-	std::vector<int16> axes(na > 0 ? na : 1);
-	std::vector<uint8> hats(nh > 0 ? nh : 1);
-	if (na > 0) fStick->GetAxisValues(&axes[0]);
-	if (nh > 0) fStick->GetHatValues(&hats[0]);
-	axes.resize(na > 0 ? na : 0);
-	hats.resize(nh > 0 ? nh : 0);
-	fLive->SetState(axes, hats, nb, fStick->ButtonValues());
+	fLive->SetState(Joy.Last().axes, Joy.LastHats(), Joy.CountButtons(), Joy.Last().buttons);
+	const bool ok = Joy.IsOpen() ? Joy.HasData() : true;
+	if (Joy.IsOpen()) fStatus->SetText(ok ? "" : Language.get("CTRL_NO_DATA"));
 }
 
 void PrefControllers::MessageReceived(BMessage *msg)
@@ -253,10 +282,53 @@ void PrefControllers::MessageReceived(BMessage *msg)
 		break;
 	case CTRL_SELECT: {
 		const char *name = NULL;
-		if (msg->FindString("name", &name) == B_OK && name)
-			OpenDevice(name);
+		if (msg->FindString("name", &name) == B_OK && name){
+			Joy.Open(name);
+			Prefs.Sync();
+			Refresh();
+		}
 		break;
 	}
+	case CTRL_BIND: {
+		int32 a = -1;
+		if (msg->FindInt32("action", &a) == B_OK && a >= 0 && a < Ctrl::A_COUNT){
+			if (Joy.LearnAction() == a)
+				Joy.CancelLearn();
+			else
+				Joy.BeginLearn(a, BMessenger(this));
+			Refresh();
+		}
+		break;
+	}
+	case JOY_LEARNED:
+		Refresh();
+		break;
+	case CTRL_CLEAR: {
+		int32 a = -1;
+		if (msg->FindInt32("action", &a) == B_OK && a >= 0 && a < Ctrl::A_COUNT){
+			Joy.CancelLearn();
+			Joy.Map().b[a] = Ctrl::Binding();
+			Joy.SaveToPrefs();
+			Refresh();
+		}
+		break;
+	}
+	case CTRL_DEFAULTS: {
+		Joy.CancelLearn();
+		Joy.Map().SetDefaults();
+		fVolRate->SetValue((int32)(Joy.Map().volRate + 0.5f));
+		fPanRate->SetValue((int32)(Joy.Map().panRate * 100.0f + 0.5f));
+		fDead->SetValue((int32)(Joy.Map().deadZone * 100.0f + 0.5f));
+		Joy.SaveToPrefs();
+		Refresh();
+		break;
+	}
+	case CTRL_RATES:
+		Joy.Map().volRate = (float)fVolRate->Value();
+		Joy.Map().panRate = (float)fPanRate->Value() / 100.0f;
+		Joy.Map().deadZone = (float)fDead->Value() / 100.0f;
+		Joy.SaveToPrefs();
+		break;
 	default:
 		BView::MessageReceived(msg);
 	}

@@ -47,6 +47,7 @@
 #include "ValuesView.h"
 #include "IndexView.h"
 #include "TimeBarView.h"
+#include "JoyService.h"
 #include "Filters.h"
 #include "PrefWindow.h"
 #include "FreqWindow.h"
@@ -460,7 +461,7 @@ void BufferPlayer(void *theCookie, void *buffer, size_t size, const media_raw_au
 
 MainWindow::MainWindow(BRect frame)
 	:BWindow(frame, NULL ,B_TITLED_WINDOW,B_ASYNCHRONOUS_CONTROLS),
-	rec_runner(NULL), fGroupItem(NULL), fLockItem(NULL)
+	rec_runner(NULL), joy_runner(NULL), fGroupItem(NULL), fLockItem(NULL)
 {
 	Looper()->SetName("BeAE");
 
@@ -607,6 +608,15 @@ MainWindow::MainWindow(BRect frame)
 	Pool.SetLoop(  (transport_view->loop->Value() == B_CONTROL_ON) );
 	SetSizeLimits(MIN_W ,MAX_W, MIN_H , MAX_H);
 	SetPulseRate(50000);
+
+	// геймпад: привязки из настроек, опрос раз в 30 мс
+	Joy.LoadFromPrefs();
+	Joy.SetTarget(BMessenger(this));
+	if (Prefs.joy_device.Length() == 0){
+		std::vector<BString> d = Joy.Devices();
+		if (!d.empty()) Prefs.joy_device = d[0];
+	}
+	joy_runner = new BMessageRunner(BMessenger(this), new BMessage(JOY_TICK), 30000);
 }
 
 // Файлы, брошенные в окно. Звук ложится клипом на дорожку под курсором (в момент, где бросили, с липкой сеткой);
@@ -797,6 +807,9 @@ void MainWindow::AddMenu()
 
 MainWindow::~MainWindow()
 {
+	delete joy_runner;
+	joy_runner = NULL;
+	Joy.SetTarget(BMessenger());
 }
 
 void MainWindow::MenusBeginning()
@@ -1112,6 +1125,10 @@ void MainWindow::MessageReceived(BMessage *message)
 //	message->PrintToStream();
 
 	switch (message->what){
+	case JOY_TICK:
+		Joy.Tick();
+		break;
+
 	case CHANGE_LANGUAGE:
 		if (mainMenuBar){
 			mainMenuBar->RemoveSelf();

@@ -1,7 +1,7 @@
 /*
- * PrefControllers - страница настроек «Контроллеры»: джойстики/геймпады (Haiku BJoystick).
- * Пока диагностика: выбор устройства, число осей/кнопок и живые значения. Привязка осей к
- * параметрам микшера и запись автоматизации - следующий шаг.
+ * PrefControllers - страница настроек «Контроллеры»: выбор джойстика/геймпада, живые значения,
+ * таблица привязок (кнопка или направление оси -> действие) с переназначением и скорости.
+ * Само устройство опрашивает JoyService (общий для приложения).
  */
 #ifndef _PREF_CONTROLLERS_H
 #define _PREF_CONTROLLERS_H
@@ -11,7 +11,10 @@
 #include <Joystick.h>
 #include <MessageRunner.h>
 #include <String.h>
+#include <Slider.h>
 #include <vector>
+
+#include "JoyService.h"
 
 // Живое состояние: полосы осей, «шляпки», кнопки
 class JoyLiveView : public BView {
@@ -37,18 +40,17 @@ public:
 
 private:
 	void	Rescan();						// заново найти устройства
-	void	OpenDevice(const char *name);
-	void	CloseDevice();
-	void	Tick();							// опрос устройства (по таймеру)
+	void	Refresh();						// подписи: сведения об устройстве, кнопки привязок
+	void	Tick();							// живые значения (по таймеру)
 
-	BJoystick		*fStick;
 	BPopUpMenu		*fMenu;
 	BMenuField		*fDevice;
 	BStringView		*fInfo;
 	BStringView		*fStatus;
 	JoyLiveView		*fLive;
+	BButton			*fBind[Ctrl::A_COUNT];
+	BSlider			*fVolRate, *fPanRate, *fDead;
 	BMessageRunner	*fRunner;
-	int				fBadReads;				// сколько опросов подряд завершились ошибкой
 };
 
 #endif

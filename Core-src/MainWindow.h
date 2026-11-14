@@ -57,6 +57,7 @@ class MainWindow : public BWindow {
 	void UpdateRecordingTitle();
 	void RecordingFollow();
 	BMessageRunner	*rec_runner;
+	BMessageRunner	*joy_runner;
 	BString			rec_old_title;
 	double			rec_start_time;		// секунды на общей шкале, откуда пошла запись
 	double			rec_old_offset;		// прежнее смещение дорожки (для undo)
