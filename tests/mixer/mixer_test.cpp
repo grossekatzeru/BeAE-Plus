@@ -177,6 +177,67 @@ static void TestMaster(int &fails){
 		CHECK(m.Fx(0).Count()==0 && m.Fx(MIX_MASTER).Count()==1);
 	}
 }
+// ---- автоматизация громкости/панорамы/мастера ----
+static void TestEnvelopes(int &fails){
+	std::vector<float> zeros(44100,0.0f), ones(44100,1.0f);
+	// громкость: 0 дБ в 0 с -> -60 дБ (тишина) в 1 с, на неактивной дорожке
+	{
+		Mixer m; m.AddTrack("main",zeros.data(),44100,1); int b=m.AddTrack("x",ones.data(),44100,1);
+		Envelope v,p; v.Add(0.0,0.0f); v.Add(1.0,-60.0f);
+		m.SetEnvelopes(b,v,p);
+		std::vector<float> o=RunMixer(m,44100,256);
+		CHECK(fabsf(o[0]-1.0f)<0.01f && fabsf(o[1]-1.0f)<0.01f);					// начало: 0 дБ
+		CHECK(fabsf(o[22050*2]-Env::DbToGain(-30.0f))<0.005f);					// середина -30 дБ
+		CHECK(o[44000*2]<0.01f);
+		Envelope v2,p2; m.GetEnvelopes(b,v2,p2);
+		CHECK(v2.Count()==2 && p2.Empty());
+		// ползунок дорожки - множитель поверх огибающей
+		m.SetGain(b,0.5f);
+		std::vector<float> o2=RunMixer(m,44100,256);
+		CHECK(fabsf(o2[0]-0.5f)<0.01f);
+		// mute глушит и при огибающей
+		m.SetGain(b,1.0f); m.Track(b)->mute=true;
+		std::vector<float> o3=RunMixer(m,1000,256);
+		CHECK(o3[0]==0.0f && o3[1000]==0.0f);
+	}
+	// панорама: от левого края к правому
+	{
+		Mixer m; m.AddTrack("main",zeros.data(),44100,1); int b=m.AddTrack("x",ones.data(),44100,1);
+		Envelope v,p; p.Add(0.0,-1.0f); p.Add(1.0,1.0f);
+		m.SetEnvelopes(b,v,p);
+		std::vector<float> o=RunMixer(m,44100,300);
+		CHECK(o[0]>0.99f && o[1]<0.01f);											// слева: слышен левый
+		CHECK(fabsf(o[22050*2]-1.0f)<0.01f && fabsf(o[22050*2+1]-1.0f)<0.01f);	// центр
+		CHECK(o[44000*2]<0.01f && o[44000*2+1]>0.99f);							// справа
+	}
+	// без огибающих всё как раньше
+	{
+		Mixer m; m.AddTrack("main",zeros.data(),44100,1); int b=m.AddTrack("x",ones.data(),44100,1);
+		m.SetGain(b,0.5f); m.SetPan(b,0.5f);
+		std::vector<float> o=RunMixer(m,1000,256);
+		CHECK(fabsf(o[0]-0.25f)<1e-5f && fabsf(o[1]-0.5f)<1e-5f);
+	}
+	// мастер: постоянные -6 дБ
+	{
+		Mixer m; m.AddTrack("main",zeros.data(),44100,1); m.AddTrack("x",ones.data(),44100,1);
+		Envelope v; v.Add(0.0,-6.0f); m.SetMasterEnvelope(v);
+		std::vector<float> o=RunMixer(m,1000,256);
+		CHECK(fabsf(o[0]-Env::DbToGain(-6.0f))<1e-3f);
+		Envelope g; m.GetMasterEnvelope(g); CHECK(g.Count()==1);
+		// мастер-ползунок множится с огибающей
+		m.SetMasterGain(0.5f);
+		std::vector<float> o2=RunMixer(m,1000,256);
+		CHECK(fabsf(o2[0]-0.5f*Env::DbToGain(-6.0f))<1e-3f);
+	}
+	// удаление дорожки сбрасывает огибающие
+	{
+		Mixer m; m.AddTrack("main",zeros.data(),44100,1); int b=m.AddTrack("x",ones.data(),44100,1);
+		Envelope v,p; v.Add(0.0,-3.0f); m.SetEnvelopes(b,v,p); m.RemoveTrack(b);
+		int c=m.AddTrack("y",ones.data(),44100,1);
+		Envelope v2,p2; m.GetEnvelopes(c,v2,p2); CHECK(v2.Empty());
+	}
+}
+
 int main(int argc,char**argv){
 	int fails=0;
 	TestCrossfade(fails);
@@ -427,6 +488,7 @@ int main(int argc,char**argv){
 	}
 	TestLatency(fails);
 	TestMaster(fails);
+	TestEnvelopes(fails);
 	printf(fails? "FAILED %d\n":"all ok\n",fails);
 	return fails!=0;
 }

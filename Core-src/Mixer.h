@@ -15,6 +15,7 @@
 #define MIXER_H
 
 #include <stdint.h>
+#include "Envelope.h"
 #include <stddef.h>
 #include <stdlib.h>
 #include <atomic>
@@ -81,11 +82,13 @@ struct MixTrack {
 	bool	xfade;			// перекрывающиеся клипы: false - микшируются, true - кроссфейд
 	char	name[64];
 	std::vector<MixClip>	clips;
+	Envelope	volEnv;			// автоматизация громкости (дБ, множитель поверх gain); пусто - выключена
+	Envelope	panEnv;			// автоматизация панорамы (прибавляется к pan); пусто - выключена
 	MixTrack() { Reset(); }
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = grid = xfade = sticky = false; name[0] = 0; clips.clear();
+		mute = solo = armed = grid = xfade = sticky = false; name[0] = 0; clips.clear(); volEnv.Clear(); panEnv.Clear();
 	}
 };
 
@@ -163,6 +166,12 @@ public:
 	bool	MasterMute() const { return fMasterMute; }
 	void	SetMasterGain(float g) { fMasterGain = g<0?0:(g>2?2:g); fRevision++; }
 	void	SetMasterMute(bool m) { fMasterMute = m; fRevision++; }
+	// Автоматизация: чтение и замена огибающих целиком (под замком микшера, можно из интерфейса).
+	void	GetEnvelopes(int i, Envelope &vol, Envelope &pan);
+	void	SetEnvelopes(int i, const Envelope &vol, const Envelope &pan);
+	void	GetMasterEnvelope(Envelope &vol);
+	void	SetMasterEnvelope(const Envelope &vol);
+
 	float	MasterPeakL() const { return fMasterPeakL; }
 	float	MasterPeakR() const { return fMasterPeakR; }
 
@@ -191,7 +200,7 @@ private:
 	void	Lock();
 	void	Unlock();
 	bool	TryLock();
-	void	ApplyMaster(float *buf, int frames, double sysRate);
+	void	ApplyMaster(float *buf, int frames, double sysRate, double now, double tstep, bool useEnv);
 	static void Gains(const MixTrack &t, bool anySolo, float &gl, float &gr);
 
 	MixTrack	fTracks[MIX_MAX_TRACKS];
@@ -202,6 +211,7 @@ private:
 	std::atomic_flag fLock;
 	float		fPeakL[MIX_MAX_TRACKS], fPeakR[MIX_MAX_TRACKS];
 	float		fMasterGain;
+	Envelope	fMasterVol;
 	bool		fMasterMute;
 	float		fMasterPeakL, fMasterPeakR;
 	int			fActive;

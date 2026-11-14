@@ -323,6 +323,12 @@ int Mixer::ArmedTrack() const
 }
 
 // Баланс: центр = 1.0 в обоих каналах (как раньше у моно), к краю гасится противоположный канал
+// Постоянный множитель дорожки: 0 при mute или если звучит solo другой дорожки
+static float BaseGain(const MixTrack &t, bool anySolo)
+{
+	return (t.mute || (anySolo && !t.solo)) ? 0.0f : t.gain;
+}
+
 void Mixer::Gains(const MixTrack &t, bool anySolo, float &gl, float &gr)
 {
 	if (t.mute || (anySolo && !t.solo)) { gl = gr = 0; return; }
@@ -476,12 +482,12 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 			Key::Scope ks(now, tstep);		// время блока для плагинов с ключом (сайдчейн BeFX)
 			fFx[act].Process(buf, frames, (float)sysRate);
 		}
-		float gl, gr;
-		Gains(t, anySolo, gl, gr);
+		const float g = BaseGain(t, anySolo);
 		float pl = 0, pr = 0;
-		if (gl != 1.0f || gr != 1.0f) {
-			for (int k=0; k<frames; k++) { buf[2*k] *= gl; buf[2*k+1] *= gr; }
-		}
+		if (extras)
+			Env::ApplyStereo(buf, frames, now, tstep, g, t.pan, &t.volEnv, &t.panEnv);
+		else
+			Env::ApplyStereo(buf, frames, now, tstep, g, t.pan, NULL, NULL);
 		for (int k=0; k<frames; k++) {
 			float a = fabsf(buf[2*k]), b = fabsf(buf[2*k+1]);
 			if (a > pl) pl = a;
@@ -496,7 +502,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 
 	if (!extras) {
 		for (int i=0; i<fCount; i++) if (i != act) fPeakL[i] = fPeakR[i] = 0;
-		ApplyMaster(buf, frames, sysRate);
+		ApplyMaster(buf, frames, sysRate, now, tstep, false);
 		if (metro) fMetro.Render(buf, frames, now - tstep * (latAct + latMaster), sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 		return;
 	}
@@ -505,8 +511,7 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		MixTrack &t = fTracks[i];
 		fPeakL[i] = fPeakR[i] = 0;
 		if (!t.used || t.clips.empty()) continue;
-		float gl, gr;
-		Gains(t, anySolo, gl, gr);
+		const float g = BaseGain(t, anySolo);
 		float pl = 0, pr = 0;
 		FxChain &fx = fFx[i];
 		const bool useFx = fx.HasEffects();
@@ -527,8 +532,9 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 			memset(fTmp, 0, sizeof(float) * 2 * n);
 			RenderClips(t, fTmp, n, ta, tstep);
 			if (useFx) { Key::Scope ks(ta, tstep); fx.Process(fTmp, n, (float)sysRate); }
+			Env::ApplyStereo(fTmp, n, ta, tstep, g, t.pan, &t.volEnv, &t.panEnv);
 			for (int k=0; k<n; k++) {
-				float l = fTmp[2*k] * gl, r = fTmp[2*k+1] * gr;
+				float l = fTmp[2*k], r = fTmp[2*k+1];
 				buf[2*(from+k)] += l; buf[2*(from+k)+1] += r;
 				if (fabsf(l) > pl) pl = fabsf(l);
 				if (fabsf(r) > pr) pr = fabsf(r);
@@ -536,23 +542,56 @@ void Mixer::Process(float *buf, int frames, double activePos, double activeRate,
 		}
 		fPeakL[i] = pl; fPeakR[i] = pr;
 	}
-	ApplyMaster(buf, frames, sysRate);
+	ApplyMaster(buf, frames, sysRate, now, tstep, true);
 	if (metro) fMetro.Render(buf, frames, now - tstep * (latAct + latMaster), sysRate, fBpm, fMeter, fGridDiv, fMetroVol / 0.7f);
 	Unlock();
 }
 
 // Мастер-шина: эффекты, громкость, mute, индикатор уровня.
-void Mixer::ApplyMaster(float *buf, int frames, double sysRate)
+void Mixer::ApplyMaster(float *buf, int frames, double sysRate, double now, double tstep, bool useEnv)
 {
 	FxChain &fx = fFx[MIX_MASTER];
 	if (fx.HasEffects()) fx.Process(buf, frames, (float)sysRate);
 	const float g = fMasterMute ? 0.0f : fMasterGain;
+	Env::ApplyStereo(buf, frames, now, tstep, g, 0.0f, useEnv ? &fMasterVol : NULL, NULL);
 	float pl = 0, pr = 0;
 	for (int k=0; k<frames; k++) {
-		float l = buf[2*k] * g, r = buf[2*k+1] * g;
-		buf[2*k] = l; buf[2*k+1] = r;
+		const float l = buf[2*k], r = buf[2*k+1];
 		if (fabsf(l) > pl) pl = fabsf(l);
 		if (fabsf(r) > pr) pr = fabsf(r);
 	}
 	fMasterPeakL = pl; fMasterPeakR = pr;
+}
+
+void Mixer::GetEnvelopes(int i, Envelope &vol, Envelope &pan)
+{
+	vol.Clear(); pan.Clear();
+	if (!Track(i)) return;
+	Lock();
+	vol = fTracks[i].volEnv; pan = fTracks[i].panEnv;
+	Unlock();
+}
+
+void Mixer::SetEnvelopes(int i, const Envelope &vol, const Envelope &pan)
+{
+	if (!Track(i)) return;
+	Lock();
+	fTracks[i].volEnv = vol; fTracks[i].panEnv = pan;
+	Unlock();
+	fRevision++;
+}
+
+void Mixer::GetMasterEnvelope(Envelope &vol)
+{
+	Lock();
+	vol = fMasterVol;
+	Unlock();
+}
+
+void Mixer::SetMasterEnvelope(const Envelope &vol)
+{
+	Lock();
+	fMasterVol = vol;
+	Unlock();
+	fRevision++;
 }
