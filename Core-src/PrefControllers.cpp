@@ -27,8 +27,8 @@ JoyLiveView::JoyLiveView()
 {
 	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 	const float h = kRowH * (kMaxAxesShown + kMaxHatsShown) + 2 * 20 + 12;		// оси, шляпки, два ряда кнопок
-	SetExplicitMinSize(BSize(320, h));
-	SetExplicitPreferredSize(BSize(380, h));
+	SetExplicitMinSize(BSize(200, h));
+	SetExplicitPreferredSize(BSize(300, h));
 }
 
 void JoyLiveView::SetState(const std::vector<int16> &axes, const std::vector<uint8> &hats, int buttons, uint32 pressed)
@@ -147,8 +147,17 @@ PrefControllers::PrefControllers()
 
 	BStringView *title = new BStringView(NULL, Language.get("CTRL_TITLE"));
 	title->SetFont(be_bold_font);
-	BStringView *hint = new BStringView(NULL, Language.get("CTRL_HINT"));
-	hint->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
+	title->SetExplicitMinSize(BSize(40, B_SIZE_UNSET));
+	BTextView *hint = new BTextView("hint", B_WILL_DRAW);
+	hint->SetText(Language.get("CTRL_HINT"));
+	hint->MakeEditable(false);
+	hint->MakeSelectable(false);
+	hint->SetWordWrap(true);
+	hint->SetViewUIColor(B_PANEL_BACKGROUND_COLOR);
+	hint->SetLowUIColor(B_PANEL_BACKGROUND_COLOR);
+	hint->SetExplicitMinSize(BSize(40, 78));
+	hint->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, 78));
+	hint->SetExplicitPreferredSize(BSize(300, 78));
 
 	fMenu = new BPopUpMenu("-");
 	fDevice = new BMenuField(NULL, Language.get("CTRL_DEVICE"), fMenu);
@@ -156,10 +165,15 @@ PrefControllers::PrefControllers()
 	fInfo = new BStringView(NULL, "");
 	fStatus = new BStringView(NULL, "");
 	fStatus->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
+	fInfo->SetTruncation(B_TRUNCATE_END);
+	fStatus->SetTruncation(B_TRUNCATE_END);
+	fInfo->SetExplicitMinSize(BSize(40, B_SIZE_UNSET));
+	fStatus->SetExplicitMinSize(BSize(40, B_SIZE_UNSET));
 	fLive = new JoyLiveView();
 
 	BStringView *bindTitle = new BStringView(NULL, Language.get("CTRL_BINDINGS"));
 	bindTitle->SetFont(be_bold_font);
+	bindTitle->SetExplicitMinSize(BSize(40, B_SIZE_UNSET));
 
 	BGroupLayout *table = new BGroupLayout(B_VERTICAL, 2);
 	BView *tableView = new BView("bind table", 0);
@@ -170,7 +184,10 @@ PrefControllers::PrefControllers()
 		BMessage *bm = new BMessage(CTRL_BIND);
 		bm->AddInt32("action", a);
 		fBind[a] = new BButton("bind", "-", bm);
-		fBind[a]->SetExplicitMinSize(BSize(150, B_SIZE_UNSET));
+		label->SetTruncation(B_TRUNCATE_END);
+		label->SetExplicitMinSize(BSize(40, B_SIZE_UNSET));
+		fBind[a]->SetExplicitMinSize(BSize(110, B_SIZE_UNSET));
+		fBind[a]->SetExplicitMaxSize(BSize(130, B_SIZE_UNSET));
 		BMessage *cm = new BMessage(CTRL_CLEAR);
 		cm->AddInt32("action", a);
 		BButton *clear = new BButton("clear", "x", cm);
