@@ -132,8 +132,9 @@ void Preferences::Init(){
    {
       if(prefs.FindString("joy_device", &joy_device) != B_OK) joy_device.SetTo("");
       if(prefs.FindString("joy_map", &joy_map) != B_OK) joy_map.SetTo("");
-      if(prefs.FindFloat("joy_vol_rate", &joy_vol_rate) != B_OK) joy_vol_rate = 12.0f;
-      if(prefs.FindFloat("joy_pan_rate", &joy_pan_rate) != B_OK) joy_pan_rate = 0.8f;
+      if(prefs.FindFloat("joy_vol_rate", &joy_vol_rate) != B_OK) joy_vol_rate = 24.0f;
+      if(prefs.FindFloat("joy_pan_rate", &joy_pan_rate) != B_OK) joy_pan_rate = 1.5f;
+      if(joy_vol_rate == 12.0f && joy_pan_rate == 0.8f){ joy_vol_rate = 24.0f; joy_pan_rate = 1.5f; }	// прежние значения по умолчанию
       if(prefs.FindFloat("joy_dead", &joy_dead) != B_OK) joy_dead = 0.3f;
    }
 
@@ -412,8 +413,8 @@ void Preferences::FactorySettings(){
 	cache_size = CACHE_SIZE;
 	joy_device = "";
 	joy_map = "";
-	joy_vol_rate = 12.0f;
-	joy_pan_rate = 0.8f;
+	joy_vol_rate = 24.0f;
+	joy_pan_rate = 1.5f;
 	joy_dead = 0.3f;
 	
 	spectrum_analyzer_pos.Set(50,200,270, 300);

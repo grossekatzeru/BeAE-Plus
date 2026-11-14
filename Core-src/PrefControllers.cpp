@@ -100,12 +100,50 @@ void JoyLiveView::Draw(BRect)
 	}
 }
 
+// ------------------------------------------------------------------ ScrollHolder
+
+ScrollHolder::ScrollHolder(BView *content)
+	: BView("scroll holder", B_FRAME_EVENTS), fContent(content)
+{
+	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+	SetExplicitMinSize(BSize(200, 100));
+	AddChild(content);
+}
+
+void ScrollHolder::AttachedToWindow()
+{
+	BView::AttachedToWindow();
+	Update();
+}
+
+void ScrollHolder::FrameResized(float, float)
+{
+	Update();
+}
+
+void ScrollHolder::Update()
+{
+	const float w = Bounds().Width();
+	float h = fContent->PreferredSize().height;
+	if (h < Bounds().Height()) h = Bounds().Height();
+	fContent->MoveTo(0, 0);
+	fContent->ResizeTo(w, h);
+	if (BScrollBar *bar = ScrollBar(B_VERTICAL)){
+		const float range = h - Bounds().Height();
+		bar->SetRange(0, range > 0 ? range : 0);
+		bar->SetProportion(h > 0 ? Bounds().Height() / h : 1.0f);
+		bar->SetSteps(16, Bounds().Height() * 0.8f);
+	}
+}
+
 // ------------------------------------------------------------------ PrefControllers
 
 PrefControllers::PrefControllers()
 	: BView("Prefs controllers", 0), fRunner(NULL)
 {
 	SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
+	fBody = new BView("body", 0);
+	fBody->SetViewColor(ui_color(B_PANEL_BACKGROUND_COLOR));
 
 	BStringView *title = new BStringView(NULL, Language.get("CTRL_TITLE"));
 	title->SetFont(be_bold_font);
@@ -155,7 +193,7 @@ PrefControllers::PrefControllers()
 	fDead->SetValue((int32)(Joy.Map().deadZone * 100.0f + 0.5f));
 	BButton *defaults = new BButton("defaults", Language.get("CTRL_DEFAULTS"), new BMessage(CTRL_DEFAULTS));
 
-	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_SMALL_SPACING)
+	BLayoutBuilder::Group<>(fBody, B_VERTICAL, B_USE_SMALL_SPACING)
 		.SetInsets(B_USE_DEFAULT_SPACING)
 		.Add(title)
 		.Add(hint)
@@ -177,6 +215,12 @@ PrefControllers::PrefControllers()
 			.AddGlue()
 		.End()
 		.AddGlue()
+		.End();
+
+	BScrollView *scroll = new BScrollView("scroll", new ScrollHolder(fBody), 0, false, true, B_NO_BORDER);
+	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
+		.SetInsets(0)
+		.Add(scroll)
 		.End();
 }
 

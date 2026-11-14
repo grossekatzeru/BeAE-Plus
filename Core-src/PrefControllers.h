@@ -30,6 +30,17 @@ private:
 	uint32				fPressed;
 };
 
+// Держатель с вертикальной прокруткой: содержимое растягивается на ширину, высота - желаемая
+class ScrollHolder : public BView {
+public:
+	ScrollHolder(BView *content);
+	virtual void AttachedToWindow();
+	virtual void FrameResized(float w, float h);
+private:
+	void	Update();
+	BView	*fContent;
+};
+
 class PrefControllers : public BView {
 public:
 	PrefControllers();
@@ -43,6 +54,7 @@ private:
 	void	Refresh();						// подписи: сведения об устройстве, кнопки привязок
 	void	Tick();							// живые значения (по таймеру)
 
+	BView			*fBody;
 	BPopUpMenu		*fMenu;
 	BMenuField		*fDevice;
 	BStringView		*fInfo;

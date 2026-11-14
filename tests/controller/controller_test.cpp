@@ -29,7 +29,7 @@ int main()
 	}
 	// --- карта: туда и обратно, по умолчанию ---
 	{
-		Map m;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f;
 		const std::string s = m.ToString();
 		Map m2;
 		for (int i = 0; i < A_COUNT; i++) m2.b[i] = Binding();
@@ -56,7 +56,7 @@ int main()
 	}
 	// --- скорость громкости: вверх держим 0.5 с при 12 дБ/с = +6 дБ ---
 	{
-		Map m; Engine e; Output o; double sum = 0;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o; double sum = 0;
 		for (int i = 0; i < 25; i++){ e.Tick(m, In(0, -32767), 0.02, o); sum += o.dVolDb; }
 		CHECK(Near(sum, 6.0, 1e-4));
 		CHECK(!o.master && !o.playStop);
@@ -68,14 +68,14 @@ int main()
 	}
 	// --- плавная ось: скорость пропорциональна уровню ---
 	{
-		Map m; Engine e; Output o1, o2;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o1, o2;
 		e.Tick(m, In(0, -(int16_t)(0.65f * 32767)), 0.25, o1);
 		e.Tick(m, In(0, -32767), 0.25, o2);
 		CHECK(Near(o1.dVolDb, 1.5, 0.05) && Near(o2.dVolDb, 3.0, 1e-4));
 	}
 	// --- панорама ---
 	{
-		Map m; Engine e; Output o;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o;
 		e.Tick(m, In(32767, 0), 0.25, o);
 		CHECK(Near(o.dPan, 0.2, 1e-4));
 		e.Tick(m, In(-32767, 0), 0.25, o);
@@ -83,7 +83,7 @@ int main()
 	}
 	// --- события «по нажатию»: один раз, пока не отпустили ---
 	{
-		Map m; Engine e; Output o;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o;
 		e.Tick(m, In(0, 0, 1u << 0), 0.02, o); CHECK(o.playStop);
 		e.Tick(m, In(0, 0, 1u << 0), 0.02, o); CHECK(!o.playStop);
 		e.Tick(m, In(0, 0, 0), 0.02, o);       CHECK(!o.playStop);
@@ -95,7 +95,7 @@ int main()
 	}
 	// --- мастер удерживается ---
 	{
-		Map m; Engine e; Output o;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o;
 		e.Tick(m, In(0, -32767, 1u << 3), 0.1, o);
 		CHECK(o.master && o.dVolDb > 0);
 		e.Tick(m, In(0, 0, 0), 0.1, o);
@@ -103,13 +103,13 @@ int main()
 	}
 	// --- паузу в опросе не превращаем в прыжок ---
 	{
-		Map m; Engine e; Output o;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o;
 		e.Tick(m, In(0, -32767), 5.0, o);
 		CHECK(Near(o.dVolDb, 12.0 * 0.25, 1e-4));
 	}
 	// --- переназначение и пустая привязка ---
 	{
-		Map m; Engine e; Output o;
+		Map m; m.volRate = 12.0f; m.panRate = 0.8f; Engine e; Output o;
 		m.b[A_VOL_UP] = Binding(S_BUTTON, 7);
 		m.b[A_VOL_DOWN] = Binding();
 		e.Tick(m, In(0, -32767, 1u << 7), 0.25, o);

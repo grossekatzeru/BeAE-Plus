@@ -50,8 +50,8 @@ void Map::SetDefaults()
 	b[A_MASTER_HOLD] = Binding(S_BUTTON, 3);	// кнопка 4 (удерживать)
 	b[A_PAN_CENTER]	= Binding(S_BUTTON, 4);		// кнопка 5
 	b[A_VOL_RESET]	= Binding(S_BUTTON, 5);		// кнопка 6
-	volRate = 12.0f;
-	panRate = 0.8f;
+	volRate = 24.0f;
+	panRate = 1.5f;
 	deadZone = 0.3f;
 }
 
