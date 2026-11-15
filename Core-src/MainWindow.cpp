@@ -110,22 +110,9 @@ cookie_record play_cookie;
 const char *HOMEPAGE_URL = "https://github.com/grossekatzeru/BeAE-Plus/";
 
 
-class MyMenuBar : public BMenuBar{
-  public:
-  	MyMenuBar(BRect frame, const char *name);
-	virtual void MakeFocus(bool b);
-};
-
-MyMenuBar::MyMenuBar(BRect r, const char *name) : BMenuBar(r, name)
-{
-}
-
-void MyMenuBar::MakeFocus(bool b)
-{
-	// This one does make sure the MenuBar does NOT get focus !!!
-	// To avoid the key-navigation to stop working
-}
-
+// Обычный BMenuBar: наследование от него здесь убрано сознательно. Класс-наследник копирует в свою таблицу виртуальных
+// функций все слоты BMenuBar/BMenu из заголовков той Haiku, на которой собрано, и на более старой Haiku программа
+// не запускалась ("Missing symbol: BMenu::SetFont(const BFont*, uint32)").
 
 static bigtime_t sRecCall = 0, sRecRet = 0, sRecTail = 0;	// для журнала задержки записи
 
@@ -685,7 +672,7 @@ void MainWindow::AddMenu()
 	BRect		menuBarRect;
 	
 	menuBarRect.Set(0.0, 0.0, 10000.0, 18.0);
-	mainMenuBar = new MyMenuBar(menuBarRect, "MenuBar");
+	mainMenuBar = new BMenuBar(menuBarRect, "MenuBar");
 	AddChild(mainMenuBar);
 	
 	menu = new BMenu(Language.get("FILE_MENU"));
