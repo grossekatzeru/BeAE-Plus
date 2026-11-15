@@ -38,28 +38,6 @@
 #define PANEL_OPTIONS	 'sfpo'
 #define SAVE_AUDIO		'sveA'
 
-// ------------------- FileFormatMenuItem -------------------
-
-class FileFormatMenuItem : public BMenuItem
-{
-public:
-				FileFormatMenuItem(media_file_format *format);
-	virtual		~FileFormatMenuItem();
-	
-	media_file_format fFileFormat;
-};
-
-// ------------------- CodecMenuItem -------------------
-
-class CodecMenuItem : public BMenuItem
-{
-public:
-				CodecMenuItem(media_codec_info *ci, uint32 msg_type);
-	virtual		~CodecMenuItem();
-	
-	media_codec_info fCodecInfo;
-};
-
 // ------------------- Save Panel -------------------
 
 class SavePanel : public BFilePanel, public BHandler {

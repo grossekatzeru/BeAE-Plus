@@ -47,31 +47,6 @@ static BString sLastFormat, sLastCodec, sLastCodecFormat;
 /*******************************************************
 *
 *******************************************************/
-// ------------------- CodecMenuItem -------------------
-CodecMenuItem::CodecMenuItem(media_codec_info *ci, uint32 msg_type)
-	: BMenuItem(ci->pretty_name, new BMessage(msg_type))
-{
-	memcpy(&fCodecInfo, ci, sizeof(fCodecInfo));
-}
-
-
-CodecMenuItem::~CodecMenuItem()
-{
-}
-
-// ------------------- FileFormatMenuItem -------------------
-FileFormatMenuItem::FileFormatMenuItem(media_file_format *format)
-	: BMenuItem(format->pretty_name, new BMessage(PANEL_FORMAT))
-{
-	memcpy(&fFileFormat, format, sizeof(fFileFormat));
-}
-
-
-FileFormatMenuItem::~FileFormatMenuItem()
-{
-}
-
-
 /*******************************************************
 *   Панель «Сохранить как...» / «Миксдаун как...»
 *
