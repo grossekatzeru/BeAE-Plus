@@ -1,0 +1,338 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html lang="fr">
+<head>
+	<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+	<title>BeAE-Plus - Aide</title>
+<style type="text/css">
+body { font-size: 0.95em; line-height: 1.5; margin: 30px; max-width: 60em; font-family: "DejaVu Sans",Arial,Helvetica,sans-serif; }
+h1 { font-size: 1.8em; margin-bottom: 0; }
+h2 { font-size: 1.3em; margin-top: 2em; border-bottom: solid thin #454545; color: #333; }
+h3 { font-size: 1.05em; margin-top: 1.4em; color: #454545; }
+.sub { color: #787878; }
+table.t { border-collapse: collapse; margin: 10px 0; }
+table.t td, table.t th { border: solid thin #bbb; padding: 4px 10px; vertical-align: top; text-align: left; }
+table.t th { background-color: #efefef; }
+.note { background-color: #efefef; padding: 8px 12px; margin: 10px 0; }
+kbd { background-color: #f4f4f4; border: solid thin #aaa; padding: 0 5px; font-family: "DejaVu Sans Mono",monospace; font-size: 0.9em; }
+code { font-family: "DejaVu Sans Mono",monospace; }
+</style>
+</head>
+<body>
+
+<table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
+<td><h1>BeAE-Plus</h1>
+<span style="font-size: 1.3em">Aide</span><br />
+<span class="sub">Un éditeur audio multipiste pour Haiku. Version 3.1. Basé sur BeAE de Frans van Nispen. BeAE-Plus : Stas Korobov (grossekatze1@gmail.com), développé avec Claude (Anthropic).</span></td></tr></table>
+
+<h2>Sommaire</h2>
+<ol>
+<li><a href="#start">Démarrage rapide</a></li>
+<li><a href="#window">La fenêtre du programme</a></li>
+<li><a href="#tracks">Pistes et panneau de piste</a></li>
+<li><a href="#clips">Clips</a></li>
+<li><a href="#open">Ouverture, enregistrement et glisser-déposer de fichiers</a></li>
+<li><a href="#play">Lecture et enregistrement</a></li>
+<li><a href="#select">Sélection et zoom</a></li>
+<li><a href="#tempo">Tempo, grille et métronome</a></li>
+<li><a href="#fx">Effets de piste et de Master</a></li>
+<li><a href="#automation">Automation du volume et du panoramique</a></li>
+<li><a href="#gamepad">Contrôle par manette</a></li>
+<li><a href="#transform">Le menu Transform : traitement de la sélection</a></li>
+<li><a href="#plugins">Plug-ins BeAE-Plus</a></li>
+<li><a href="#analyze">Analyse : spectre, oscilloscope, tempo, accordeur</a></li>
+<li><a href="#midi">Insérer depuis un fichier MIDI</a></li>
+<li><a href="#project">Projet (.bemix)</a></li>
+<li><a href="#save">Enregistrement et mixage</a></li>
+<li><a href="#prefs">Préférences</a></li>
+<li><a href="#keys">Raccourcis clavier</a></li>
+<li><a href="#trouble">FAQ</a></li>
+</ol>
+
+<h2 id="start">1. Démarrage rapide</h2>
+<ol>
+<li>Glissez un fichier son dans la fenêtre du programme (ou utilisez <b>File → Open...</b>). Le son est placé sur une piste sous forme de clip.</li>
+<li>Ajoutez d'autres fichiers sur d'autres pistes. Le volume et la balance de chaque piste se règlent dans son panneau, à gauche.</li>
+<li>Appuyez sur <kbd>Espace</kbd> pour lancer la lecture.</li>
+<li>Enregistrez votre travail : <b>Save project</b> (un projet <code>.bemix</code> contenant toutes les pistes) ou <b>Mixdown as...</b> (un fichier son final).</li>
+</ol>
+<div class="note">Les noms des éléments de menu dans cette aide sont donnés tels qu'ils apparaissent dans l'interface. La langue de l'interface se choisit dans <b>File → Preferences...</b> (page General).</div>
+
+<h2 id="window">2. La fenêtre du programme</h2>
+<ul>
+<li><b>Menu</b> en haut : File, Edit, Transform, Analyze, Help.</li>
+<li><b>Barre d'outils</b> : nouveau, ouvrir, enregistrer, annuler et rétablir, couper/copier/coller, boutons d'outils (sélection, dessin, lecture, la molette Jogg, déplacement de piste dans le temps).</li>
+<li><b>Liste des pistes</b> à gauche (panneaux de piste) et <b>bandes de piste</b> à droite, qui montrent le son des clips. La règle temporelle se trouve au-dessus.</li>
+<li><b>Master</b> : le bus commun en bas de la liste des pistes, avec le volume, la sourdine (M), une chaîne d'effets (FX) et des indicateurs de niveau G/D.</li>
+<li><b>Panneau de transport</b> en bas : les boutons Stop, Play, Pause, Rewind, Forward et Record, le zoom, les compteurs de temps (position courante, début, fin et durée de la sélection), le panneau de tempo.</li>
+</ul>
+
+<h2 id="tracks">3. Pistes et panneau de piste</h2>
+<p>Un projet peut contenir jusqu'à 64 pistes. Les boutons <b>+</b> et <b>−</b> au-dessus de la liste ajoutent et suppriment des pistes. La piste dans laquelle vous cliquez devient la piste active.</p>
+<table class="t">
+<tr><th>Élément</th><th>Rôle</th></tr>
+<tr><td>Nom</td><td>Un champ contenant le nom de la piste : cliquez pour le modifier. Un double-clic sur un endroit vide du panneau de piste ouvre la fenêtre de décalage temporel de la piste (Offset, ms).</td></tr>
+<tr><td><b>S</b> (Solo)</td><td>Seule cette piste est audible (ainsi que les autres pistes dont S est activé).</td></tr>
+<tr><td><b>M</b> (Mute)</td><td>La piste est en sourdine.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Armement de l'enregistrement : l'enregistrement va sur la piste dont R est activé.</td></tr>
+<tr><td><b>FX</b></td><td>Ouvre la fenêtre des effets de la piste (voir <a href="#fx">Effets</a>).</td></tr>
+<tr><td>Volume (dB)</td><td>Le curseur du haut ; la valeur est affichée à droite.</td></tr>
+<tr><td>Balance</td><td>Le curseur du bas : L, C, R.</td></tr>
+<tr><td><b>Grid</b></td><td>Active les lignes de grille sur cette piste (voir <a href="#tempo">Tempo et grille</a>).</td></tr>
+<tr><td><b>Xfade</b></td><td>Fondu enchaîné aux endroits où les clips de la piste se chevauchent.</td></tr>
+<tr><td><b>Sticky</b></td><td>« Grille magnétique » : les clips s'alignent sur les lignes de la grille lorsqu'on les déplace.</td></tr>
+</table>
+<p>S'il y a plus de pistes que l'écran ne peut en afficher, une barre de défilement apparaît à leur droite.</p>
+
+<h2 id="clips">4. Clips</h2>
+<p>Le son d'une piste est constitué de clips. Un clip peut être déplacé, copié, coupé, verrouillé et regroupé.</p>
+<ul>
+<li><b>Déplacement</b> : faites glisser le clip à la souris à l'endroit voulu, y compris sur une autre piste. Avec Sticky activé, le clip s'aligne sur la grille.</li>
+<li><b>Sélection de plusieurs clips</b> : cliquez sur les clips en maintenant <kbd>Ctrl</kbd>. Un double-clic sur un clip sélectionne tous les clips de la piste (si l'option est activée dans les préférences : « Double click selects all clips on the track »). Les clips sélectionnés sont teintés d'une même couleur.</li>
+<li><b>Split</b> (<kbd>Alt</kbd>+<kbd>X</kbd>) : coupe le clip au niveau du curseur.</li>
+<li><b>Copy</b> (<kbd>Alt</kbd>+<kbd>C</kbd>) et <b>Paste</b> (<kbd>Alt</kbd>+<kbd>V</kbd>) : une copie du clip est collée à la position du curseur. <b>Paste clip several times...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>) colle le clip un nombre donné de fois à la suite (pratique pour les boucles).</li>
+<li><b>Delete clip</b> : supprime le clip sélectionné.</li>
+<li><b>Lock in time</b> : le clip ne peut pas être décalé dans le temps par accident.</li>
+<li><b>Group</b> : regroupe deux clips sélectionnés ou plus. Un groupe est peint de sa propre couleur pastel et se déplace et se sélectionne en bloc. Relancer la commande dissocie le groupe.</li>
+<li><b>Save clip as file...</b> : écrit le clip dans un fichier son.</li>
+<li><b>Paste &amp; mix...</b> : mixe le contenu du presse-papiers dans le clip situé sous le curseur.</li>
+</ul>
+<p>Le menu contextuel du clip (bouton droit de la souris) contient les mêmes commandes, plus Select all, Unselect all, « Zero cross » (alignement des bornes de la sélection sur le niveau zéro) et les commandes de zoom.</p>
+
+<h2 id="open">5. Ouverture, enregistrement et glisser-déposer de fichiers</h2>
+<ul>
+<li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>) : ouvre un fichier son dans la piste active. Tous les formats compris par le Media Kit de Haiku sont lus (WAV, AIFF, MP3, Ogg, FLAC et autres, selon les décodeurs installés). Le sous-menu des fichiers récents n'affiche que les fichiers ouverts dans BeAE.</li>
+<li><b>Glisser-déposer</b> d'un fichier depuis le Tracker dans la fenêtre : le son est placé en tant que clip sur la piste située sous le pointeur de la souris, à l'endroit où vous avez déposé le fichier. Plusieurs fichiers à la fois occupent les pistes libres. Si vous déposez un fichier <code>.bemix</code>, le projet s'ouvre.</li>
+<li><b>Enregistrement</b> : activez <b>R</b> sur la piste voulue et appuyez sur le bouton rouge Record. L'enregistrement provient de l'entrée audio du système Haiku. Si aucune piste n'a R activé, le programme vous le signale par un message. Pour arrêter, utilisez le bouton Stop ou appuyez de nouveau sur Record.</li>
+</ul>
+<p>Il est impossible d'ouvrir des fichiers pendant l'enregistrement.</p>
+
+<h2 id="play">6. Lecture et enregistrement</h2>
+<table class="t">
+<tr><th>Action</th><th>Touche</th></tr>
+<tr><td>Lecture (depuis la position du curseur, sur la sélection)</td><td><kbd>Shift</kbd>+<kbd>Espace</kbd></td></tr>
+<tr><td>Lecture jusqu'à la fin</td><td><kbd>Ctrl</kbd>+<kbd>Espace</kbd></td></tr>
+<tr><td>Lecture/Arrêt (bascule)</td><td><kbd>Espace</kbd></td></tr>
+<tr><td>Pause</td><td><kbd>P</kbd></td></tr>
+<tr><td>Boucle (répète la sélection)</td><td><kbd>L</kbd></td></tr>
+<tr><td>Au début / à la fin</td><td><kbd>Shift</kbd>+<kbd>Home</kbd> / <kbd>Shift</kbd>+<kbd>End</kbd></td></tr>
+<tr><td>Curseur au début / à la fin de l'écran</td><td><kbd>Home</kbd> / <kbd>End</kbd></td></tr>
+<tr><td>Faire défiler la zone visible vers la gauche / la droite</td><td><kbd>←</kbd> / <kbd>→</kbd></td></tr>
+<tr><td>Curseur à la dernière position de lecture</td><td><kbd>Enter</kbd></td></tr>
+</table>
+<p>La taille du tampon audio et la latence d'enregistrement se règlent dans <b>Preferences → Audio</b>. Tampon recommandé : 2048 trames.</p>
+<p>Le bouton <b>Fine tune</b> mesure lui-même la latence d'enregistrement : reliez la sortie de la carte son à son entrée par un câble (ou placez un microphone près des haut-parleurs) et appuyez sur « Start ». Le programme joue plusieurs fois de courts clics, les enregistre et calcule la latence d'après le décalage (corrigé à l'aide des horodatages du serveur multimédia) ; la valeur trouvée est placée dans le champ « Recording latency », et un rapport détaillé s'affiche dans la fenêtre de résultat. Chaque nouvel enregistrement est en outre aligné d'après les horodatages, de sorte que la gigue de démarrage du serveur multimédia ne décale pas la prise.</p>
+
+<h2 id="select">7. Sélection et zoom</h2>
+<h3>Sélection</h3>
+<p>Avec l'outil de sélection (le premier bouton d'outil), faites glisser la souris sur un clip : la partie sélectionnée est mise en évidence. Les bornes peuvent être ajustées en les faisant glisser, ou en maintenant <kbd>Shift</kbd> et en cliquant à l'endroit voulu. La sélection agit dans la piste active ; le canal se choisit avec les commandes <b>Edit left/right/both channel</b>.</p>
+<ul>
+<li><b>Select all</b> <kbd>Alt</kbd>+<kbd>A</kbd>, <b>Unselect all</b> <kbd>Alt</kbd>+<kbd>U</kbd>.</li>
+<li><b>Clear</b> <kbd>Alt</kbd>+<kbd>B</kbd> : remplace la sélection par du silence.</li>
+<li><b>Trim</b> : ne conserve que la sélection.</li>
+<li><b>Change frequency...</b> et <b>Resample...</b> : modifient la fréquence d'échantillonnage (avec ou sans recalcul du son).</li>
+</ul>
+<h3>Zoom</h3>
+<table class="t">
+<tr><th>Commande</th><th>Touche</th></tr>
+<tr><td>Zoom in / Zoom out</td><td><kbd>↑</kbd> / <kbd>↓</kbd></td></tr>
+<tr><td>View full wave (tout le son)</td><td><kbd>Shift</kbd>+<kbd>↑</kbd></td></tr>
+<tr><td>Zoom to selection</td><td><kbd>Shift</kbd>+<kbd>↓</kbd></td></tr>
+<tr><td>Zoom to left pointer</td><td><kbd>Shift</kbd>+<kbd>←</kbd></td></tr>
+<tr><td>Zoom to right pointer</td><td><kbd>Shift</kbd>+<kbd>→</kbd></td></tr>
+</table>
+<p>« Zoom to left/right pointer » réduit la fenêtre au quart et place la ligne de sélection gauche (droite) à une distance de 20 % de la largeur du bord gauche (droit). La commande peut être répétée pour un grossissement toujours plus fort.</p>
+
+<h2 id="tempo">8. Tempo, grille et métronome</h2>
+<p>Le panneau de tempo se trouve dans la partie inférieure droite de la fenêtre. Il règle le tempo du projet (BPM), la signature rythmique, le pas de la grille (par exemple 1/4, 1/8, 1/16) et le métronome (activation et volume).</p>
+<ul>
+<li>La <b>grille</b> est affichée sur les pistes dont Grid est activé. Les lignes sur les temps sont plus claires, le début d'une mesure est indiqué par une ligne plus large. Aux faibles niveaux de zoom, les lignes denses sont éclaircies.</li>
+<li><b>Sticky</b> (grille magnétique) : lors du déplacement, les clips s'alignent sur les lignes de la grille avec le pas choisi dans le panneau de tempo.</li>
+<li><b>Metronome</b> : un clic à chaque temps de la mesure, pendant la lecture et l'enregistrement. La signature rythmique et le volume sont enregistrés dans le projet.</li>
+<li><b>Tempo analyzer</b> (Analyze → Tempo analyzer) : détecte le tempo du son et permet de l'adopter comme tempo du projet.</li>
+</ul>
+
+<h2 id="fx">9. Effets de piste et de Master</h2>
+<p>Le bouton <b>FX</b> du panneau de piste (et de Master) ouvre la fenêtre <b>Effects</b> : une chaîne d'effets appliqués pendant la lecture et le mixage. Le son d'origine des clips n'est pas modifié.</p>
+<ul>
+<li><b>Add...</b> : ajoute un effet. Effets intégrés, plug-ins LADSPA, ainsi que VST2 (s'ils sont trouvés dans le système).</li>
+<li><b>Remove</b>, <b>Up</b>, <b>Down</b> : supprime un effet, le monte ou le descend dans la chaîne.</li>
+<li><b>Enabled</b> : désactive temporairement un effet.</li>
+<li><b>Defaults</b> : rétablit les réglages par défaut de l'effet.</li>
+<li>Les valeurs des paramètres sont enregistrées avec le projet.</li>
+</ul>
+<h3>Sidechain ducking (groupe BeFX)</h3>
+<p>Le plug-in intégré « Sidechain ducking » abaisse le volume d'une piste pendant qu'une autre piste (la clé) est jouée, par exemple la basse sous la grosse caisse. Sa fenêtre comprend :</p>
+<ul>
+<li><b>Key track</b> : la piste clé (par son nom).</li>
+<li><b>Key range</b> : tout le son ou seulement les graves.</li>
+<li><b>Release curve</b> : la forme du retour au niveau normal, exponentielle ou linéaire.</li>
+<li><b>Update key</b> : recalcule la clé après modification de la piste clé. L'indicateur montre l'état de la clé et la quantité de compression (Reduction).</li>
+</ul>
+
+<h2 id="automation">10. Automation du volume et du panoramique</h2>
+<p>Le volume et le panoramique d'une piste peuvent varier dans le temps : dessinez des courbes juste sous la piste. Les courbes agissent pendant la lecture et le mixage ; le son d'origine des clips n'est pas modifié.</p>
+<h3>La bande d'automation</h3>
+<ul>
+<li>Sous chaque piste se trouve une fine bande. Cliquez sur le triangle (ou sur la bande) pour la déplier ; cliquez à nouveau pour la replier.</li>
+<li>La ligne <b>rouge</b> est le volume, la <b>bleue</b> le panoramique (le milieu de la bande est le centre). Pour le son, la courbe définit un <i>décalage</i> par rapport au curseur de la piste : volume en dB (0 dB - comme sur le curseur, le bas - silence), panoramique - un écart par rapport à la position du curseur.</li>
+<li><b>Cliquer</b> sur un endroit vide ajoute un point, <b>faire glisser</b> le déplace, un <b>clic droit</b> ou un <b>double-clic</b> sur un point le supprime. Si les deux courbes sont visibles, le point appartient à la plus proche.</li>
+<li>Tant que la bande est dépliée, les cases <b>Volume</b> et <b>Panoramique</b> apparaissent dans le panneau de piste en face d'elle : elles indiquent quelles courbes afficher. Une courbe masquée continue d'agir sur le son. Le bouton <b>C</b> à droite d'une case efface la courbe (grisé s'il n'y a pas de courbe).</li>
+<li>Les courbes et l'état de la bande sont enregistrés dans le projet (<code>.bemix</code>).</li>
+</ul>
+<h3>Master</h3>
+<p>Sous la ligne Master se trouve la même bande : elle dessine la courbe du volume général. Elle est également prise en compte pendant la lecture et le mixage.</p>
+<h3>Enregistrement des mouvements</h3>
+<p>Il n'est pas nécessaire de dessiner les courbes, on peut les enregistrer en direct avec une manette (section <a href="#gamepad">Contrôle par manette</a>) : activez le mode d'enregistrement de l'automation, lancez la lecture et déplacez le stick - le volume et le panoramique de la piste active sont écrits dans les courbes au lieu de déplacer les curseurs.</p>
+
+<h2 id="gamepad">11. Contrôle par manette</h2>
+<p>Le volume et le panoramique de la piste active peuvent être commandés avec un joystick ou une manette USB. Le périphérique et les affectations se règlent dans <b>Preferences → Controllers</b>.</p>
+<ul>
+<li><b>Device</b> : choisissez dans la liste (le bouton « Rescan » relance la recherche). En dessous, les axes, les chapeaux et les boutons sont affichés en direct : c'est ainsi que vous vérifiez que la manette est visible.</li>
+<li><b>Bindings</b> : chaque action a un bouton indiquant sa source actuelle. Appuyez dessus, puis appuyez sur un bouton ou inclinez un axe de la manette - l'affectation est mémorisée. Le bouton « x » efface une affectation, « Defaults » rétablit les affectations d'origine. Une source ne peut être affectée qu'à une seule action.</li>
+<li>Une source est un bouton ou une <i>direction d'axe</i>. Une croix directionnelle numérique, que de nombreuses manettes signalent comme des axes, fonctionne comme un stick à course progressive : plus l'inclinaison est grande, plus la valeur change vite.</li>
+<li>Curseurs : <b>Volume speed</b> (dB/s), <b>Pan speed</b> et la <b>Dead zone</b> des axes.</li>
+</ul>
+<table class="t">
+<tr><th>Action</th><th>Par défaut</th></tr>
+<tr><td>Volume up / Volume down</td><td>axe 2 haut / bas</td></tr>
+<tr><td>Pan left / Pan right</td><td>axe 1 gauche / droite</td></tr>
+<tr><td>Play / stop</td><td>bouton 1</td></tr>
+<tr><td>Previous track / Next track</td><td>boutons 2 / 3</td></tr>
+<tr><td>Hold: master volume</td><td>bouton 4 (tant qu'il est maintenu, le volume s'applique à Master)</td></tr>
+<tr><td>Pan to center</td><td>bouton 5</td></tr>
+<tr><td>Volume 0 dB</td><td>bouton 6</td></tr>
+<tr><td>Automation write on/off</td><td>bouton 7 (le titre de la fenêtre affiche « [Automation write] »)</td></tr>
+</table>
+<div class="note">Le mode d'enregistrement ne fonctionne que pendant la lecture ; sans lui, les mêmes boutons déplacent les curseurs. Si une direction d'axe s'avère inversée, il suffit de réaffecter l'action.</div>
+
+<h2 id="transform">12. Le menu Transform : traitement de la sélection</h2>
+<p>Ces effets agissent directement sur le son de la partie sélectionnée du clip actif (le résultat est écrit dans le son ; il peut être annulé). Pour éditer sans modifier l'original, utilisez les effets de piste (FX). Le menu est disponible lorsque la piste active contient du son.</p>
+<table class="t">
+<tr><th>Élément</th><th>Rôle</th></tr>
+<tr><td>Silence</td><td>Remplace la sélection par du silence.</td></tr>
+<tr><td>Fade in / Fade out</td><td>Une montée ou une descente progressive sur la sélection.</td></tr>
+<tr><td>Normalize</td><td>Amène le pic à un niveau donné.</td></tr>
+<tr><td>Bass boost</td><td>Renforce les basses fréquences.</td></tr>
+<tr><td>Compressor</td><td>Compression de la dynamique.</td></tr>
+<tr><td>Amplifier</td><td>Gain ou atténuation en décibels.</td></tr>
+<tr><td>Noise filter</td><td>Réduction du bruit : le profil de bruit est pris sur une portion ne contenant que du bruit.</td></tr>
+<tr><td>Delay, Reverb, Room</td><td>Écho et réverbération.</td></tr>
+<tr><td>Invert</td><td>Inversion de phase.</td></tr>
+<tr><td>Swap channels</td><td>Échange les canaux gauche et droit.</td></tr>
+<tr><td>LADSPA plug-ins</td><td>Un sous-menu avec tous les plug-ins LADSPA trouvés (le bouton « Rescan plug-ins » actualise la liste). Chaque plug-in a sa propre fenêtre avec des curseurs, un aperçu en temps réel et un bouton Apply.</td></tr>
+<tr><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd> : répète le dernier effet appliqué avec les mêmes réglages.</td></tr>
+</table>
+
+<h2 id="plugins">13. Plug-ins BeAE-Plus</h2>
+<p>Le paquet comprend des plug-ins LADSPA (compilés avec la commande <code>make</code> dans le dossier <code>plugins</code>, installés avec <code>make install</code>). Ils apparaissent dans le menu Transform → LADSPA et dans la fenêtre des effets de piste.</p>
+<table class="t">
+<tr><th>Plug-in</th><th>Utilité</th></tr>
+<tr><td>Spring reverb (spring_reverb)</td><td>Réverbération à ressort.</td></tr>
+<tr><td>SADP (sadp)</td><td>Réduction adaptative du bruit pour les bandes magnétiques.</td></tr>
+<tr><td>Graphic equalizer</td><td>6, 12 ou 18 bandes.</td></tr>
+<tr><td>Parametric equalizer</td><td>3 ou 5 bandes.</td></tr>
+<tr><td>Multiband compressor</td><td>4 bandes avec points de croisement réglables.</td></tr>
+<tr><td>Reverb, Plate reverb (EMT 140)</td><td>Réverbérations algorithmique et à plaque.</td></tr>
+<tr><td>80s vocal chain</td><td>Slap delay et réverbération à plaque dans un seul plug-in.</td></tr>
+<tr><td>Flanger, Chorus</td><td>Effets de modulation.</td></tr>
+<tr><td>Optical compressor (LA-2A), Distressor</td><td>Compresseurs dans l'esprit des appareils du même nom.</td></tr>
+<tr><td>Gate / expander</td><td>Supprime le son en dessous d'un seuil.</td></tr>
+<tr><td>Overdrive (Tube Screamer), Distortion (DS-1)</td><td>Pédales d'overdrive avec suréchantillonnage 4x.</td></tr>
+<tr><td>Autotune (vocal)</td><td>Ramène les notes de la voix vers l'accordage choisi.</td></tr>
+</table>
+<p>Les paramètres détaillés et la conception des plug-ins sont décrits dans le fichier <code>plugins/README.md</code>.</p>
+
+<h2 id="analyze">14. Analyse : spectre, oscilloscope, tempo, accordeur</h2>
+<ul>
+<li><b>Spectrum analyzer</b> : le spectre du son.</li>
+<li><b>Sample scope</b> : un oscilloscope de la partie sélectionnée.</li>
+<li><b>Tempo analyzer</b> : détection du tempo.</li>
+<li><b>Tuner</b> : un accordeur pour guitare et basse. Il écoute l'entrée audio sans enregistrer. Choisissez un accordage (toutes les notes, guitare 6 ou 7 cordes, basse 4 ou 5 cordes), la notation des notes (C D E ou Do Ré Mi) et la fréquence du La4 (A4). Appuyez sur Start et jouez une corde : l'échelle verte indique l'écart. L'accordeur est indisponible pendant l'enregistrement.</li>
+</ul>
+
+<h2 id="midi">15. Insérer depuis un fichier MIDI</h2>
+<p><b>File → Insert from MIDI...</b> (<kbd>Alt</kbd>+<kbd>I</kbd>) transforme un fichier MIDI en son à l'aide d'une SoundFont (SF2).</p>
+<ol>
+<li>Dans le panneau qui s'ouvre, choisissez un fichier MIDI. Le bouton <b>Play</b> en bas à gauche le joue avec le synthétiseur MIDI système de Haiku (c'est la banque des réglages Midi du système qui sonne, et non la SoundFont de BeAE) : ce n'est que pour se faire une idée du fichier.</li>
+<li>La fenêtre des paramètres affiche : le nom du fichier, le nombre de pistes contenant des notes, la SoundFont et le tempo.</li>
+<li>Dans le cadre <b>MIDI Effects</b>, activez les effets dont vous avez besoin : Pan, Reverb, Chorus. Reverb et Chorus nécessitent des plug-ins de ce paquet.</li>
+<li>Si le tempo MIDI diffère du tempo du projet, choisissez : adopter le tempo MIDI pour le projet, adapter le MIDI au tempo du projet, ou conserver les deux.</li>
+<li>Appuyez sur <b>Insert</b> : le MIDI est synthétisé et placé sur des pistes libres.</li>
+</ol>
+<p>La banque de sons par défaut se choisit dans <b>Preferences → Audio</b> (la section MIDI). Les fichiers SoundFont <code>*.sf2</code> sont recherchés dans les dossiers du synthétiseur de Haiku.</p>
+
+<h2 id="project">16. Projet (.bemix)</h2>
+<p>Un projet conserve les pistes, les clips, le volume, la balance, les courbes d'automation, les effets, les groupes, le tempo et le métronome. Ce n'est pas un fichier son mais un dossier contenant des liens vers le son et une description du projet.</p>
+<ul>
+<li><b>New project</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd>), <b>Open project...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>), <b>Save project</b>, <b>Save project as...</b>.</li>
+<li>Le panneau d'ouverture affiche les dossiers et les fichiers <code>*.bemix</code>.</li>
+<li>Un fichier <code>.bemix</code> peut être glissé dans la fenêtre de BeAE et s'ouvrira.</li>
+</ul>
+
+<h2 id="save">17. Enregistrement et mixage</h2>
+<h3>Enregistrement du son de la piste active</h3>
+<p><b>Save</b> (<kbd>Alt</kbd>+<kbd>S</kbd>), <b>Save as...</b> (<kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>) et <b>Save selection...</b> (<kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd>) ouvrent le panneau d'enregistrement. L'extension est ajoutée automatiquement selon le format choisi.</p>
+<table class="t">
+<tr><th>Champ du panneau</th><th>Utilité</th></tr>
+<tr><td>Format</td><td><b>Uncompressed (PCM)</b> écrit du WAV (16, 24 ou 32 bits, comme dans le son d'origine) ; <b>Compressed</b> utilise un encodeur externe.</td></tr>
+<tr><td>Codec</td><td>Disponible lorsque le format est « Compressed ». Affiche les encodeurs trouvés dans le système : MP3 (lame), Ogg Vorbis (oggenc), FLAC (flac), Opus (opusenc).</td></tr>
+<tr><td>Options...</td><td>Réglages de l'encodeur sélectionné (ci-dessous).</td></tr>
+</table>
+<h3>Réglages de compression (bouton « Options... »)</h3>
+<table class="t">
+<tr><th>Codec</th><th>Réglages</th></tr>
+<tr><td>MP3 (lame)</td><td>Mode VBR / CBR / ABR ; qualité V (0 est la meilleure, 2 par défaut) ; débit de 32 à 320 kbps pour CBR et ABR ; stéréo : joint, stereo, mono.</td></tr>
+<tr><td>Ogg Vorbis (oggenc)</td><td>Mode « par qualité » (0-10, 5 par défaut) ou « par débit » (32-320 kbps).</td></tr>
+<tr><td>FLAC (flac)</td><td>Niveau de compression 0-8 (5 par défaut). Sans perte ; plus le niveau est élevé, plus le fichier est petit et plus l'encodage est long.</td></tr>
+<tr><td>Opus (opusenc)</td><td>Mode VBR ou CBR ; débit de 6 à 510 kbps (128 par défaut).</td></tr>
+</table>
+<p>Pour tous les codecs, vous pouvez définir des tags : artiste, album, année, commentaire. Le titre est pris dans le nom du fichier. Les réglages sont mémorisés.</p>
+<div class="note">Les encodeurs <code>lame</code>, <code>oggenc</code>, <code>flac</code> et <code>opusenc</code> sont des programmes externes, ils doivent être installés dans le système (par exemple, <code>pkgman install lame flac vorbis_tools opus_tools</code>). Si aucun n'est présent, le champ « Codec » affiche une indication.</div>
+<h3>Mixdown</h3>
+<ul>
+<li><b>Mixdown</b> (<kbd>Alt</kbd>+<kbd>M</kbd>) : mixe toutes les pistes du projet (en tenant compte du volume, de la balance, des courbes d'automation, des effets, de mute/solo) dans un fichier son. L'extension <code>.wav</code> est ajoutée automatiquement.</li>
+<li><b>Mixdown as...</b> : la même chose avec le choix du format. Les formats compressés passent par des encodeurs externes, comme ci-dessus.</li>
+</ul>
+<p>Si toutes les pistes sont vides ou en sourdine, le mixage signale qu'il n'y a rien à mixer.</p>
+
+<h2 id="prefs">18. Préférences</h2>
+<p><b>File → Preferences...</b> (<kbd>Alt</kbd>+<kbd>P</kbd>). Pages :</p>
+<table class="t">
+<tr><th>Page</th><th>Contenu</th></tr>
+<tr><td>General</td><td>Sections Display (grille, niveau de crête, couleurs), Editing (le double-clic sélectionne les clips de la piste, suivi de la lecture), System (langue, dossier temporaire, etc.).</td></tr>
+<tr><td>Audio</td><td>Tampon audio, latence d'enregistrement, MIDI (la banque de sons SF2 pour l'importation).</td></tr>
+<tr><td>Colorset</td><td>Couleurs de l'interface : grille, grille sélectionnée, pointeurs, arrière-plan et autres.</td></tr>
+<tr><td>Key bindings</td><td>Affectation de raccourcis clavier à n'importe quelle commande.</td></tr>
+<tr><td>Controllers</td><td>Joystick ou manette : périphérique, affectations des boutons et des axes, vitesses (section <a href="#gamepad">11</a>).</td></tr>
+</table>
+<p>L'annulation est toujours active. Un changement de langue prend effet après le redémarrage des fenêtres ; pour le dossier temporaire, après le redémarrage du programme.</p>
+
+<h2 id="keys">19. Raccourcis clavier</h2>
+<p>La touche <kbd>Alt</kbd> sous Haiku (par défaut) fait office de « Commande ». Tous les raccourcis peuvent être modifiés dans <b>Preferences → Key bindings</b>.</p>
+<table class="t">
+<tr><th>Commande</th><th>Touches</th><th>Commande</th><th>Touches</th></tr>
+<tr><td>New</td><td><kbd>Alt</kbd>+<kbd>N</kbd></td><td>Undo</td><td><kbd>Alt</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Open...</td><td><kbd>Alt</kbd>+<kbd>O</kbd></td><td>Redo</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td></tr>
+<tr><td>Insert from MIDI...</td><td><kbd>Alt</kbd>+<kbd>I</kbd></td><td>Copy</td><td><kbd>Alt</kbd>+<kbd>C</kbd></td></tr>
+<tr><td>Mixdown</td><td><kbd>Alt</kbd>+<kbd>M</kbd></td><td>Split</td><td><kbd>Alt</kbd>+<kbd>X</kbd></td></tr>
+<tr><td>New project</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd></td><td>Paste</td><td><kbd>Alt</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Open project...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd></td><td>Paste clip several times...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save</td><td><kbd>Alt</kbd>+<kbd>S</kbd></td><td>Paste &amp; mix...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>V</kbd></td></tr>
+<tr><td>Save as...</td><td><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd></td><td>Clear</td><td><kbd>Alt</kbd>+<kbd>B</kbd></td></tr>
+<tr><td>Save selection...</td><td><kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Select all / Unselect all</td><td><kbd>Alt</kbd>+<kbd>A</kbd> / <kbd>Alt</kbd>+<kbd>U</kbd></td></tr>
+<tr><td>Preferences...</td><td><kbd>Alt</kbd>+<kbd>P</kbd></td><td>Repeat last filter</td><td><kbd>Alt</kbd>+<kbd>R</kbd></td></tr>
+<tr><td>Quit</td><td><kbd>Alt</kbd>+<kbd>Q</kbd></td><td>Help...</td><td><kbd>Alt</kbd>+<kbd>H</kbd></td></tr>
+</table>
+<p>Les touches de lecture et de zoom sont listées dans les sections <a href="#play">6</a> et <a href="#select">7</a>.</p>
+
+<h2 id="trouble">20. FAQ</h2>
+<p><b>Le format compressé est indisponible, la liste des codecs est vide.</b><br />Installez l'encodeur nécessaire (lame, oggenc, flac, opusenc). Vérifiez dans le Terminal : <code>which lame</code>.</p>
+<p><b>Les plug-ins LADSPA ne sont pas visibles dans le menu.</b><br />Exécutez <code>make install</code> dans le dossier <code>plugins</code> et appuyez sur « Rescan plug-ins » dans le sous-menu LADSPA. Les plug-ins sont recherchés dans le dossier <code>plugins</code> à côté du programme et dans les dossiers LADSPA standard.</p>
+<p><b>L'enregistrement ne démarre pas.</b><br />Activez <b>R</b> sur la piste dans laquelle vous voulez enregistrer.</p>
+<p><b>Le fichier ne s'ouvre pas.</b><br />Le message « This file is not supported » signifie que le système n'a pas de décodeur pour ce format. Vérifiez si le fichier s'ouvre dans MediaPlayer.</p>
+<p><b>Des clics pendant la lecture.</b><br />Augmentez le tampon audio dans Preferences → Audio.</p>
+
+<hr />
+<p class="sub">BeAE-Plus: https://github.com/grossekatzeru/BeAE-Plus</p>
+</body>
+</html>

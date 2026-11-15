@@ -1492,11 +1492,26 @@ void MainWindow::MessageReceived(BMessage *message)
 		BEntry entry(&ai.ref);
 		entry.GetPath(&path);
 		path.GetParent(&path);
-		{	// справка на русском для русского интерфейса, иначе английская (если файл есть)
-			const bool ru = Language.Name() && strcmp(Language.Name(), "Russian") == 0;
+		{	// справка на языке интерфейса (Help/help_xx.html); русская - help.html; нет файла - английская
+			static const struct { const char *lang, *file; } kHelp[] = {
+				{ "Russian", "Help/help.html" },
+				{ "Deutsch", "Help/help_de.html" },
+				{ "Francais", "Help/help_fr.html" },
+				{ "Spanish", "Help/help_es.html" },
+				{ "Italian", "Help/help_it.html" }
+			};
+			const char *file = "Help/help_en.html";
+			for (size_t i = 0; i < sizeof(kHelp) / sizeof(kHelp[0]); i++){
+				if (strcmp(Language.Name(), kHelp[i].lang) != 0) continue;
+				BPath cand(path);
+				cand.Append(kHelp[i].file);
+				if (BEntry(cand.Path()).Exists()) file = kHelp[i].file;
+				break;
+			}
 			BPath en(path);
-			en.Append("Help/help_en.html");
-			path.Append((ru || !BEntry(en.Path()).Exists()) ? "Help/help.html" : "Help/help_en.html");
+			en.Append(file);
+			if (!BEntry(en.Path()).Exists()) file = "Help/help.html";
+			path.Append(file);
 		}
 		char *help = new char[strlen(path.Path())+1];
 		sprintf(help, path.Path());
