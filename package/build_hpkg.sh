@@ -46,7 +46,10 @@ cp "$ROOT/BeAE/license.txt" "$APPDIR/" 2>/dev/null || true
 
 # плагины: каждая подпапка plugins/<имя>/ ставится в lib/ladspa/<Группа>/ (правило make install)
 ( cd "$ROOT/plugins" && make install DEST="$STAGE/lib/ladspa" )
-NPLUG="$(find "$STAGE/lib/ladspa" -name '*.so' | wc -l | tr -d ' ')"
+NPLUG=0
+for f in "$STAGE"/lib/ladspa/*/*.so; do
+	[ -f "$f" ] && NPLUG=$((NPLUG + 1))
+done
 [ "$NPLUG" -gt 0 ] || { echo "Плагины не найдены: выполните make в папке plugins" >&2; exit 1; }
 echo "   плагинов: $NPLUG"
 
