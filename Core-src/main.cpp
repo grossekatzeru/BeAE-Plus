@@ -33,6 +33,7 @@
 #include <StorageKit.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <View.h>
 
 #include "ByteSwap.h"
@@ -63,6 +64,17 @@ int main()
 
 MyApplication::MyApplication():BApplication("application/x-vnd.BeAE-BeAE")
 {
+	// Картинки и ресурсы читаются по относительным путям ("./Bitmaps/..."): переходим в папку программы,
+	// откуда бы её ни запустили (меню «Приложения», Deskbar, Terminal из другой папки, пакет .hpkg).
+	{
+		app_info ai;
+		if (GetAppInfo(&ai) == B_OK){
+			BEntry entry(&ai.ref);
+			BPath path;
+			if (entry.GetPath(&path) == B_OK && path.GetParent(&path) == B_OK)
+				chdir(path.Path());
+		}
+	}
 	BRect rect(50,50,800,600);
 	mainWindow = new MainWindow(rect);
 	fOpenPanel = new OpenPanel(this);

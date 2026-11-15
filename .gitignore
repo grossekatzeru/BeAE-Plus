@@ -1,4 +1,6 @@
-objects*/
+*.hpkg
 BeAE/BeAE
-tests/*/build/
+objects*/
+package/stage/
 plugins/*/*.so
+tests/*/build/
