@@ -59,7 +59,7 @@ echo "   плагинов: $NPLUG"
 # ярлык в «Приложения»: относительная ссылка на программу
 ln -s ../../../../apps/BeAE-Plus/BeAE "$STAGE/data/deskbar/menu/Applications/BeAE-Plus"
 
-cp "$ROOT/README.md" "$ROOT/BeAE/license.txt" "$STAGE/documentation/packages/beae_plus/" 2>/dev/null || true
+cp "$ROOT/README.md" "$ROOT/BeAE/license.txt" "$ROOT/screenshot.png" "$STAGE/documentation/packages/beae_plus/" 2>/dev/null || true
 
 cat > "$STAGE/.PackageInfo" <<EOF
 name			beae_plus

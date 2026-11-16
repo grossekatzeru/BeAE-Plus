@@ -4,7 +4,7 @@ Authors: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (
 
 BeAE audio editor for Haiku, with a wide array of features.
 
-![Screenshot](BeAe.png)
+![BeAE-Plus 3.1](screenshot.png)
 
 <hr></hr>
 Features:<br>
