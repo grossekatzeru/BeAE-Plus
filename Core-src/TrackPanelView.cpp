@@ -4,6 +4,10 @@
 #include <Font.h>
 #include <Message.h>
 #include <TextView.h>
+#include <Menu.h>
+#include <MenuItem.h>
+#include <PopUpMenu.h>
+#include <vector>
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
@@ -23,42 +27,12 @@
 #define DB_MIN		-60.0f
 #define DB_MAX		6.0f
 
-#define MSG_NAME_OK		'tnOk'
-#define MSG_NAME_CANCEL	'tnCn'
 #define KNOB_W			7		// ширина бегунка
 #define TICKS			10		// число засечек под бегунком
 
-// поле ввода названия дорожки: Enter - принять, Esc - отменить, потеря фокуса - принять
-class NameEdit : public BTextView {
-public:
-	NameEdit(BRect frame, BView *owner)
-		: BTextView(frame, "nameedit", BRect(2, 1, frame.Width() - 2, frame.Height() - 1),
-			B_FOLLOW_NONE, B_WILL_DRAW | B_FRAME_EVENTS),
-		  fOwner(owner)
-	{
-		SetViewColor(255, 255, 255);
-		SetLowColor(255, 255, 255);
-		SetFontSize(10);
-		SetMaxBytes(63);
-	}
-	virtual void KeyDown(const char *bytes, int32 n)
-	{
-		if (n == 1 && (bytes[0] == B_ENTER || bytes[0] == B_TAB)) { fOwner->Window()->PostMessage(MSG_NAME_OK, fOwner); return; }
-		if (n == 1 && bytes[0] == B_ESCAPE) { fOwner->Window()->PostMessage(MSG_NAME_CANCEL, fOwner); return; }
-		BTextView::KeyDown(bytes, n);
-	}
-	virtual void MakeFocus(bool focus = true)
-	{
-		BTextView::MakeFocus(focus);
-		if (!focus && !IsHidden()) fOwner->Window()->PostMessage(MSG_NAME_OK, fOwner);
-	}
-private:
-	BView *fOwner;
-};
-
 TrackPanelView::TrackPanelView(BRect r)
 	: BView(r, "Track panel", B_FOLLOW_TOP_BOTTOM | B_FOLLOW_LEFT, B_WILL_DRAW | B_PULSE_NEEDED),
-	  fEdit(NULL), fEditIndex(-1), fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1), fLastCount(-1), fLastScroll(-1), fLastHeight(-1)
+	  fDragWhat(HIT_NONE), fDragIndex(-1), fScroll(0), fLastActive(-1), fLastRevision(-1), fLastCount(-1), fLastScroll(-1), fLastHeight(-1)
 {
 	SetViewColor(B_TRANSPARENT_COLOR);
 }
@@ -67,9 +41,6 @@ void TrackPanelView::AttachedToWindow()
 {
 	SetFont(be_plain_font);
 	SetFontSize(10);
-	fEdit = new NameEdit(BRect(0, 0, 80, 14), this);
-	AddChild(fEdit);
-	fEdit->Hide();
 }
 
 float TrackPanelView::VolToPos(float gain)
@@ -109,7 +80,7 @@ BRect TrackPanelView::MeterRect(int index) const
 	return BRect(s.left + 1, s.top + 2, s.left + 14, s.bottom - 3);
 }
 
-BRect TrackPanelView::NameRect(int index) const
+BRect TrackPanelView::SourceRect(int index) const
 {
 	BRect s = StripRect(index);
 	return BRect(s.left + CONTENT_X, s.top + 3, s.right - 5, s.top + 18);
@@ -118,8 +89,16 @@ BRect TrackPanelView::NameRect(int index) const
 BRect TrackPanelView::ButtonRect(int index, int which) const
 {
 	BRect s = StripRect(index);
-	float x = s.left + CONTENT_X + which * 22;
-	return BRect(x, s.top + 23, x + (which == 3 ? 24 : 18), s.top + 36);	// 3 = FX, шире
+	// слева направо: FX, S, M, R (R подальше от FX, чтобы не промахиваться)
+	float x = s.left + CONTENT_X;
+	float w = 18;
+	switch (which){
+		case 3: w = 24; break;				// FX
+		case 0: x += 28; break;				// S
+		case 1: x += 50; break;				// M
+		case 2: x += 72; break;				// R
+	}
+	return BRect(x, s.top + 23, x + w, s.top + 36);
 }
 
 BRect TrackPanelView::GridRect(int index) const
@@ -216,13 +195,13 @@ BRect TrackPanelView::MasterNameRect() const
 BRect TrackPanelView::MasterMuteRect() const
 {
 	BRect s = MasterRect();
-	return BRect(s.left + CONTENT_X, s.top + 23, s.left + CONTENT_X + 18, s.top + 36);
+	return BRect(s.left + CONTENT_X + 28, s.top + 23, s.left + CONTENT_X + 28 + 18, s.top + 36);
 }
 
 BRect TrackPanelView::MasterFxRect() const
 {
 	BRect s = MasterRect();
-	return BRect(s.left + CONTENT_X + 22, s.top + 23, s.left + CONTENT_X + 22 + 24, s.top + 36);
+	return BRect(s.left + CONTENT_X, s.top + 23, s.left + CONTENT_X + 24, s.top + 36);
 }
 
 BRect TrackPanelView::MasterVolRect() const
@@ -231,14 +210,14 @@ BRect TrackPanelView::MasterVolRect() const
 	return BRect(s.left + CONTENT_X + KNOB_W / 2, s.top + 41, s.right - 48, s.top + 51);
 }
 
-void TrackPanelView::DrawButton(BRect r, const char *label, bool on, rgb_color onColor)
+void TrackPanelView::DrawButton(BRect r, const char *label, bool on, rgb_color onColor, const rgb_color *offColor)
 {
 	rgb_color base = ui_color(B_PANEL_BACKGROUND_COLOR);
-	SetHighColor(on ? onColor : tint_color(base, B_DARKEN_1_TINT));
+	SetHighColor(on ? onColor : (offColor ? *offColor : tint_color(base, B_DARKEN_1_TINT)));
 	FillRect(r);
 	SetHighColor(tint_color(base, B_DARKEN_3_TINT));
 	StrokeRect(r);
-	SetHighColor(on ? make_color(0,0,0) : tint_color(base, B_DARKEN_4_TINT));
+	SetHighColor(0, 0, 0);							// подписи всегда чёрные, не сливаются с фоном
 	font_height fh;
 	GetFontHeight(&fh);
 	float w = StringWidth(label);
@@ -321,29 +300,26 @@ void TrackPanelView::Draw(BRect update)
 		SetHighColor(tint_color(base, B_DARKEN_2_TINT));
 		StrokeLine(BPoint(s.left, s.bottom), BPoint(s.right, s.bottom));
 
-		// поле имени: белое, чёрная рамка
-		BRect nb = NameRect(i);
+		// поле-список: источник записи этой дорожки (белое, чёрная рамка, стрелка справа)
+		BRect nb = SourceRect(i);
 		SetHighColor(255, 255, 255);
 		FillRect(nb);
 		SetHighColor(0, 0, 0);
 		StrokeRect(nb);
-		if (i != fEditIndex){
-			SetHighColor(0, 0, 0);
+		{
 			SetLowColor(255, 255, 255);
-			float room = nb.Width() - 8;
-			const double laneOff = (i == active) ? (Pool.frequency > 1.0f ? (double)Pool.pad_lead / Pool.frequency : 0.0)
-				: (Mix.Clip(i, 0) ? Mix.Clip(i, 0)->pos : 0.0);
-			if (laneOff > 0.0005){
-				char off[24];
-				snprintf(off, sizeof(off), "+%.3f s", laneOff);
-				SetHighColor(110, 110, 110);
-				DrawString(off, BPoint(nb.right - 4 - StringWidth(off), nb.bottom - 4));
-				room -= StringWidth(off) + 6;
-				SetHighColor(0, 0, 0);
-			}
-			BString shown(t->name);
-			TruncateString(&shown, B_TRUNCATE_END, room < 20 ? 20 : room);
+			BString shown;
+			if (t->source[0] == 0)
+				shown = Language.get("TRK_SRC_SYSTEM");
+			else if (strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0)
+				shown = Language.get("TRK_SRC_EXTERNAL");
+			else
+				shown = t->source;
+			TruncateString(&shown, B_TRUNCATE_END, nb.Width() - 20);
 			DrawString(shown.String(), BPoint(nb.left + 4, nb.bottom - 4));
+			// стрелка вниз: «здесь выпадающий список»
+			const float ax = nb.right - 9, ay = nb.top + nb.Height() / 2;
+			FillTriangle(BPoint(ax - 3, ay - 2), BPoint(ax + 3, ay - 2), BPoint(ax, ay + 2));
 		}
 		SetLowColor(i == active ? sel : tint_color(base, B_LIGHTEN_1_TINT));
 
@@ -351,7 +327,10 @@ void TrackPanelView::Draw(BRect update)
 		DrawButton(ButtonRect(i, 0), "S", t->solo, make_color(255, 220, 0));
 		DrawButton(ButtonRect(i, 1), "M", t->mute, make_color(255, 140, 0));
 		DrawButton(ButtonRect(i, 2), "R", t->armed, make_color(255, 40, 40));
-		DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110));
+		{
+			const rgb_color lilac = make_color(214, 200, 232);	// FX выключен: неяркий сиреневый
+			DrawButton(ButtonRect(i, 3), "FX", Mix.Fx(i).Count() > 0, make_color(110, 200, 110), &lilac);
+		}
 		// под регулировкой баланса - строки «подпись + чекбокс»: Grid (липкая сетка) и Xfade (кроссфейд перекрытий)
 		for (int row = 0; row < 3; row++){
 			BRect g = (row == 0) ? GridRect(i) : (row == 1 ? XfadeRect(i) : StickyRect(i));
@@ -483,7 +462,10 @@ void TrackPanelView::DrawMaster(BRect)
 	SetLowColor(tint_color(base, B_DARKEN_1_TINT));
 
 	DrawButton(MasterMuteRect(), "M", Mix.MasterMute(), make_color(255, 140, 0));
-	DrawButton(MasterFxRect(), "FX", Mix.Fx(MIX_MASTER).Count() > 0, make_color(110, 200, 110));
+	{
+		const rgb_color lilac = make_color(214, 200, 232);
+		DrawButton(MasterFxRect(), "FX", Mix.Fx(MIX_MASTER).Count() > 0, make_color(110, 200, 110), &lilac);
+	}
 
 	// индикатор уровня
 	BRect m = MasterMeterRect();
@@ -551,7 +533,7 @@ int TrackPanelView::HitTest(BPoint p, int &index) const
 		if (GridRect(i).Contains(p)) return HIT_GRID;
 		if (XfadeRect(i).Contains(p)) return HIT_XFADE;
 		if (StickyRect(i).Contains(p)) return HIT_STICKY;
-		if (NameRect(i).Contains(p)) return HIT_NAMEBOX;
+		if (SourceRect(i).Contains(p)) return HIT_SOURCE;
 		BRect v = VolRect(i), a = PanRect(i);
 		v.InsetBy(-KNOB_W / 2 - 1, -2); a.InsetBy(-KNOB_W / 2 - 1, -2);
 		if (v.Contains(p)) return HIT_VOL;
@@ -589,40 +571,60 @@ void TrackPanelView::SetFromMouse(int what, int index, BPoint p)
 	Invalidate();
 }
 
-void TrackPanelView::BeginNameEdit(int index)
+// Выпадающий список источника записи дорожки: системный вход, найденные узлы Media Kit, внешнее подключение (Cortex).
+void TrackPanelView::ShowSourceMenu(int index)
 {
 	MixTrack *t = Mix.Track(index);
-	if (!t || !fEdit) return;
-	EndNameEdit(true);
-	BRect r = NameRect(index);
-	r.InsetBy(1, 1);
-	fEditIndex = index;
-	fEdit->MoveTo(r.LeftTop());
-	fEdit->ResizeTo(r.Width(), r.Height());
-	fEdit->SetTextRect(BRect(2, 0, r.Width() - 2, r.Height()));
-	fEdit->SetText(t->name);
-	fEdit->Show();
-	fEdit->MakeFocus(true);
-	fEdit->SelectAll();
-}
+	if (t == NULL || Recorder.IsRecording())
+		return;
 
-void TrackPanelView::EndNameEdit(bool commit)
-{
-	if (fEditIndex < 0 || !fEdit) return;
-	const int idx = fEditIndex;
-	fEditIndex = -1;							// до Hide(): потеря фокуса не должна зациклить
-	if (commit){
-		BString n(fEdit->Text());
-		n.Trim();
-		if (n.Length() > 0) Tracks_SetName(idx, n.String());
+	std::vector<BString> names;
+	AudioRecorder::ListSources(names);
+
+	BPopUpMenu *menu = new BPopUpMenu("source", false, false);
+	std::vector<BString> values;						// значение источника для каждого пункта (по номеру пункта)
+
+	auto add = [&](const char *label, const char *value, bool marked){
+		if (label == NULL){
+			menu->AddSeparatorItem();
+			values.push_back(BString(""));
+			return;
+		}
+		BMenuItem *item = new BMenuItem(label, NULL);
+		item->SetMarked(marked);
+		menu->AddItem(item);
+		values.push_back(BString(value));
+	};
+
+	const bool isExternal = strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0;
+	add(Language.get("TRK_SRC_SYSTEM"), "", t->source[0] == 0);
+	if (!names.empty() || (t->source[0] && !isExternal))
+		add(NULL, NULL, false);
+	bool found = false;
+	for (size_t k = 0; k < names.size(); k++){
+		const bool cur = (strcmp(t->source, names[k].String()) == 0);
+		if (cur) found = true;
+		add(names[k].String(), names[k].String(), cur);
 	}
-	if (!fEdit->IsHidden()) fEdit->Hide();
-	Invalidate();
+	if (t->source[0] && !isExternal && !found)			// выбранного узла сейчас нет (приложение закрыто): показать, чтобы выбор был виден
+		add(t->source, t->source, true);
+	add(NULL, NULL, false);
+	add(Language.get("TRK_SRC_EXTERNAL"), MIX_SOURCE_EXTERNAL, isExternal);
+
+	BRect field = SourceRect(index);
+	BMenuItem *chosen = menu->Go(ConvertToScreen(BPoint(field.left, field.bottom + 1)), false, true, ConvertToScreen(field), false);
+	if (chosen != NULL){
+		const int32 at = menu->IndexOf(chosen);
+		if (at >= 0 && at < (int32)values.size()){
+			Mix.SetSource(index, values[at].String());
+			Pool.changed = true;
+		}
+	}
+	delete menu;
 }
 
 void TrackPanelView::MouseDown(BPoint p)
 {
-	if (fEditIndex >= 0) EndNameEdit(true);	// клик в другом месте принимает имя
 	int index;
 	int what = HitTest(p, index);
 	int32 clicks = 1;
@@ -712,9 +714,9 @@ void TrackPanelView::MouseDown(BPoint p)
 	case HIT_FX:
 		FxWindow::Open(index, Window());
 		break;
-	case HIT_NAMEBOX:
+	case HIT_SOURCE:
 		if (index != Mix.Active()) Tracks_Activate(index);
-		BeginNameEdit(index);
+		ShowSourceMenu(index);
 		Invalidate();
 		break;
 	case HIT_NAME:
@@ -757,8 +759,6 @@ void TrackPanelView::MouseUp(BPoint)
 
 void TrackPanelView::MessageReceived(BMessage *msg)
 {
-	if (msg->what == MSG_NAME_OK){ EndNameEdit(true); return; }
-	if (msg->what == MSG_NAME_CANCEL){ EndNameEdit(false); return; }
 	if (msg->what == B_MOUSE_WHEEL_CHANGED){
 		float dy = 0;
 		if (msg->FindFloat("be:wheel_delta_y", &dy) == B_OK){
@@ -772,14 +772,6 @@ void TrackPanelView::MessageReceived(BMessage *msg)
 
 void TrackPanelView::Pulse()
 {
-	if (fEditIndex >= 0){						// прокрутка или смена числа дорожек - поле идёт за дорожкой
-		if (!Mix.Track(fEditIndex)){ EndNameEdit(false); }
-		else{
-			BRect r = NameRect(fEditIndex);
-			r.InsetBy(1, 1);
-			if (fEdit->Frame().LeftTop() != r.LeftTop()) fEdit->MoveTo(r.LeftTop());
-		}
-	}
 	// перерисовка, пока идёт воспроизведение (индикаторы уровня) или сменилась активная дорожка
 	if (Pool.IsPlaying() || fLastActive != Mix.Active() || fLastRevision != Mix.Revision()
 		|| fLastScroll != Tracks_Scroll() || fLastCount != Tracks_Count() || fLastHeight != Bounds().Height()){

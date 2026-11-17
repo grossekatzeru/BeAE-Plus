@@ -252,6 +252,13 @@ void Mixer::SetGain(int i, float g)	{ if (Track(i)) { fTracks[i].gain = g<0?0:(g
 void Mixer::SetPan(int i, float p)	{ if (Track(i)) { fTracks[i].pan = p<-1?-1:(p>1?1:p); fRevision++; } }
 void Mixer::SetMute(int i, bool m)	{ if (Track(i)) { fTracks[i].mute = m; fRevision++; } }
 void Mixer::SetSolo(int i, bool s)	{ if (Track(i)) { fTracks[i].solo = s; fRevision++; } }
+void Mixer::SetSource(int i, const char *source)
+{
+	if (!Track(i) || !source) return;
+	strncpy(fTracks[i].source, source, sizeof(fTracks[i].source) - 1);
+	fTracks[i].source[sizeof(fTracks[i].source) - 1] = 0;
+	fRevision++;
+}
 void Mixer::SetGrid(int i, bool g)	{ if (Track(i)) { fTracks[i].grid = g; fRevision++; } }
 void Mixer::SetSticky(int i, bool s)	{ if (Track(i)) { fTracks[i].sticky = s; fRevision++; } }
 void Mixer::SetAutoOpen(int i, bool open)	{ if (Track(i)) { fTracks[i].autoOpen = open; fRevision++; } }

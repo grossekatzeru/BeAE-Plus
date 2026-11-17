@@ -12,6 +12,7 @@
 
 #include "AudioRecorder.h"
 #include "RecordConvert.h"
+#include "Mixer.h"
 
 static const size_t kChunkFloats = 1 << 20;		// 4 МБ на блок
 
@@ -115,6 +116,61 @@ size_t AudioRecorder::ReadListened(float *dst, size_t maxFrames)
 	return (size_t)avail;
 }
 
+// Живой узел-источник «сырого» звука с заданным именем; узел берётся (GetNodeFor), снимать - ReleaseNode.
+static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_node *node)
+{
+	media_format fmt;
+	fmt.type = B_MEDIA_RAW_AUDIO;
+	fmt.u.raw_audio = media_raw_audio_format::wildcard;
+	live_node_info infos[64];
+	int32 count = 64;
+	status_t err = roster->GetLiveNodes(infos, &count, NULL, &fmt, NULL, B_BUFFER_PRODUCER);
+	if (err != B_OK)
+		return err;
+	for (int32 i = 0; i < count; i++) {
+		if (strcmp(infos[i].name, name) == 0)
+			return roster->GetNodeFor(infos[i].node.node, node);
+	}
+	return B_NAME_NOT_FOUND;
+}
+
+void AudioRecorder::ListSources(std::vector<BString> &names)
+{
+	names.clear();
+	BMediaRoster *roster = BMediaRoster::Roster();
+	if (roster == NULL)
+		return;
+
+	media_node systemInput;
+	bool haveSystem = (roster->GetAudioInput(&systemInput) == B_OK);
+
+	media_format fmt;
+	fmt.type = B_MEDIA_RAW_AUDIO;
+	fmt.u.raw_audio = media_raw_audio_format::wildcard;
+	live_node_info infos[64];
+	int32 count = 64;
+	if (roster->GetLiveNodes(infos, &count, NULL, &fmt, NULL, B_BUFFER_PRODUCER) == B_OK) {
+		for (int32 i = 0; i < count; i++) {
+			if (haveSystem && infos[i].node.node == systemInput.node)
+				continue;							// системный вход - отдельный пункт списка
+			if (strncmp(infos[i].name, "BeAE", 4) == 0)
+				continue;							// наши собственные узлы
+			media_output out;
+			int32 nfree = 0;
+			if (roster->GetFreeOutputsFor(infos[i].node, &out, 1, &nfree, B_MEDIA_RAW_AUDIO) != B_OK || nfree < 1)
+				continue;							// выход занят (например, у микшера)
+			BString n(infos[i].name);
+			bool dup = false;
+			for (size_t k = 0; k < names.size(); k++)
+				if (names[k] == n) { dup = true; break; }
+			if (!dup)
+				names.push_back(n);
+		}
+	}
+	if (haveSystem)
+		roster->ReleaseNode(systemInput);
+}
+
 status_t AudioRecorder::Open(BString *error, bool listen)
 {
 	if (listen) {
@@ -134,19 +190,34 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		return B_ERROR;
 	}
 
-	status_t err = roster->GetAudioInput(&fInputNode);
-	if (err != B_OK) {
-		if (error) *error = "REC_ERR_NO_INPUT";
-		return err;
+	const bool external = !listen && fSource == MIX_SOURCE_EXTERNAL;
+	const bool named = !listen && !external && fSource.Length() > 0;
+
+	status_t err = B_OK;
+	if (external) {
+		// узел-приёмник без подключения: источник соединит пользователь (Cortex)
+	} else if (named) {
+		err = FindSourceNode(roster, fSource.String(), &fInputNode);
+		if (err != B_OK) {
+			if (error) *error = "REC_ERR_SOURCE_NOT_FOUND";
+			return err;
+		}
+		fHaveNode = true;
+	} else {
+		err = roster->GetAudioInput(&fInputNode);
+		if (err != B_OK) {
+			if (error) *error = "REC_ERR_NO_INPUT";
+			return err;
+		}
+		fHaveNode = true;
 	}
-	fHaveNode = true;
 
 	fRecorder = new BMediaRecorder("BeAE recorder", B_MEDIA_RAW_AUDIO);
 	if (fRecorder->InitCheck() != B_OK) {
 		if (error) *error = "REC_ERR_RECORDER";
 		delete fRecorder;
 		fRecorder = NULL;
-		roster->ReleaseNode(fInputNode);
+		if (fHaveNode) roster->ReleaseNode(fInputNode);
 		fHaveNode = false;
 		return B_ERROR;
 	}
@@ -160,14 +231,14 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 
 	media_output output;
 	int32 count = 0;
-	err = roster->GetFreeOutputsFor(fInputNode, &output, 1, &count, B_MEDIA_RAW_AUDIO);
-	if (err != B_OK || count < 1) {
-		if (error) *error = "REC_ERR_NO_FREE_OUTPUT";
-		if (err == B_OK) err = B_ERROR;
-		goto fail;
-	}
+	if (!external) {
+		err = roster->GetFreeOutputsFor(fInputNode, &output, 1, &count, B_MEDIA_RAW_AUDIO);
+		if (err != B_OK || count < 1) {
+			if (error) *error = "REC_ERR_NO_FREE_OUTPUT";
+			if (err == B_OK) err = B_ERROR;
+			goto fail;
+		}
 
-	{
 		media_format fmt;
 		fmt.type = B_MEDIA_RAW_AUDIO;
 		fmt.u.raw_audio = output.format.u.raw_audio;
@@ -181,10 +252,12 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	}
 
 	fInputLatency = 0;
-	roster->GetLatencyFor(fInputNode, &fInputLatency);
-	fTimeSource = roster->MakeTimeSourceFor(fInputNode);	// для перевода меток буферов в system_time
+	if (!external) {
+		roster->GetLatencyFor(fInputNode, &fInputLatency);
+		fTimeSource = roster->MakeTimeSourceFor(fInputNode);	// для перевода меток буферов в system_time
+	}
 	if (listen) fListening = true; else fRecording = true;
-	err = fRecorder->Start();
+	err = fRecorder->Start(external);			// внешний: стартуем без подключения, буферы придут, когда его соединят
 	if (err != B_OK) {
 		fRecording = false;
 		fListening = false;
@@ -202,7 +275,7 @@ fail:
 	}
 	delete fRecorder;
 	fRecorder = NULL;
-	roster->ReleaseNode(fInputNode);
+	if (fHaveNode) roster->ReleaseNode(fInputNode);
 	fHaveNode = false;
 	return err;
 }

@@ -23,6 +23,13 @@ public:
 	AudioRecorder();
 	~AudioRecorder();
 
+	// Источник записи: "" - системный аудиовход; имя узла Media Kit с свободным звуковым выходом
+	// (например, ZynAddSubFX); MIX_SOURCE_EXTERNAL - узел-приёмник без подключения, его соединяют в Cortex.
+	// Действует на следующий Start() (прослушивание для тюнера всегда идёт с системного входа).
+	void		SetSource(const char *source) { fSource = source ? source : ""; }
+	// Имена узлов, к которым можно подключиться (со свободным звуковым выходом), без системного входа и самого BeAE.
+	static void	ListSources(std::vector<BString> &names);
+
 	// Открыть вход и начать запись. При ошибке вернёт код и текст в *error (ключ языка).
 	status_t	Start(BString *error);
 	// Остановить запись или прослушивание (данные записи остаются до Clear()).
@@ -71,6 +78,7 @@ private:
 
 	status_t	Open(BString *error, bool listen);
 
+	BString			fSource;
 	BMediaRecorder	*fRecorder;
 	media_node		fInputNode;
 	bool			fHaveNode;

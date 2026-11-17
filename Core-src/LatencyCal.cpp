@@ -113,6 +113,7 @@ int32 Run(void *data)
 		diag << line;
 	}
 	BString error;
+	Recorder.SetSource("");							// калибровка всегда с системного входа
 	for (int t = 0; t < kTrials; t++){
 		cookie.frame = 0;
 		cookie.silent = false;

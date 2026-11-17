@@ -54,6 +54,7 @@ int		Tracks_Add();							// добавить пустую дорожку, вер
 void	Tracks_RemoveActive();					// удалить активную дорожку (последнюю оставшуюся удалить нельзя)
 void	Tracks_SaveRange(int64 &start, int64 &end);	// диапазон кадров активной дорожки без добавленной тишины
 
+void	Tracks_BarLabel(int slot, char *out, size_t size);	// подпись на полоске дорожки: имя и (если есть) смещение «+1.234 s»
 bool	Tracks_SetName(int index, const char *name);	// переименовать (UTF-8, обрезается по границе символа)
 // Для сохранения проекта: звук дорожки без тишины по краям, ничего не меняя. false - дорожка пуста.
 std::vector<MixClip> Tracks_LaneClips(int lane);	// все клипы дорожки, включая активный (ничего не меняет)

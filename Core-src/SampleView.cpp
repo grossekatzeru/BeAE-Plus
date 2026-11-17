@@ -31,6 +31,7 @@
 #include <stdio.h>
 
 #include "SampleView.h"
+#include "RenameWindow.h"
 #include <vector>
 #include <math.h>
 #include "MainWindow.h"
@@ -284,6 +285,21 @@ void SampleView::Draw(BRect rect)
 
 	DrawBitmapAsync( OffScreen, rect, rect);
 
+	// название активной дорожки на верхней полоске (двойной щелчок по ней - переименовать)
+	{
+		char label[160];
+		Tracks_BarLabel(Mix.Active(), label, sizeof(label));
+		float nx = 4;
+		if (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer){
+			const float sx = (float)((double)(Pool.pad_lead - Pool.l_pointer) * (double)Bounds().Width() / (double)(Pool.r_pointer - Pool.l_pointer)) + 4;
+			if (sx > nx) nx = sx;
+		}
+		SetDrawingMode(B_OP_OVER);
+		SetHighColor(0, 0, 0);
+		DrawString(label, BPoint(nx, POINTER_BAR_HEIGHT - 3));
+		SetDrawingMode(B_OP_COPY);
+	}
+
 	// запись в реальном времени: растущая волна по огибающей рекордера и красная линия текущего положения
 	const bool haveTape = (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f);
 	if (Pool.rec_live && Recorder.IsRecording() && Recorder.Rate() > 1.0f && (haveTape || Pool.sample_type == NONE)){
@@ -470,12 +486,18 @@ void SampleView::Draw(BRect rect)
 *****************************************************/
 void SampleView::MouseDown(BPoint p)
 {
-	if (Pool.size == 0)	return;
-
 	BMessage *currentMsg = Window()->CurrentMessage();
 	uint32 button = 0, clicks = 0;
 	currentMsg->FindInt32("buttons", (int32 *)&button);
 	currentMsg->FindInt32("clicks", (int32 *)&clicks);
+
+	// двойной щелчок по верхней полоске с названием - переименовать дорожку (и у пустой дорожки)
+	if (p.y < POINTER_BAR_HEIGHT && clicks >= 2 && button == B_PRIMARY_MOUSE_BUTTON){
+		(new RenameWindow(Mix.Active(), Window()))->Show();
+		return;
+	}
+
+	if (Pool.size == 0)	return;
 
 	SetMouseEventMask(B_POINTER_EVENTS, B_NO_POINTER_HISTORY);
 

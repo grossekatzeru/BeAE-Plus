@@ -13,6 +13,7 @@
 #include "Tracks.h"
 #include "Preferences.h"
 #include "LanesView.h"
+#include "RenameWindow.h"
 #include "Envelope.h"
 
 #ifndef MIN
@@ -373,6 +374,15 @@ void LanesView::MouseDown(BPoint p)
 		int slot = Tracks_SlotAt(rank);
 		if (slot < 0 || slot == Mix.Active())
 			return;
+		// двойной щелчок по верхней полоске с названием - переименовать дорожку
+		if ((buttons & B_PRIMARY_MOUSE_BUTTON) && p.y < top + POINTER_BAR_HEIGHT && Window() && Window()->CurrentMessage()){
+			int32 clicks = 0;
+			Window()->CurrentMessage()->FindInt32("clicks", &clicks);
+			if (clicks >= 2){
+				(new RenameWindow(slot, Window()))->Show();
+				return;
+			}
+		}
 		// время под курсором мыши
 		double t = -1.0;
 		if (Pool.sample_type != NONE && Pool.r_pointer > Pool.l_pointer && Pool.frequency > 1.0f){
@@ -616,7 +626,9 @@ void LanesView::DrawLane(int slot, BRect lane)
 
 	if (Pool.sample_type == NONE || Pool.r_pointer <= Pool.l_pointer || Pool.frequency < 1.0f){
 		SetHighColor(make_color(0,0,0));
-		DrawString(t->name, BPoint(lane.left + 4, lane.top + POINTER_BAR_HEIGHT - 3));
+		char label[160];
+		Tracks_BarLabel(slot, label, sizeof(label));
+		DrawString(label, BPoint(lane.left + 4, lane.top + POINTER_BAR_HEIGHT - 3));
 		return;
 	}
 
@@ -649,7 +661,9 @@ void LanesView::DrawLane(int slot, BRect lane)
 	const MixClip *first = Mix.Clip(slot, 0);
 	float nx = first ? (float)((first->pos - tl) / dt) + 4 : 4;
 	if (nx < 4) nx = 4;
-	DrawString(t->name, BPoint(nx, lane.top + POINTER_BAR_HEIGHT - 3));
+	char label[160];
+	Tracks_BarLabel(slot, label, sizeof(label));
+	DrawString(label, BPoint(nx, lane.top + POINTER_BAR_HEIGHT - 3));
 }
 
 

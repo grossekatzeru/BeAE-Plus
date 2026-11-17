@@ -70,6 +70,8 @@ struct ClipFade {
 ClipFade ComputeClipFade(const std::vector<struct MixClip> &clips, bool haveExtra, const ClipSpan &extra, size_t i);
 float	ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t);	// множитель 0..1 в момент t (равномощный)
 
+#define MIX_SOURCE_EXTERNAL	"@external"	// особое значение MixTrack::source: приёмник без подключения, соединяется пользователем в Cortex
+
 struct MixTrack {
 	bool	used;
 	int		channels;		// формат по умолчанию для пустой дорожки (1 или 2)
@@ -83,6 +85,7 @@ struct MixTrack {
 	bool	autoOpen;			// полоса автоматизации развёрнута (иначе тонкая)
 	bool	showVol, showPan;	// показывать в полосе автоматизации кривые громкости/панорамы (на звук не влияет)
 	char	name[64];
+	char	source[96];		// источник записи: пусто - системный вход; иначе имя узла Media Kit; MIX_SOURCE_EXTERNAL - ждать подключения из Cortex
 	std::vector<MixClip>	clips;
 	Envelope	volEnv;			// автоматизация громкости (дБ, множитель поверх gain); пусто - выключена
 	Envelope	panEnv;			// автоматизация панорамы (прибавляется к pan); пусто - выключена
@@ -90,7 +93,7 @@ struct MixTrack {
 	void	Reset()
 	{
 		used = false; channels = 2; rate = 44100.0f; gain = 1.0f; pan = 0;
-		mute = solo = armed = grid = xfade = sticky = autoOpen = showVol = showPan = false; name[0] = 0; clips.clear(); volEnv.Clear(); panEnv.Clear();
+		mute = solo = armed = grid = xfade = sticky = autoOpen = showVol = showPan = false; name[0] = 0; source[0] = 0; clips.clear(); volEnv.Clear(); panEnv.Clear();
 	}
 };
 
@@ -131,6 +134,7 @@ public:
 	void	SetPan(int i, float p);
 	void	SetMute(int i, bool m);
 	void	SetSolo(int i, bool s);
+	void	SetSource(int i, const char *source);			// источник записи дорожки (см. MixTrack::source)
 	void	SetGrid(int i, bool g);
 	void	SetCrossfade(int i, bool x);
 	void	SetSticky(int i, bool s);

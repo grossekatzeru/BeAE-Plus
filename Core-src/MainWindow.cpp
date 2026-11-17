@@ -919,6 +919,10 @@ void MainWindow::StartRecording()
 	}
 
 	BString error;
+	{
+		const MixTrack *rt = Mix.Track(Mix.Active());
+		Recorder.SetSource(rt ? rt->source : "");		// источник выбран в панели дорожки
+	}
 	sRecCall = system_time();
 	status_t err = Recorder.Start(&error);
 	sRecRet = system_time();

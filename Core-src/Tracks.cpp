@@ -368,6 +368,21 @@ static int ChooseClip(int lane, double time)
 	return c;
 }
 
+void Tracks_BarLabel(int slot, char *out, size_t size)
+{
+	const MixTrack *t = Mix.Track(slot);
+	if (!t || size == 0){
+		if (size) out[0] = 0;
+		return;
+	}
+	const double off = (slot == Mix.Active()) ? (Pool.frequency > 1.0f ? (double)Pool.pad_lead / Pool.frequency : 0.0)
+		: (Mix.Clip(slot, 0) ? Mix.Clip(slot, 0)->pos : 0.0);
+	if (off > 0.0005)
+		snprintf(out, size, "%s   +%.3f s", t->name, off);
+	else
+		snprintf(out, size, "%s", t->name);
+}
+
 bool Tracks_SetName(int index, const char *name)
 {
 	MixTrack *t = Mix.Track(index);
