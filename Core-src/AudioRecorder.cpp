@@ -21,6 +21,7 @@ AudioRecorder Recorder;
 AudioRecorder::AudioRecorder()
 	:
 	fRecorder(NULL),
+	fExternalNode(false),
 	fHaveNode(false),
 	fRecording(false),
 	fListening(false),
@@ -48,6 +49,13 @@ AudioRecorder::AudioRecorder()
 AudioRecorder::~AudioRecorder()
 {
 	Stop();
+	fExternalNode = false;
+	if (fRecorder) {
+		fRecorder->Disconnect();
+		fRecorder->SetHooks(NULL, NULL, NULL);
+		delete fRecorder;
+		fRecorder = NULL;
+	}
 	Clear();
 }
 
@@ -212,22 +220,27 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		fHaveNode = true;
 	}
 
-	fRecorder = new BMediaRecorder("BeAE recorder", B_MEDIA_RAW_AUDIO);
-	if (fRecorder->InitCheck() != B_OK) {
-		if (error) *error = "REC_ERR_RECORDER";
-		delete fRecorder;
-		fRecorder = NULL;
-		if (fHaveNode) roster->ReleaseNode(fInputNode);
-		fHaveNode = false;
-		return B_ERROR;
+	if (external) {
+		if (fRecorder == NULL && !_CreateRecorder()) {
+			if (error) *error = "REC_ERR_RECORDER";
+			return B_ERROR;
+		}
+		fExternalNode = true;
+		if (!fRecorder->IsConnected()) {
+			// узел уже виден в Cortex: соедините с ним источник и нажмите Record ещё раз
+			if (error) *error = "REC_ERR_EXTERNAL_NOT_CONNECTED";
+			return B_MEDIA_NOT_CONNECTED;
+		}
+	} else {
+		if (fRecorder != NULL && fExternalNode)
+			PrepareExternal(false);
+		if (!_CreateRecorder()) {
+			if (error) *error = "REC_ERR_RECORDER";
+			if (fHaveNode) roster->ReleaseNode(fInputNode);
+			fHaveNode = false;
+			return B_ERROR;
+		}
 	}
-
-	// принимаем любой «сырой» формат: частоту и каналы выбирает вход
-	media_format accept;
-	accept.type = B_MEDIA_RAW_AUDIO;
-	accept.u.raw_audio = media_raw_audio_format::wildcard;
-	fRecorder->SetAcceptedFormat(accept);
-	fRecorder->SetHooks(&AudioRecorder::_RecordHook, NULL, this);
 
 	media_output output;
 	int32 count = 0;
@@ -257,11 +270,13 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		fTimeSource = roster->MakeTimeSourceFor(fInputNode);	// для перевода меток буферов в system_time
 	}
 	if (listen) fListening = true; else fRecording = true;
-	err = fRecorder->Start(external);			// внешний: стартуем без подключения, буферы придут, когда его соединят
+	err = fRecorder->Start(external);			// у внешнего узла соединение уже есть (сделано в Cortex)
 	if (err != B_OK) {
 		fRecording = false;
 		fListening = false;
 		if (error) *error = "REC_ERR_START";
+		if (external)
+			return err;							// узел оставляем, чтобы соединение не пропало
 		fRecorder->Disconnect();
 		fRecorder->SetHooks(NULL, NULL, NULL);
 		goto fail;
@@ -280,16 +295,54 @@ fail:
 	return err;
 }
 
+bool AudioRecorder::_CreateRecorder()
+{
+	fRecorder = new BMediaRecorder("BeAE recorder", B_MEDIA_RAW_AUDIO);
+	if (fRecorder->InitCheck() != B_OK) {
+		delete fRecorder;
+		fRecorder = NULL;
+		return false;
+	}
+	// принимаем любой «сырой» формат: частоту и каналы выбирает источник
+	media_format accept;
+	accept.type = B_MEDIA_RAW_AUDIO;
+	accept.u.raw_audio = media_raw_audio_format::wildcard;
+	fRecorder->SetAcceptedFormat(accept);
+	fRecorder->SetHooks(&AudioRecorder::_RecordHook, NULL, this);
+	return true;
+}
+
+void AudioRecorder::PrepareExternal(bool on)
+{
+	if (fRecording || fListening)
+		return;
+	if (on) {
+		if (fRecorder == NULL && _CreateRecorder())
+			fExternalNode = true;
+	} else if (fRecorder != NULL && fExternalNode) {
+		fRecorder->Stop(true);
+		fRecorder->Disconnect();
+		fRecorder->SetHooks(NULL, NULL, NULL);
+		delete fRecorder;
+		fRecorder = NULL;
+		fExternalNode = false;
+	}
+}
+
 void AudioRecorder::Stop()
 {
 	fRecording = false;
 	fListening = false;
 	if (fRecorder) {
 		fRecorder->Stop(true);
-		fRecorder->Disconnect();
-		fRecorder->SetHooks(NULL, NULL, NULL);
-		delete fRecorder;
-		fRecorder = NULL;
+		if (fExternalNode) {
+			// внешний узел остаётся в Cortex вместе с соединением; хук пишет данные только при fRecording
+		} else {
+			fRecorder->Disconnect();
+			fRecorder->SetHooks(NULL, NULL, NULL);
+			delete fRecorder;
+			fRecorder = NULL;
+		}
 	}
 	if (fTimeSource) {
 		fTimeSource->Release();

@@ -27,6 +27,9 @@ public:
 	// (например, ZynAddSubFX); MIX_SOURCE_EXTERNAL - узел-приёмник без подключения, его соединяют в Cortex.
 	// Действует на следующий Start() (прослушивание для тюнера всегда идёт с системного входа).
 	void		SetSource(const char *source) { fSource = source ? source : ""; }
+	// Для источника «Внешний»: создать (on) или убрать узел-приёмник «BeAE recorder» заранее, чтобы его можно было
+	// соединить в Cortex до нажатия Record. Во время записи не трогает узел.
+	void		PrepareExternal(bool on);
 	// Имена узлов, к которым можно подключиться (со свободным звуковым выходом), без системного входа и самого BeAE.
 	static void	ListSources(std::vector<BString> &names);
 
@@ -71,6 +74,7 @@ public:
 	void		CopyPeaks(std::vector<float> &out);
 
 private:
+	bool		_CreateRecorder();
 	static void	_RecordHook(void *cookie, bigtime_t timestamp, void *data, size_t size,
 							const media_format &format);
 	void		OnBuffer(void *data, size_t size, const media_format &format);
@@ -80,6 +84,7 @@ private:
 
 	BString			fSource;
 	BMediaRecorder	*fRecorder;
+	bool			fExternalNode;			// fRecorder - узел «Внешний», живёт между записями (его соединяют в Cortex)
 	media_node		fInputNode;
 	bool			fHaveNode;
 	volatile bool	fRecording;

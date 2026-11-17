@@ -617,6 +617,7 @@ void TrackPanelView::ShowSourceMenu(int index)
 		const int32 at = menu->IndexOf(chosen);
 		if (at >= 0 && at < (int32)values.size()){
 			Mix.SetSource(index, values[at].String());
+			Recorder.PrepareExternal(values[at] == MIX_SOURCE_EXTERNAL);	// узел «BeAE recorder» сразу виден в Cortex
 			Pool.changed = true;
 		}
 	}
