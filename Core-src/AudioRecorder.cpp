@@ -8,6 +8,7 @@
 #include <MediaRecorder.h>
 #include <Autolock.h>
 #include <OS.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -134,20 +135,31 @@ static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_nod
 	live_node_info infos[64];
 	int32 count = 64;
 	status_t err = roster->GetLiveNodes(infos, &count, NULL, &fmt, NULL, B_BUFFER_PRODUCER);
-	if (err != B_OK)
-		return err;
-	for (int32 i = 0; i < count; i++) {
-		if (strcmp(infos[i].name, name) == 0)
-			return roster->GetNodeFor(infos[i].node.node, node);
+	if (err == B_OK) {
+		for (int32 i = 0; i < count; i++) {
+			if (strcmp(infos[i].name, name) == 0)
+				return roster->GetNodeFor(infos[i].node.node, node);
+		}
 	}
+	// живой узел с таким именем, но без «сырого» формата в фильтре (выходы у него могут появиться позже)
+	count = 64;
+	err = roster->GetLiveNodes(infos, &count, NULL, NULL, name, B_BUFFER_PRODUCER);
+	fprintf(stderr, "BeAE source '%s': live by name -> %s, %d found\n", name, strerror(err), (int)count);
+	if (err == B_OK && count > 0)
+		return roster->GetNodeFor(infos[0].node.node, node);
 	// спящий узел (карта, не выбранная «по умолчанию» в настройках Медиа): поднимаем его сами
 	dormant_node_info dinfos[32];
 	int32 dcount = 32;
 	err = roster->GetDormantNodes(dinfos, &dcount, NULL, &fmt, NULL, B_BUFFER_PRODUCER | B_PHYSICAL_INPUT);
+	fprintf(stderr, "BeAE source '%s': dormant list -> %s, %d found\n", name, strerror(err), (int)dcount);
 	if (err == B_OK) {
 		for (int32 i = 0; i < dcount; i++) {
-			if (strcmp(dinfos[i].name, name) == 0)
-				return roster->InstantiateDormantNode(dinfos[i], node);
+			fprintf(stderr, "  dormant: '%s'\n", dinfos[i].name);
+			if (strcmp(dinfos[i].name, name) == 0) {
+				status_t ierr = roster->InstantiateDormantNode(dinfos[i], node);
+				fprintf(stderr, "  instantiate -> %s\n", strerror(ierr));
+				return ierr;
+			}
 		}
 	}
 	return B_NAME_NOT_FOUND;
