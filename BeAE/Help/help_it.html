@@ -332,6 +332,8 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <p><b>Il file non si apre.</b><br />Il messaggio "This file is not supported" significa che il sistema non ha un decodificatore per questo formato. Verifica se il file si apre in MediaPlayer.</p>
 <p><b>Clic durante la riproduzione.</b><br />Aumenta il buffer audio in Preferences → Audio.</p>
 
+<p><b>La latenza audio è troppo alta (circa 100 ms o più).</b><br />La maggior parte della latenza in Haiku deriva dal buffer del driver HD Audio: di default 2048 frame e almeno due buffer. Un file di impostazioni lo riduce. Eseguire nel Terminal:<br /><code>mkdir -p ~/config/settings/kernel/drivers</code><br /><code>printf 'play_buffer_frames\t512\nplay_buffer_count\t4\n' &gt; ~/config/settings/kernel/drivers/hda.settings</code><br />e riavviare il computer: il driver legge il file solo all'avvio. Sul computer di prova la latenza di uscita del Media Kit è scesa da 99 a 29 ms. In caso di scricchiolii usare <code>play_buffer_frames 1024</code>. Per tornare al comportamento precedente, eliminare il file. Inoltre impostare la frequenza di uscita in Media su quella dell'audio (ad esempio 44,1 kHz e non 192 kHz). L'impostazione vale per tutto l'audio del sistema.</p>
+
 <hr />
 <p class="sub">BeAE-Plus: https://github.com/grossekatzeru/BeAE-Plus</p>
 </body>

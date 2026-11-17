@@ -332,6 +332,8 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <p><b>Файл не открывается.</b><br />Сообщение «This file is not supported» означает, что в системе нет декодера для этого формата. Проверьте, открывается ли файл в MediaPlayer.</p>
 <p><b>Щелчки при воспроизведении.</b><br />Увеличьте звуковой буфер в Preferences → Audio.</p>
 
+<p><b>Слишком большая задержка звука (около 100 мс и больше).</b><br />Основная часть задержки в Haiku — буфер драйвера звуковой карты HD Audio: по умолчанию 2048 кадров, минимум два буфера. Его можно уменьшить файлом настроек. Выполните в Terminal:<br /><code>mkdir -p ~/config/settings/kernel/drivers</code><br /><code>printf 'play_buffer_frames\t512\nplay_buffer_count\t4\n' &gt; ~/config/settings/kernel/drivers/hda.settings</code><br />и перезагрузите компьютер: драйвер читает файл только при загрузке. На проверенном компьютере задержка вывода Media Kit упала с 99 до 29 мс. Если слышны щелчки, поставьте <code>play_buffer_frames 1024</code>. Чтобы вернуть прежнее поведение, удалите файл. Кроме того, частота выхода в Media должна совпадать с частотой звука (например 44,1 кГц, а не 192 кГц). Настройка действует на весь звук системы.</p>
+
 <hr />
 <p class="sub">BeAE-Plus: https://github.com/grossekatzeru/BeAE-Plus</p>
 </body>
