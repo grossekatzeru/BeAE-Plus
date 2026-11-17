@@ -145,8 +145,15 @@ static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_nod
 	count = 64;
 	err = roster->GetLiveNodes(infos, &count, NULL, NULL, name, B_BUFFER_PRODUCER);
 	fprintf(stderr, "BeAE source '%s': live by name -> %s, %d found\n", name, strerror(err), (int)count);
-	if (err == B_OK && count > 0)
-		return roster->GetNodeFor(infos[0].node.node, node);
+	if (err == B_OK && count > 0) {
+		media_output out;
+		int32 nfree = 0;
+		status_t ferr = roster->GetFreeOutputsFor(infos[0].node, &out, 1, &nfree, B_MEDIA_RAW_AUDIO);
+		fprintf(stderr, "  free outputs of live node -> %s, %d\n", strerror(ferr), (int)nfree);
+		if (ferr == B_OK && nfree > 0)
+			return roster->GetNodeFor(infos[0].node.node, node);
+		// живой узел есть, но выходов у него нет: пробуем поднять настоящий через список спящих
+	}
 	// спящий узел (карта, не выбранная «по умолчанию» в настройках Медиа): поднимаем его сами
 	dormant_node_info dinfos[32];
 	int32 dcount = 32;
@@ -158,6 +165,12 @@ static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_nod
 			if (strcmp(dinfos[i].name, name) == 0) {
 				status_t ierr = roster->InstantiateDormantNode(dinfos[i], node);
 				fprintf(stderr, "  instantiate -> %s\n", strerror(ierr));
+				if (ierr == B_OK) {
+					media_output out;
+					int32 nfree = 0;
+					status_t ferr = roster->GetFreeOutputsFor(*node, &out, 1, &nfree, B_MEDIA_RAW_AUDIO);
+					fprintf(stderr, "  free outputs of instantiated node -> %s, %d\n", strerror(ferr), (int)nfree);
+				}
 				return ierr;
 			}
 		}
