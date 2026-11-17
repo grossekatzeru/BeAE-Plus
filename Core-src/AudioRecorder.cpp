@@ -139,6 +139,16 @@ static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_nod
 		if (strcmp(infos[i].name, name) == 0)
 			return roster->GetNodeFor(infos[i].node.node, node);
 	}
+	// спящий узел (карта, не выбранная «по умолчанию» в настройках Медиа): поднимаем его сами
+	dormant_node_info dinfos[32];
+	int32 dcount = 32;
+	err = roster->GetDormantNodes(dinfos, &dcount, NULL, &fmt, NULL, B_BUFFER_PRODUCER | B_PHYSICAL_INPUT);
+	if (err == B_OK) {
+		for (int32 i = 0; i < dcount; i++) {
+			if (strcmp(dinfos[i].name, name) == 0)
+				return roster->InstantiateDormantNode(dinfos[i], node);
+		}
+	}
 	return B_NAME_NOT_FOUND;
 }
 
@@ -155,10 +165,12 @@ void AudioRecorder::ListSources(std::vector<BString> &names)
 	media_format fmt;
 	fmt.type = B_MEDIA_RAW_AUDIO;
 	fmt.u.raw_audio = media_raw_audio_format::wildcard;
+	std::vector<BString> liveNames;						// имена всех живых узлов-источников (в том числе занятых)
 	live_node_info infos[64];
 	int32 count = 64;
 	if (roster->GetLiveNodes(infos, &count, NULL, &fmt, NULL, B_BUFFER_PRODUCER) == B_OK) {
 		for (int32 i = 0; i < count; i++) {
+			liveNames.push_back(BString(infos[i].name));
 			if (haveSystem && infos[i].node.node == systemInput.node)
 				continue;							// системный вход - отдельный пункт списка
 			if (strncmp(infos[i].name, "BeAE", 4) == 0)
@@ -172,6 +184,23 @@ void AudioRecorder::ListSources(std::vector<BString> &names)
 			for (size_t k = 0; k < names.size(); k++)
 				if (names[k] == n) { dup = true; break; }
 			if (!dup)
+				names.push_back(n);
+		}
+	}
+	// спящие аудиовходы (карты, не выбранные «по умолчанию»): BeAE поднимет их при записи
+	dormant_node_info dinfos[32];
+	int32 dcount = 32;
+	if (roster->GetDormantNodes(dinfos, &dcount, NULL, &fmt, NULL, B_BUFFER_PRODUCER | B_PHYSICAL_INPUT) == B_OK) {
+		for (int32 i = 0; i < dcount; i++) {
+			BString n(dinfos[i].name);
+			if (strncmp(n.String(), "BeAE", 4) == 0)
+				continue;
+			bool known = false;
+			for (size_t k = 0; k < liveNames.size() && !known; k++)
+				known = (liveNames[k] == n);
+			for (size_t k = 0; k < names.size() && !known; k++)
+				known = (names[k] == n);
+			if (!known)
 				names.push_back(n);
 		}
 	}
