@@ -4,6 +4,7 @@
  * подключение BMediaRecorder к первому свободному выходу, приём формата «как есть».
  */
 #include <MediaRoster.h>
+#include <MediaAddOn.h>
 #include <MediaRecorder.h>
 #include <Autolock.h>
 #include <OS.h>
