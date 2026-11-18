@@ -275,7 +275,8 @@ ToneNode::_HandleStart(bigtime_t performanceTime)
 {
 	if (fRunning)
 		return;
-	fPerformanceBase = performanceTime;
+	// время старта, присланное записывающим узлом, может быть по другим часам; берём собственные часы узла
+	fPerformanceBase = TimeSource()->Now();
 	fFramesSent = 0;
 	fRunning = true;
 	fThread = spawn_thread(_GenerateEntry, "tone generator", B_REAL_TIME_PRIORITY, this);
@@ -313,7 +314,13 @@ ToneNode::_Generate()
 {
 	while (fRunning) {
 		const float rate = fFormat.frame_rate > 0 ? fFormat.frame_rate : kRate;
-		const bigtime_t perf = fPerformanceBase + (bigtime_t)(1000000.0 * fFramesSent / rate);
+		bigtime_t perf = fPerformanceBase + (bigtime_t)(1000000.0 * fFramesSent / rate);
+		const bigtime_t now = TimeSource()->Now();
+		if (perf < now - 100000) {			// отстали больше чем на 100 мс (часы, пауза): не догоняем потоком, а начинаем заново
+			fPerformanceBase = now;
+			fFramesSent = 0;
+			perf = now;
+		}
 		const bigtime_t wakeUp = TimeSource()->RealTimeFor(perf, 0) - EventLatency();
 		snooze_until(wakeUp, B_SYSTEM_TIMEBASE);
 		if (!fRunning)
