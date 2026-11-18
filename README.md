@@ -1,8 +1,8 @@
-# BeAE-Plus 3.1
+# BeAE-Plus 3.2 alpha
 
 A multitrack audio editor for Haiku. Fork of BeAE by Frans van Nispen.
 
-![BeAE-Plus 3.1](screenshot.png)
+![BeAE-Plus 3.2 alpha](screenshot.png)
 
 Authors: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic).
 Original BeAE: Frans van Nispen. The full version history is in `BeAE/Help/history.html`.
@@ -22,7 +22,9 @@ Original BeAE: Frans van Nispen. The full version history is in `BeAE/Help/histo
 - Volume, pan, track selection, play / stop from a USB gamepad. Every action can be rebound (Preferences → Controllers → Bind); both digital D-pads and analogue sticks are supported.
 - Automation write mode: move the stick during playback and the moves are recorded into the automation curves.
 
-**Recording**
+**Recording (source per track: new in 3.2 alpha)**
+- Every track has its own recording source in a drop-down list in the track panel: the system audio input, another Media Kit node with a free audio output, or "External" (connect the "BeAE recorder" node yourself in Cortex). The track name is on the bar above the waveform; double-click it to rename.
+- Alpha: one source is recorded at a time; recording several tracks at once from different sources is the next step.
 - Record from the system audio input, also over the tracks while playing them back.
 - Latency compensation: automatic "Fine tune" measures the hardware latency with a click test (stable to about 0.3 ms), recordings are aligned using the media server's time stamps (within about 1.5 ms).
 
@@ -54,7 +56,7 @@ On Haiku (the program is built on the Haiku version where it is going to run, or
 ```
 cd Core-src && make            # the program: BeAE/BeAE
 cd ../plugins && make          # LADSPA plug-ins; "make install" copies them to ~/config/non-packaged/lib/ladspa
-cd .. && package/build_hpkg.sh # package BeAE_Plus-3.1-1-<arch>.hpkg
+cd .. && package/build_hpkg.sh # package BeAE_Plus-3.2~alpha1-1-<arch>.hpkg
 ```
 
 The package installs the program to `/system/apps/BeAE-Plus`, the plug-ins to `/system/lib/ladspa` and adds a shortcut to the Applications menu. Put the `.hpkg` into `~/config/packages` to install it. Optional external encoders for compressed saving: `lame`, `oggenc`, `flac`, `opusenc`.

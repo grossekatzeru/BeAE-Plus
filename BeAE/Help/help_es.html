@@ -22,7 +22,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
 <td><h1>BeAE-Plus</h1>
 <span style="font-size: 1.3em">Ayuda</span><br />
-<span class="sub">Un editor de audio multipista para Haiku. Versión 3.1. Basado en BeAE de Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), desarrollado junto con Claude (Anthropic).</span></td></tr></table>
+<span class="sub">Un editor de audio multipista para Haiku. Versión 3.2 alfa. Basado en BeAE de Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), desarrollado junto con Claude (Anthropic).</span></td></tr></table>
 
 <h2>Contenido</h2>
 <ol>
@@ -70,7 +70,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <p>Un proyecto puede contener hasta 64 pistas. Los botones <b>+</b> y <b>−</b> sobre la lista añaden y eliminan pistas. La pista en la que haga clic pasa a ser la activa.</p>
 <table class="t">
 <tr><th>Elemento</th><th>Qué hace</th></tr>
-<tr><td>Nombre</td><td>Un campo con el nombre de la pista: haga clic para cambiarlo. Al hacer doble clic en un lugar vacío del panel de la pista se abre la ventana de desplazamiento temporal de la pista (Offset, ms).</td></tr>
+<tr><td>Fuente</td><td>Una lista desplegable: de dónde graba esta pista (la entrada de audio del sistema, nodos de Media Kit con una salida de audio libre, o «Externa» para conectar en Cortex). La elección se guarda en el proyecto. El nombre de la pista se muestra en la barra sobre la forma de onda junto con su desplazamiento; al hacer doble clic en la barra se cambia el nombre de la pista. Al hacer doble clic en un lugar vacío del panel de la pista se abre la ventana de desplazamiento temporal de la pista (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Solo se oye esta pista (y las demás que tengan S activado).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>La pista está silenciada.</td></tr>
 <tr><td><b>R</b> (Record)</td><td>Armado de grabación: la grabación va a la pista que tiene R activado.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): abre un archivo de sonido en la pista activa. Se leen todos los formatos que entiende el Media Kit de Haiku (WAV, AIFF, MP3, Ogg, FLAC y otros, según los decodificadores instalados). El submenú de archivos recientes solo muestra los archivos que se abrieron en BeAE.</li>
 <li><b>Arrastrar</b> un archivo desde Tracker a la ventana: el sonido se coloca como un clip en la pista que está bajo el puntero del ratón, en el lugar donde soltó el archivo. Varios archivos a la vez ocupan pistas libres. Si arrastra un archivo <code>.bemix</code>, se abre el proyecto.</li>
-<li><b>Grabación</b>: active <b>R</b> en la pista deseada y pulse el botón rojo Record. La grabación procede de la entrada de audio del sistema Haiku. Si ninguna pista tiene R activado, el programa lo indica con un mensaje. Para detener, use el botón Stop o pulse Record de nuevo.</li>
+<li><b>Grabación</b>: active <b>R</b> en la pista deseada y pulse el botón rojo Record. La grabación procede de la fuente elegida en la lista del panel de la pista activa (por defecto, la entrada de audio del sistema Haiku). Por ahora se graba una sola fuente a la vez; la grabación simultánea de varias pistas desde distintas fuentes está en preparación. Si ninguna pista tiene R activado, el programa lo indica con un mensaje. Para detener, use el botón Stop o pulse Record de nuevo.</li>
 </ul>
 <p>No se pueden abrir archivos durante la grabación.</p>
 

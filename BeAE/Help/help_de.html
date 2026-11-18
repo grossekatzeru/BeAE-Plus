@@ -22,7 +22,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
 <td><h1>BeAE-Plus</h1>
 <span style="font-size: 1.3em">Hilfe</span><br />
-<span class="sub">Ein Mehrspur-Audioeditor für Haiku. Version 3.1. Basiert auf BeAE von Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), entwickelt zusammen mit Claude (Anthropic).</span></td></tr></table>
+<span class="sub">Ein Mehrspur-Audioeditor für Haiku. Version 3.2 Alpha. Basiert auf BeAE von Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), entwickelt zusammen mit Claude (Anthropic).</span></td></tr></table>
 
 <h2>Inhalt</h2>
 <ol>
@@ -70,7 +70,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <p>Ein Projekt kann bis zu 64 Spuren enthalten. Die Schaltflächen <b>+</b> und <b>−</b> über der Liste fügen Spuren hinzu und entfernen sie. Die Spur, in die Sie klicken, wird zur aktiven Spur.</p>
 <table class="t">
 <tr><th>Element</th><th>Funktion</th></tr>
-<tr><td>Name</td><td>Ein Feld mit dem Spurnamen: Zum Ändern des Namens anklicken. Ein Doppelklick auf eine leere Stelle des Spurpanels öffnet das Fenster für den Zeitversatz der Spur (Offset, ms).</td></tr>
+<tr><td>Quelle</td><td>Eine Auswahlliste: Woher diese Spur aufnimmt (Audioeingang des Systems, Media-Kit-Knoten mit freiem Audioausgang oder «Extern», das in Cortex verbunden wird). Die Auswahl wird im Projekt gespeichert. Der Spurname steht auf der Leiste über der Wellenform zusammen mit dem Versatz; ein Doppelklick auf die Leiste benennt die Spur um. Ein Doppelklick auf eine leere Stelle des Spurpanels öffnet das Fenster für den Zeitversatz der Spur (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Nur diese Spur ist zu hören (und andere, bei denen S aktiv ist).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>Die Spur ist stummgeschaltet.</td></tr>
 <tr><td><b>R</b> (Record)</td><td>Aufnahmebereitschaft: Die Aufnahme geht auf die Spur, bei der R aktiv ist.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): öffnet eine Sounddatei auf der aktiven Spur. Alle vom Haiku Media Kit verstandenen Formate werden gelesen (WAV, AIFF, MP3, Ogg, FLAC und weitere, abhängig von den installierten Decodern). Das Untermenü der zuletzt verwendeten Dateien zeigt nur Dateien, die in BeAE geöffnet wurden.</li>
 <li><b>Hineinziehen</b> einer Datei aus dem Tracker in das Fenster: Der Sound landet als Clip auf der Spur unter dem Mauszeiger, an der Stelle, an der Sie die Datei ablegen. Mehrere Dateien auf einmal belegen freie Spuren. Wenn Sie eine <code>.bemix</code>-Datei hineinziehen, wird das Projekt geöffnet.</li>
-<li><b>Aufnahme</b>: Schalten Sie <b>R</b> auf der gewünschten Spur ein und drücken Sie die rote Schaltfläche Record. Die Aufnahme kommt vom Audioeingang des Haiku-Systems. Ist bei keiner Spur R aktiv, weist das Programm mit einer Meldung darauf hin. Zum Beenden verwenden Sie die Schaltfläche Stop oder drücken erneut Record.</li>
+<li><b>Aufnahme</b>: Schalten Sie <b>R</b> auf der gewünschten Spur ein und drücken Sie die rote Schaltfläche Record. Die Aufnahme kommt von der Quelle, die in der Liste im Panel der aktiven Spur gewählt ist (standardmäßig der Audioeingang des Haiku-Systems). Vorerst wird eine Quelle zur Zeit aufgenommen; die gleichzeitige Aufnahme mehrerer Spuren von verschiedenen Quellen ist in Vorbereitung. Ist bei keiner Spur R aktiv, weist das Programm mit einer Meldung darauf hin. Zum Beenden verwenden Sie die Schaltfläche Stop oder drücken erneut Record.</li>
 </ul>
 <p>Während der Aufnahme können keine Dateien geöffnet werden.</p>
 

@@ -22,7 +22,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <table cellspacing="15"><tr><td><img width="64" height="64" src="images/beae-icon.png" alt="BeAE" /></td>
 <td><h1>BeAE-Plus</h1>
 <span style="font-size: 1.3em">Help</span><br />
-<span class="sub">A multitrack audio editor for Haiku. Version 3.1. Based on BeAE by Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic).</span></td></tr></table>
+<span class="sub">A multitrack audio editor for Haiku. Version 3.2 alpha. Based on BeAE by Frans van Nispen. BeAE-Plus: Stas Korobov (grossekatze1@gmail.com), developed together with Claude (Anthropic).</span></td></tr></table>
 
 <h2>Contents</h2>
 <ol>
@@ -70,7 +70,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <p>A project can hold up to 64 tracks. The <b>+</b> and <b>−</b> buttons above the list add and remove tracks. The track you click in becomes the active one.</p>
 <table class="t">
 <tr><th>Element</th><th>What it does</th></tr>
-<tr><td>Name</td><td>A field with the track name: click to change the name. Double-clicking an empty spot on the track panel opens the track time offset window (Offset, ms).</td></tr>
+<tr><td>Source</td><td>A drop-down list: where this track records from (the system audio input, Media Kit nodes with a free audio output, or "External" to be connected in Cortex). The choice is saved in the project. The track name is shown on the bar above the waveform together with its offset; double-click the bar to rename the track. Double-clicking an empty spot on the track panel opens the track time offset window (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Only this track is heard (and others that have S on).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>The track is muted.</td></tr>
 <tr><td><b>R</b> (Record)</td><td>Record arm: recording goes to the track that has R on.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): opens a sound file into the active track. All formats understood by the Haiku Media Kit are read (WAV, AIFF, MP3, Ogg, FLAC and others, depending on the installed decoders). The recent files submenu shows only files that were opened in BeAE.</li>
 <li><b>Dragging</b> a file from Tracker into the window: the sound lands as a clip on the track under the mouse pointer, at the place where you dropped the file. Several files at once take up free tracks. If you drag a <code>.bemix</code> file, the project opens.</li>
-<li><b>Recording</b>: turn on <b>R</b> on the desired track and press the red Record button. Recording comes from the Haiku system audio input. If no track has R on, the program tells you so with a message. To stop, use the Stop button or press Record again.</li>
+<li><b>Recording</b>: turn on <b>R</b> on the desired track and press the red Record button. Recording comes from the source chosen in the list on the active track's panel (the Haiku system audio input by default). One source is recorded at a time for now; simultaneous recording of several tracks from different sources is being prepared. If no track has R on, the program tells you so with a message. To stop, use the Stop button or press Record again.</li>
 </ul>
 <p>Files cannot be opened during recording.</p>
 

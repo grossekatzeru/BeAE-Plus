@@ -17,7 +17,7 @@ set -e
 # Программа собирается под ту Haiku, где её собрали, и может не запуститься на более старой.
 # Чтобы пакет не ставился на неё, укажите версию, например: HAIKU_REQ=" >= r1~beta5_hrev58590-1" package/build_hpkg.sh
 HAIKU_REQ="${HAIKU_REQ:-}"
-VERSION="3.1"
+VERSION="3.2~alpha1"
 REVISION="1"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"

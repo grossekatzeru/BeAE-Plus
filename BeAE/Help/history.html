@@ -37,6 +37,25 @@ td.table-data {
 
 
 <table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
+<tr><td class="table-heading" align="left"><b>Version 3.2 alpha (BeAE-Plus)</b></td><td class="table-heading" align="right"><b>November 2026</b></td></tr>
+<tr><td class="table-data" colspan="2"><p>First step towards multichannel recording: every track now has its own recording source. Recording from several tracks at the same time (from different sources) is the next step and is not finished yet, so this is an alpha version. Not everything has been tested on all hardware.</p>
+<p><i>Added:</i></p>
+<ul>
+<li>Recording source per track: a drop-down list in the track panel with the system audio input, Media Kit nodes that have a free audio output (for example another application or a sound card that is not the default input) and "External" - an input node "BeAE recorder" that you connect yourself in Cortex before pressing Record; the choice is saved in the project (.bemix)</li>
+<li>Recording uses the source of the active track; the tuner and the latency test always use the system input</li>
+<li>The track name moved from the left panel to the bar above the waveform (active track and all other tracks), together with the time offset of the track; double-click the bar to rename the track</li>
+<li>Track buttons are now in the order FX, S, M, R; a switched-off FX is light lilac so it is not confused with R; all button labels are black</li>
+</ul>
+<p><i>Known limits:</i></p>
+<ul>
+<li>One source is recorded at a time; a USB sound card that is not selected as the default input in the Haiku Media preferences cannot be used (the media add-on creates only one node per card), and some USB sound cards do not deliver audio at all on xHCI controllers</li>
+<li>The audio output of ZynAddSubFX cannot be recorded this way yet: its single output is already connected to the system mixer</li>
+</ul></td></tr>
+</table>
+<p><br></p>
+
+
+<table summary="release-data" border="0" cellspacing="0" cellpadding="0" width="100%">
 <tr><td class="table-heading" align="left"><b>Version 3.1 (BeAE-Plus)</b></td><td class="table-heading" align="right"><b>November 2026</b></td></tr>
 <tr><td class="table-data" colspan="2"><p>Automation and hardware control: volume and pan curves for every track and the master, and control of the mixer from a USB gamepad, including live recording of the moves into the curves. Recording latency measurement was reworked.</p>
 <p><i>Fixed:</i></p>
