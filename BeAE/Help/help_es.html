@@ -73,7 +73,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <tr><td>Fuente</td><td>Una lista desplegable: de dónde graba esta pista (la entrada de audio del sistema, nodos de Media Kit con una salida de audio libre, o «Externa» para conectar en Cortex). La elección se guarda en el proyecto. El nombre de la pista se muestra en la barra sobre la forma de onda junto con su desplazamiento; al hacer doble clic en la barra se cambia el nombre de la pista. Al hacer doble clic en un lugar vacío del panel de la pista se abre la ventana de desplazamiento temporal de la pista (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Solo se oye esta pista (y las demás que tengan S activado).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>La pista está silenciada.</td></tr>
-<tr><td><b>R</b> (Record)</td><td>Armado de grabación: la grabación va a la pista que tiene R activado.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Preparación para grabar. Un clic normal activa R solo en esta pista; Mayús o Ctrl + clic añade la pista a las ya preparadas: la grabación va entonces a todas a la vez, cada una desde su propia fuente (dos pistas no pueden usar la misma fuente).</td></tr>
 <tr><td><b>FX</b></td><td>Abre la ventana de efectos de la pista (véase <a href="#fx">Efectos</a>).</td></tr>
 <tr><td>Volumen (dB)</td><td>El control deslizante superior; el valor se muestra a la derecha.</td></tr>
 <tr><td>Balance</td><td>El control deslizante inferior: L, C, R.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): abre un archivo de sonido en la pista activa. Se leen todos los formatos que entiende el Media Kit de Haiku (WAV, AIFF, MP3, Ogg, FLAC y otros, según los decodificadores instalados). El submenú de archivos recientes solo muestra los archivos que se abrieron en BeAE.</li>
 <li><b>Arrastrar</b> un archivo desde Tracker a la ventana: el sonido se coloca como un clip en la pista que está bajo el puntero del ratón, en el lugar donde soltó el archivo. Varios archivos a la vez ocupan pistas libres. Si arrastra un archivo <code>.bemix</code>, se abre el proyecto.</li>
-<li><b>Grabación</b>: active <b>R</b> en la pista deseada y pulse el botón rojo Record. La grabación procede de la fuente elegida en la lista del panel de la pista activa (por defecto, la entrada de audio del sistema Haiku). Por ahora se graba una sola fuente a la vez; la grabación simultánea de varias pistas desde distintas fuentes está en preparación. Si ninguna pista tiene R activado, el programa lo indica con un mensaje. Para detener, use el botón Stop o pulse Record de nuevo.</li>
+<li><b>Grabación</b>: active <b>R</b> en la pista deseada y pulse el botón rojo Record. La grabación procede de la fuente elegida en la lista del panel de la pista activa (por defecto, la entrada de audio del sistema Haiku). Se pueden grabar varias pistas a la vez (Mayús o Ctrl + clic en R), cada una desde su propia fuente. Si ninguna pista tiene R activado, el programa lo indica con un mensaje. Para detener, use el botón Stop o pulse Record de nuevo.</li>
 </ul>
 <p>No se pueden abrir archivos durante la grabación.</p>
 

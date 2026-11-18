@@ -165,7 +165,8 @@ public:
 	void	SetMetroVolume(float v) { fMetroVol = v < 0 ? 0 : (v > 1 ? 1 : v); fRevision++; }
 	float	MetroVolume() const { return fMetroVol; }			// t притянуто к сетке, если у дорожки она включена
 
-	void	SetArmed(int i, bool a);			// armed только у одной дорожки
+	void	SetArmed(int i, bool a, bool exclusive = true);	// exclusive: R включается только у этой дорожки; иначе добавляется к уже включённым
+	int		ArmedTracks(int *out, int max) const;		// номера дорожек с включённым R, по возрастанию; возвращает их число
 	FxChain	&Fx(int i) { return fFx[i == MIX_MASTER ? MIX_MASTER : ((i>=0 && i<MIX_MAX_TRACKS) ? i : 0)]; }	// цепочка эффектов дорожки (MIX_MASTER - мастер-шины)
 
 	// Мастер-шина: последняя в цепи, после сложения всех дорожек. Громкость, mute и цепочка эффектов (Fx(MIX_MASTER)).

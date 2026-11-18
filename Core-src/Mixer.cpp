@@ -304,11 +304,19 @@ double Mixer::Snap(int lane, double t) const
 	const double r = floor(t / s + 0.5) * s;
 	return r < 0 ? 0 : r;
 }
-void Mixer::SetArmed(int i, bool a)
+void Mixer::SetArmed(int i, bool a, bool exclusive)
 {
 	if (!Track(i)) return;
-	if (a) for (int k=0; k<MIX_MAX_TRACKS; k++) fTracks[k].armed = false;
+	if (a && exclusive) for (int k=0; k<MIX_MAX_TRACKS; k++) fTracks[k].armed = false;
 	fTracks[i].armed = a;
+}
+
+int Mixer::ArmedTracks(int *out, int max) const
+{
+	int n = 0;
+	for (int k=0; k<MIX_MAX_TRACKS && n<max; k++)
+		if (fTracks[k].used && fTracks[k].armed) out[n++] = k;
+	return n;
 }
 
 double Mixer::EndTimeExtras() const

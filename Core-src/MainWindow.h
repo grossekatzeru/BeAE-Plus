@@ -32,6 +32,8 @@
 #include <Window.h>
 #include <MessageRunner.h>
 #include <String.h>
+#include <vector>
+class AudioRecorder;
 #include "TransportView.h"
 #include "ToolBarView.h"
 
@@ -54,6 +56,7 @@ class MainWindow : public BWindow {
 	void HandleDrop(BMessage *message);	// файлы, брошенные в окно: клипами на дорожки, проект - открыть
 	void StopRecording();		// остановить и превратить запись в новый файл
 	void FinishRecording();
+	void FinishTrackRecording(AudioRecorder &rec);	// запись одного источника -> активная дорожка
 	void UpdateRecordingTitle();
 	void RecordingFollow();
 	BMessageRunner	*rec_runner;
@@ -61,6 +64,9 @@ class MainWindow : public BWindow {
 	BString			rec_old_title;
 	double			rec_start_time;		// секунды на общей шкале, откуда пошла запись
 	double			rec_old_offset;		// прежнее смещение дорожки (для undo)
+	std::vector<int>			rec_tracks;		// дорожки, в которые идёт запись; [0] пишет глобальный Recorder
+	std::vector<AudioRecorder*>	rec_extra;		// рекордеры остальных дорожек (rec_extra[i] <-> rec_tracks[i+1])
+	void ClearExtraRecorders();
 	double			rec_tail_start;		// позиция остальных дорожек при старте (кадры активной)
 
  	friend class SampleView;

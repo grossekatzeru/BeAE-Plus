@@ -25,6 +25,7 @@ AudioRecorder::AudioRecorder()
 	fRecorder(NULL),
 	fExternalNode(false),
 	fHaveNode(false),
+	fPhysical(false),
 	fRecording(false),
 	fListening(false),
 	fRingWritten(0),
@@ -253,6 +254,7 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		return B_ERROR;
 	}
 
+	fPhysical = false;
 	const bool external = !listen && fSource == MIX_SOURCE_EXTERNAL;
 	const bool named = !listen && !external && fSource.Length() > 0;
 
@@ -274,6 +276,9 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		}
 		fHaveNode = true;
 	}
+
+	if (fHaveNode)
+		fPhysical = (fInputNode.kind & B_PHYSICAL_INPUT) != 0;
 
 	if (external) {
 		if (fRecorder == NULL && !_CreateRecorder()) {

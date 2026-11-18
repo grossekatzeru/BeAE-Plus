@@ -73,7 +73,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <tr><td>Source</td><td>Une liste déroulante : d'où cette piste enregistre (l'entrée audio du système, les nœuds Media Kit ayant une sortie audio libre, ou « Externe » à connecter dans Cortex). Le choix est enregistré dans le projet. Le nom de la piste s'affiche sur la barre au-dessus de la forme d'onde avec son décalage ; un double-clic sur la barre renomme la piste. Un double-clic sur un endroit vide du panneau de piste ouvre la fenêtre de décalage temporel de la piste (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Seule cette piste est audible (ainsi que les autres pistes dont S est activé).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>La piste est en sourdine.</td></tr>
-<tr><td><b>R</b> (Record)</td><td>Armement de l'enregistrement : l'enregistrement va sur la piste dont R est activé.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Armement de l'enregistrement. Un simple clic active R uniquement sur cette piste ; Maj ou Ctrl + clic ajoute la piste à celles déjà armées : l'enregistrement se fait alors sur toutes à la fois, chacune depuis sa propre source (deux pistes ne peuvent pas utiliser la même source).</td></tr>
 <tr><td><b>FX</b></td><td>Ouvre la fenêtre des effets de la piste (voir <a href="#fx">Effets</a>).</td></tr>
 <tr><td>Volume (dB)</td><td>Le curseur du haut ; la valeur est affichée à droite.</td></tr>
 <tr><td>Balance</td><td>Le curseur du bas : L, C, R.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>) : ouvre un fichier son dans la piste active. Tous les formats compris par le Media Kit de Haiku sont lus (WAV, AIFF, MP3, Ogg, FLAC et autres, selon les décodeurs installés). Le sous-menu des fichiers récents n'affiche que les fichiers ouverts dans BeAE.</li>
 <li><b>Glisser-déposer</b> d'un fichier depuis le Tracker dans la fenêtre : le son est placé en tant que clip sur la piste située sous le pointeur de la souris, à l'endroit où vous avez déposé le fichier. Plusieurs fichiers à la fois occupent les pistes libres. Si vous déposez un fichier <code>.bemix</code>, le projet s'ouvre.</li>
-<li><b>Enregistrement</b> : activez <b>R</b> sur la piste voulue et appuyez sur le bouton rouge Record. L'enregistrement provient de la source choisie dans la liste du panneau de la piste active (par défaut l'entrée audio du système Haiku). Pour l'instant une seule source est enregistrée à la fois ; l'enregistrement simultané de plusieurs pistes depuis des sources différentes est en préparation. Si aucune piste n'a R activé, le programme vous le signale par un message. Pour arrêter, utilisez le bouton Stop ou appuyez de nouveau sur Record.</li>
+<li><b>Enregistrement</b> : activez <b>R</b> sur la piste voulue et appuyez sur le bouton rouge Record. L'enregistrement provient de la source choisie dans la liste du panneau de la piste active (par défaut l'entrée audio du système Haiku). Plusieurs pistes peuvent être enregistrées simultanément (Maj ou Ctrl + clic sur R), chacune depuis sa propre source. Si aucune piste n'a R activé, le programme vous le signale par un message. Pour arrêter, utilisez le bouton Stop ou appuyez de nouveau sur Record.</li>
 </ul>
 <p>Il est impossible d'ouvrir des fichiers pendant l'enregistrement.</p>
 

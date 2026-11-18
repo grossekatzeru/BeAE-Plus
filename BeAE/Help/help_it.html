@@ -73,7 +73,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <tr><td>Sorgente</td><td>Un elenco a discesa: da dove registra questa traccia (l'ingresso audio di sistema, i nodi di Media Kit con un'uscita audio libera, oppure «Esterna» da collegare in Cortex). La scelta viene salvata nel progetto. Il nome della traccia è mostrato sulla barra sopra la forma d'onda insieme al suo scostamento; con un doppio clic sulla barra si rinomina la traccia. Facendo doppio clic su un punto vuoto del pannello della traccia si apre la finestra dello scostamento temporale della traccia (Offset, ms).</td></tr>
 <tr><td><b>S</b> (Solo)</td><td>Si sente solo questa traccia (e le altre che hanno S attivo).</td></tr>
 <tr><td><b>M</b> (Mute)</td><td>La traccia è silenziata.</td></tr>
-<tr><td><b>R</b> (Record)</td><td>Predisposizione alla registrazione: la registrazione va sulla traccia che ha R attivo.</td></tr>
+<tr><td><b>R</b> (Record)</td><td>Predisposizione alla registrazione. Un clic normale attiva R solo su questa traccia; Maiusc o Ctrl + clic aggiunge la traccia a quelle già predisposte: la registrazione va allora su tutte insieme, ciascuna dalla propria sorgente (due tracce non possono usare la stessa sorgente).</td></tr>
 <tr><td><b>FX</b></td><td>Apre la finestra degli effetti della traccia (vedi <a href="#fx">Effetti</a>).</td></tr>
 <tr><td>Volume (dB)</td><td>Il cursore superiore, il valore è mostrato a destra.</td></tr>
 <tr><td>Balance</td><td>Il cursore inferiore: L, C, R.</td></tr>
@@ -102,7 +102,7 @@ code { font-family: "DejaVu Sans Mono",monospace; }
 <ul>
 <li><b>File → Open...</b> (<kbd>Alt</kbd>+<kbd>O</kbd>): apre un file audio nella traccia attiva. Vengono letti tutti i formati compresi dal Media Kit di Haiku (WAV, AIFF, MP3, Ogg, FLAC e altri, a seconda dei decodificatori installati). Il sottomenu dei file recenti mostra solo i file che sono stati aperti in BeAE.</li>
 <li><b>Trascinando</b> un file da Tracker nella finestra: il suono viene collocato come clip sulla traccia sotto il puntatore del mouse, nel punto in cui hai rilasciato il file. Più file insieme occupano le tracce libere. Se trascini un file <code>.bemix</code>, il progetto si apre.</li>
-<li><b>Registrazione</b>: attiva <b>R</b> sulla traccia desiderata e premi il pulsante rosso Record. La registrazione proviene dalla sorgente scelta nell'elenco del pannello della traccia attiva (per impostazione predefinita l'ingresso audio di sistema di Haiku). Per ora si registra una sola sorgente alla volta; la registrazione simultanea di più tracce da sorgenti diverse è in preparazione. Se nessuna traccia ha R attivo, il programma lo segnala con un messaggio. Per fermarla, usa il pulsante Stop oppure premi di nuovo Record.</li>
+<li><b>Registrazione</b>: attiva <b>R</b> sulla traccia desiderata e premi il pulsante rosso Record. La registrazione proviene dalla sorgente scelta nell'elenco del pannello della traccia attiva (per impostazione predefinita l'ingresso audio di sistema di Haiku). Si possono registrare più tracce contemporaneamente (Maiusc o Ctrl + clic su R), ciascuna dalla propria sorgente. Se nessuna traccia ha R attivo, il programma lo segnala con un messaggio. Per fermarla, usa il pulsante Stop oppure premi di nuovo Record.</li>
 </ul>
 <p>Durante la registrazione non è possibile aprire file.</p>
 

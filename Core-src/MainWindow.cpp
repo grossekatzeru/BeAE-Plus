@@ -35,6 +35,7 @@
 #include <Cursor.h>
 #include <String.h>
 #include <string.h>
+#include <algorithm>
 
 #include "Globals.h"
 #include "MainWindow.h"
@@ -885,6 +886,14 @@ void MainWindow::RecordingFollow()
 	if (sample_view) sample_view->Invalidate();
 }
 
+void MainWindow::ClearExtraRecorders()
+{
+	for (size_t i = 0; i < rec_extra.size(); i++)
+		delete rec_extra[i];
+	rec_extra.clear();
+	rec_tracks.clear();
+}
+
 void MainWindow::StartRecording()
 {
 	if (Recorder.IsRecording())
@@ -899,15 +908,45 @@ void MainWindow::StartRecording()
 		Pool.StopPlaying();
 	}
 
-	// запись идёт только в дорожку с кнопкой R
-	int armed = Mix.ArmedTrack();
-	if (armed < 0){
+	// запись идёт в дорожки с кнопкой R (их может быть несколько: Shift или Ctrl + щелчок по R)
+	int armedList[MIX_MAX_TRACKS];
+	const int armedCount = Mix.ArmedTracks(armedList, MIX_MAX_TRACKS);
+	if (armedCount < 1){
 		(new BAlert(NULL, Language.get("REC_ERR_NO_ARMED"), Language.get("OK")))->Go();
 		return;
 	}
-	if (armed != Mix.Active()){
-		if (!Tracks_Activate(armed))
+
+	// первой идёт дорожка с источником «Внешний» (её узел живёт в глобальном Recorder), иначе первая по порядку
+	ClearExtraRecorders();
+	for (int i = 0; i < armedCount; i++)
+		rec_tracks.push_back(armedList[i]);
+	for (size_t i = 0; i < rec_tracks.size(); i++){
+		const MixTrack *mt = Mix.Track(rec_tracks[i]);
+		if (mt && strcmp(mt->source, MIX_SOURCE_EXTERNAL) == 0){
+			std::swap(rec_tracks[0], rec_tracks[i]);
+			break;
+		}
+	}
+
+	// один источник нельзя писать в две дорожки сразу: у выхода узла одно соединение
+	for (size_t i = 0; i < rec_tracks.size(); i++){
+		for (size_t j = i + 1; j < rec_tracks.size(); j++){
+			const MixTrack *a = Mix.Track(rec_tracks[i]);
+			const MixTrack *b = Mix.Track(rec_tracks[j]);
+			if (a && b && strcmp(a->source, b->source) == 0){
+				ClearExtraRecorders();
+				(new BAlert(NULL, Language.get("REC_ERR_DUP_SOURCE"), Language.get("OK")))->Go();
+				return;
+			}
+		}
+	}
+
+	const int primary = rec_tracks[0];
+	if (primary != Mix.Active()){
+		if (!Tracks_Activate(primary)){
+			ClearExtraRecorders();
 			return;
+		}
 	}
 
 	// старт записи на общей шкале времени: позиция курсора в активной дорожке + её смещение
@@ -920,13 +959,36 @@ void MainWindow::StartRecording()
 
 	BString error;
 	{
-		const MixTrack *rt = Mix.Track(Mix.Active());
+		const MixTrack *rt = Mix.Track(primary);
 		Recorder.SetSource(rt ? rt->source : "");		// источник выбран в панели дорожки
 	}
 	sRecCall = system_time();
 	status_t err = Recorder.Start(&error);
 	sRecRet = system_time();
+	if (err == B_OK){
+		// остальные дорожки: свой рекордер на каждую
+		for (size_t i = 1; i < rec_tracks.size() && err == B_OK; i++){
+			AudioRecorder *extra = new AudioRecorder();
+			const MixTrack *rt = Mix.Track(rec_tracks[i]);
+			extra->SetSource(rt ? rt->source : "");
+			err = extra->Start(&error);
+			if (err != B_OK){
+				BString text(Language.get(error.String()));
+				text << "\n(" << strerror(err) << ")";
+				if (rt && rt->name[0])
+					text << "\n[" << rt->name << "]";
+				delete extra;
+				Recorder.Stop();
+				Recorder.Clear();
+				ClearExtraRecorders();
+				(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
+				return;
+			}
+			rec_extra.push_back(extra);
+		}
+	}
 	if (err != B_OK){
+		ClearExtraRecorders();
 		BString text(Language.get(error.String()));
 		text << "\n(" << strerror(err) << ")";
 		(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
@@ -952,44 +1014,62 @@ void MainWindow::StopRecording()
 	delete rec_runner;
 	rec_runner = NULL;
 	Recorder.Stop();
+	for (size_t i = 0; i < rec_extra.size(); i++)
+		rec_extra[i]->Stop();
 	Pool.rec_live = false;
 	Pool.StopPlaying();					// остановить воспроизведение остальных дорожек
 	play_cookie.tailing = false;
 	FinishRecording();
 }
 
-// Превращает записанное в новый файл (так же, как это делает загрузка файла).
+// Записанное каждым источником превращается в клип своей дорожки (так же, как при загрузке файла).
 void MainWindow::FinishRecording()
 {
 	Pool.play_mode = NONE;
 
-	int64 frames = Recorder.Frames();
-	const int32 channels = Recorder.Channels();
-	const float rate = Recorder.Rate();
+	// сначала дополнительные дорожки, основная последней: она остаётся активной, как при записи одной дорожки
+	for (size_t i = rec_extra.size(); i-- > 0;){
+		const int track = rec_tracks[i + 1];
+		if (track != Mix.Active() && !Tracks_Activate(track))
+			continue;
+		FinishTrackRecording(*rec_extra[i]);
+	}
+	if (!rec_tracks.empty() && rec_tracks[0] != Mix.Active())
+		Tracks_Activate(rec_tracks[0]);
+	FinishTrackRecording(Recorder);
+	ClearExtraRecorders();
+}
+
+void MainWindow::FinishTrackRecording(AudioRecorder &rec)
+{
+
+	int64 frames = rec.Frames();
+	const int32 channels = rec.Channels();
+	const float rate = rec.Rate();
 
 	if (frames < 2){				// слишком короткая запись, ничего не делаем
-		Recorder.Clear();
+		rec.Clear();
 		SetTitle(rec_old_title.String());	// вернуть прежний заголовок
 		return;
 	}
 
-	const bigtime_t recStampReal = Recorder.FirstStampReal();
+	const bigtime_t recStampReal = rec.FirstStampReal();
 	const bigtime_t recFirstHook = Pool.rec_first_hook;
-	float *mem = Recorder.CopyData(256);	// 256 float запаса, как «+1024» при загрузке файла
+	float *mem = rec.CopyData(256);	// 256 float запаса, как «+1024» при загрузке файла
 	if (mem == NULL){
-		Recorder.Clear();
+		rec.Clear();
 		(new BAlert(NULL, Language.get("MEM_ERROR"), Language.get("OK")))->Go();
 		return;
 	}
 
-	uint32 srcFormat = Recorder.SourceFormat();
-	Recorder.Clear();
+	uint32 srcFormat = rec.SourceFormat();
+	rec.Clear();
 
 	// компенсация задержки: вход приходит позже воспроизведения, отбрасываем начало записи.
 	// Постоянная часть — измеренная задержка железа (Fine tune); переменную часть (момент старта записи
 	// и воспроизведения у медиасервера каждый раз разный) берём из меток времени.
 	{
-		double skipMs = (double)Prefs.rec_latency_ms;
+		double skipMs = rec.IsPhysicalInput() ? (double)Prefs.rec_latency_ms : 0.0;	// задержка железа - только у звуковой карты
 		if (recStampReal > 0 && recFirstHook > 0)
 			skipMs += (double)(recFirstHook - recStampReal) / 1000.0;
 		if (skipMs < 0)
@@ -998,7 +1078,7 @@ void MainWindow::FinishRecording()
 		// строка с тайминг-данными записи — только в консоль (stderr)
 		{
 			FILE *lf = stderr;
-			fprintf(lf, "rec: pref %d ms | skip %.1f ms | Recorder.Start ret +%.1f, tail start +%.1f | "
+			fprintf(lf, "rec: pref %d ms | skip %.1f ms | rec.Start ret +%.1f, tail start +%.1f | "
 				"1st hook %s%.1f | stampReal %s%.1f | hook-stamp %.1f | frames %lld rate %.0f\n",
 				(int)Prefs.rec_latency_ms, skipMs,
 				(sRecRet - sRecCall) / 1000.0, (sRecTail - sRecCall) / 1000.0,

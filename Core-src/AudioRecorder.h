@@ -66,6 +66,9 @@ public:
 	bigtime_t	FirstStamp() const { return fFirstStamp; }
 	bigtime_t	FirstArrival() const { return fFirstArrival; }
 	bigtime_t	InputLatency() const { return fInputLatency; }
+	// Источник - физический вход (звуковая карта): к нему применяется измеренная задержка железа (Fine tune).
+	// У программных источников (другое приложение, «Внешний») её нет.
+	bool		IsPhysicalInput() const { return fPhysical; }
 	// метка первого буфера, переведённая в system_time (0, если не удалось)
 	bigtime_t	FirstStampReal() const { return fFirstStampReal; }
 
@@ -87,6 +90,7 @@ private:
 	bool			fExternalNode;			// fRecorder - узел «Внешний», живёт между записями (его соединяют в Cortex)
 	media_node		fInputNode;
 	bool			fHaveNode;
+	bool			fPhysical;
 	volatile bool	fRecording;
 	volatile bool	fListening;
 	std::vector<float> fRing;			// кольцо прослушивания (моно)
