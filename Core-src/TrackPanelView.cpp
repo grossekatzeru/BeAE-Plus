@@ -668,6 +668,8 @@ void TrackPanelView::MouseDown(BPoint p)
 		Invalidate();
 		break;
 	case HIT_REC:
+		if (Recorder.IsRecording())
+			break;						// набор дорожек записи меняется только до старта
 		if (Mix.Track(index)->armed){
 			Mix.SetArmed(index, false);
 		}else{
