@@ -10,8 +10,8 @@ What it does
     from the non-packaged data folders, and from folders you add (File -> Add banks folder).
     Choose a bank, double-click an instrument to load it (.xiz) into the selected part.
     The search box looks in all banks.
-  * 16 parts: select a part with the round button at its left, switch it on, MIDI channel,
-    volume, pan, M (mute: the part ignores new notes), S (solo).
+  * 16 parts, one panel (like in Zyn itself): choose the part number in the "Part" menu, then
+    Enabled, MIDI channel, volume, pan, Mute (the part ignores new notes) and Solo.
   * Master volume and one Reverb slider (a reverb in system effect 1; how much of every part
     goes into it).
   * Record: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
