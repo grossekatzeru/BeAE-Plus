@@ -154,7 +154,7 @@ class MainWindow : public BWindow {
 public:
 	MainWindow()
 		:
-		BWindow(BRect(80, 80, 1080, 720), "SimpleZyn", B_TITLED_WINDOW,
+		BWindow(BRect(80, 60, 600, 700), "SimpleZyn", B_TITLED_WINDOW,
 			B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
 		fSelectedPart(0),
 		fRecording(false),
@@ -305,6 +305,7 @@ private:
 		BScrollView* banksScroll = new BScrollView("banksScroll", fBanks, 0, false, true);
 		BScrollView* instrumentsScroll = new BScrollView("instrumentsScroll", fInstruments, 0, false, true);
 		fHint = new BStringView("hint", "Double-click an instrument to load it into the selected part");
+		fHint->SetFont(be_plain_font);
 
 		// the 16 parts
 		BGroupView* partsView = new BGroupView(B_VERTICAL, 2);
@@ -317,31 +318,34 @@ private:
 		fOpenButton->SetEnabled(false);
 		fStatus = new BStringView("status", "Engine: starting" B_UTF8_ELLIPSIS);
 
+		fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// long messages must not widen the window
+		fHint->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));
+
+		// everything is stacked vertically so the window stays narrow and grows in height
+		banksScroll->SetExplicitMinSize(BSize(100, 110));
+		instrumentsScroll->SetExplicitMinSize(BSize(140, 110));
+
 		BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
 			.Add(menuBar)
-			.AddGroup(B_VERTICAL, B_USE_DEFAULT_SPACING)
+			.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
 				.SetInsets(B_USE_WINDOW_INSETS)
 				.AddGroup(B_HORIZONTAL)
 					.Add(fMaster)
 					.Add(fReverb)
 				.End()
-				.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
-					.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 1.0f)
-						.Add(fSearch)
-						.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-							.Add(banksScroll, 1.0f)
-							.Add(instrumentsScroll, 2.0f)
-						.End()
-						.Add(fHint)
-					.End()
-					.Add(partsView, 2.0f)
+				.Add(fSearch)
+				.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+					.Add(banksScroll, 1.0f)
+					.Add(instrumentsScroll, 2.0f)
 				.End()
+				.Add(fHint)
+				.Add(partsView)
 				.AddGroup(B_HORIZONTAL)
 					.Add(fRecordButton)
 					.Add(fOpenButton)
-					.Add(fStatus)
 					.AddGlue()
 				.End()
+				.Add(fStatus)
 			.End();
 
 		_SelectPart(0);
@@ -372,7 +376,7 @@ private:
 		s.enable = new BCheckBox("enable", "On", enableMessage);
 
 		s.name = new BStringView("name", "(empty)");
-		s.name->SetExplicitMinSize(BSize(150, B_SIZE_UNSET));
+		s.name->SetExplicitMinSize(BSize(90, B_SIZE_UNSET));
 
 		BPopUpMenu* channelMenu = new BPopUpMenu("channel");
 		for (int ch = 0; ch < 16; ch++) {
