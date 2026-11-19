@@ -304,6 +304,8 @@ private:
 		fOpenButton->SetToolTip("New Record Port. For now: sends the recorded WAV file to BeAE-Plus "
 			"(a live port for BeAE-Plus or a video editor is planned)");
 		fOpenButton->SetEnabled(false);
+		fRestartButton = new BButton("restart", "Rst", new BMessage(MSG_RESTART));
+		fRestartButton->SetToolTip("Restart the synthesizer engine");
 
 		// the sliders take the height, the buttons keep their own height
 		fMaster->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
@@ -311,6 +313,7 @@ private:
 		const float buttonHeight = be_plain_font->Size() * 2.6f;
 		fRecordButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
 		fOpenButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
+		fRestartButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
 
 		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
@@ -319,6 +322,7 @@ private:
 				.Add(fMaster)
 				.Add(fReverb)
 			.End()
+			.Add(fRestartButton, 0.0f)
 			.Add(fRecordButton, 0.0f)
 			.View();
 		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
@@ -383,33 +387,41 @@ private:
 		fSolo = new BCheckBox("solo", "S", new BMessage(MSG_SOLO));
 		fSolo->SetToolTip("Solo");
 
-		BView* partContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
+		// the labels of "Part" and "Search" have the same width, so both fields start at one line
+		const float labelWidth = be_plain_font->StringWidth("Search") + 10;
+		fPartMenu->SetDivider(labelWidth);
+		fSearch->SetDivider(labelWidth);
+
+		// grid: Part and Search only over the lists; the sliders start at the lists' top
+		BGroupView* slidersView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(slidersView)
+			.Add(fVolume)
+			.Add(fPan);
+		BGroupView* listsView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(listsView)
+			.Add(banksScroll, 1.0f)
+			.Add(instrumentsScroll, 2.0f);
+		BGroupView* lowerView = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+		BGroupView* muteView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(muteView)
+			.Add(fMute)
+			.Add(fSolo);
+		BLayoutBuilder::Group<>(lowerView)
+			.Add(fChannel)
+			.Add(muteView);
+
+		BGridView* partGrid = new BGridView(B_USE_SMALL_SPACING, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Grid<>(partGrid)
 			.SetInsets(B_USE_SMALL_INSETS)
-			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
-				.Add(fPartMenu)
-				.AddGlue()
-			.End()
-			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
-				.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 3.0f)
-					.Add(fSearch)
-					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-						.Add(banksScroll, 1.0f)
-						.Add(instrumentsScroll, 2.0f)
-					.End()
-				.End()
-				.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 1.0f)
-					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-						.Add(fVolume)
-						.Add(fPan)
-					.End()
-					.Add(fChannel)
-					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-						.Add(fMute)
-						.Add(fSolo)
-					.End()
-				.End()
-			.End()
-			.View();
+			.Add(fPartMenu, 0, 0)
+			.Add(fSearch, 0, 1)
+			.Add(listsView, 0, 2, 1, 2)
+			.Add(slidersView, 1, 2)
+			.Add(lowerView, 1, 3)
+			.SetColumnWeight(0, 1.0f)
+			.SetColumnWeight(1, 0.0f)
+			.SetRowWeight(2, 1.0f);
+		BView* partContent = partGrid;
 		fPartBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, partContent);
 		fPartBox->SetLabel("Inst");
@@ -692,6 +704,7 @@ private:
 	BCheckBox*					fMute;
 	BCheckBox*					fSolo;
 	BButton*					fRecordButton;
+	BButton*					fRestartButton;
 	BButton*					fOpenButton;
 	BStringView*				fStatus;
 
