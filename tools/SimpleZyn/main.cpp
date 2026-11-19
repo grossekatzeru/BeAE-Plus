@@ -420,7 +420,6 @@ private:
 		fPartMenu->SetDivider(labelWidth);
 		fSearch->SetDivider(labelWidth);
 
-		// grid: Part and Search only over the lists; the sliders start at the lists' top
 		// every slider has its own box, the box carries the name
 		BBox* volumeBox = new BBox("volumeBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
@@ -448,17 +447,23 @@ private:
 			.Add(fChannel)
 			.Add(muteView);
 
-		BGridView* partGrid = new BGridView(B_USE_SMALL_SPACING, B_USE_SMALL_SPACING);
-		BLayoutBuilder::Grid<>(partGrid)
+		// two columns: on the left Part, Search and the lists, on the right the sliders with Ch, M, S;
+		// both start at the top, the lists end at the level of the M and S boxes
+		BGroupView* leftColumn = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(leftColumn)
+			.Add(fPartMenu)
+			.Add(fSearch)
+			.Add(listsView, 1.0f);
+		BGroupView* rightColumn = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(rightColumn)
+			.Add(slidersView)
+			.AddGlue()
+			.Add(lowerView);
+		BView* partGrid = BLayoutBuilder::Group<>(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
-			.Add(fPartMenu, 0, 0)
-			.Add(fSearch, 0, 1)
-			.Add(listsView, 0, 2, 1, 2)
-			.Add(slidersView, 1, 2)
-			.Add(lowerView, 1, 3)
-			.SetColumnWeight(0, 1.0f)
-			.SetColumnWeight(1, 0.0f)
-			.SetRowWeight(2, 1.0f);
+			.Add(leftColumn, 1.0f)
+			.Add(rightColumn, 0.0f)
+			.View();
 		BView* partContent = partGrid;
 		fPartBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, partContent);
@@ -475,11 +480,8 @@ private:
 		fRestartButton->SetToolTip("Restart the synthesizer engine");
 
 		// the sliders take the height, the buttons keep their own height
-		// the same height for all four sliders; the System sliders start at the level
-		// where the lists of the Part box start
-		const float spacing = ceilf(be_control_look->ComposeSpacing(B_USE_SMALL_SPACING));
-		const float topOffset = fPartMenu->PreferredSize().height
-			+ fSearch->PreferredSize().height + 2 * spacing;
+		// the same height for all four sliders; the System sliders start at the same level
+		// as the Vol and Pan sliders of the Part box (the top of the box content)
 		const float kSliderHeight = 150;
 		BSlider* allSliders[] = { fMaster, fReverb, fVolume, fPan };
 		for (int i = 0; i < 4; i++) {
@@ -501,7 +503,6 @@ private:
 
 		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
-			.AddStrut(topOffset)
 			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 0.0f)
 				.Add(masterBox)
 				.Add(reverbBox)
