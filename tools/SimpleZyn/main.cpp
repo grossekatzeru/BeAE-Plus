@@ -319,12 +319,12 @@ private:
 
 		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
+			.Add(fOpenButton, 0.0f)
 			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 1.0f)
 				.Add(fMaster)
 				.Add(fReverb)
 			.End()
 			.Add(fRecordButton, 0.0f)
-			.Add(fOpenButton, 0.0f)
 			.View();
 		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, systemContent);
@@ -441,7 +441,7 @@ private:
 
 	BSlider* _NewSlider(const char* name, const char* label, uint32 what, int32 value)
 	{
-		BSlider* slider = new BSlider(name, label, new BMessage(what), 0, 127, B_HORIZONTAL);
+		BSlider* slider = new BSlider(name, label, new BMessage(what), 0, 127, B_VERTICAL);
 		slider->SetValue(value);
 		slider->SetModificationMessage(new BMessage(what));
 		slider->SetHashMarks(B_HASH_MARKS_NONE);
