@@ -47,6 +47,13 @@
 
 static const char* kAppSignature = "application/x-vnd.SimpleZyn";
 static const char* kBeAESignature = "application/x-vnd.BeAE-BeAE";
+// reverb presets of the engine (their order is the engine's) and the type each one sets
+static const int kReverbPresetCount = 13;
+static const char* const kReverbPresets[kReverbPresetCount] = {
+	"Cathedral 1", "Cathedral 2", "Cathedral 3", "Hall 1", "Hall 2", "Room 1", "Room 2",
+	"Basement", "Tunnel", "Echoed 1", "Echoed 2", "Very long 1", "Very long 2"
+};
+static const int kReverbPresetType[kReverbPresetCount] = { 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1 };
 static const uint32 kAddFileTrack = 'adTr';	// BeAE-Plus: add the files of "refs" as new tracks
 
 enum {
@@ -65,6 +72,8 @@ enum {
 	MSG_RECORD = 'rec_',
 	MSG_OPEN_BEAE = 'obea',
 	MSG_NEWRP = 'nrpt',
+	MSG_REV_PRESET = 'rvpr',
+	MSG_REV_TYPE = 'rvty',
 	MSG_ADD_FOLDER = 'addf',
 	MSG_FOLDER_CHOSEN = 'fcho',
 	MSG_RESCAN = 'resc',
@@ -165,6 +174,8 @@ public:
 		fSelectedPart(0),
 		fRecording(false),
 		fFinishTries(0),
+		fRevPreset(-1),
+		fRevType(-1),
 		fRunner(NULL),
 		fOpenPanel(NULL),
 		fFallbackTried(false),
@@ -253,6 +264,25 @@ public:
 			case MSG_RECORD:
 				_ToggleRecord();
 				break;
+			case MSG_REV_PRESET: {
+				int32 preset;
+				if (message->FindInt32("preset", &preset) == B_OK && preset >= 0 && preset < kReverbPresetCount) {
+					fRevPreset = preset;
+					fRevType = kReverbPresetType[preset];	// a preset sets the type as well
+					fZyn.SetReverbPreset(preset);
+					_MarkReverbMenus();
+				}
+				break;
+			}
+			case MSG_REV_TYPE: {
+				int32 type;
+				if (message->FindInt32("type", &type) == B_OK && type >= 0 && type < 3) {
+					fRevType = type;
+					fZyn.SetReverbType(type);
+					_MarkReverbMenus();
+				}
+				break;
+			}
 			case MSG_NEWRP:
 				fNewRPItem->SetMarked(!fNewRPItem->IsMarked());
 				break;
@@ -307,6 +337,25 @@ private:
 		fNewRPItem = new BMenuItem("NewRP: send every recording to BeAE-Plus", new BMessage(MSG_NEWRP));
 		engine->AddItem(fNewRPItem);
 		menuBar->AddItem(engine);
+
+		// the reverb: a preset (it sets all the reverb parameters) and its type
+		BMenu* reverbMenu = new BMenu("Reverb");
+		fRevPresetMenu = new BMenu("Preset");
+		for (int i = 0; i < kReverbPresetCount; i++) {
+			BMessage* m = new BMessage(MSG_REV_PRESET);
+			m->AddInt32("preset", i);
+			fRevPresetMenu->AddItem(new BMenuItem(kReverbPresets[i], m));
+		}
+		reverbMenu->AddItem(fRevPresetMenu);
+		fRevTypeMenu = new BMenu("Type");
+		static const char* const kTypes[3] = { "Random", "Freeverb", "Bandwidth" };
+		for (int i = 0; i < 3; i++) {
+			BMessage* m = new BMessage(MSG_REV_TYPE);
+			m->AddInt32("type", i);
+			fRevTypeMenu->AddItem(new BMenuItem(kTypes[i], m));
+		}
+		reverbMenu->AddItem(fRevTypeMenu);
+		menuBar->AddItem(reverbMenu);
 
 		// ---- box "Part": a MIDI channel (part) with its instrument
 		BPopUpMenu* partMenu = new BPopUpMenu("part");
@@ -551,10 +600,22 @@ private:
 		}
 	}
 
+	void _MarkReverbMenus()
+	{
+		for (int i = 0; i < kReverbPresetCount; i++)
+			fRevPresetMenu->ItemAt(i)->SetMarked(i == fRevPreset);
+		for (int i = 0; i < 3; i++)
+			fRevTypeMenu->ItemAt(i)->SetMarked(i == fRevType);
+	}
+
 	void _SendAllState()
 	{
 		fZyn.SetMasterVolume(fMaster->Value());
 		fZyn.SetReverb(fReverb->Value());
+		if (fRevPreset >= 0)
+			fZyn.SetReverbPreset(fRevPreset);				// first the preset, it sets the type too
+		if (fRevType >= 0)
+			fZyn.SetReverbType(fRevType);
 		for (int i = 0; i < ZYN_PARTS; i++) {
 			const PartState& p = fParts[i];
 			fZyn.SetEnabled(i, p.enabled);
@@ -817,6 +878,10 @@ private:
 	int							fSelectedPart;
 	bool						fRecording;
 	int							fFinishTries;
+	int							fRevPreset;		// -1: not chosen, the engine's own
+	int							fRevType;
+	BMenu*						fRevPresetMenu;
+	BMenu*						fRevTypeMenu;
 	std::string					fRecordPath;
 	BMessageRunner*				fRunner;
 	BFilePanel*					fOpenPanel;

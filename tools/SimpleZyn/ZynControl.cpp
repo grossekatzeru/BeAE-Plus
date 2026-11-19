@@ -101,6 +101,20 @@ ZynControl::SetReverb(int value)
 
 
 void
+ZynControl::SetReverbPreset(int preset)
+{
+	fOsc.Send("/sysefx0/preset", "i", Clamp(preset, 0, 12));
+}
+
+
+void
+ZynControl::SetReverbType(int type)
+{
+	fOsc.Send("/sysefx0/parameter10", "i", Clamp(type, 0, 2));	// effect parameter 10 = reverb type
+}
+
+
+void
 ZynControl::RecordStart(const std::string& path)
 {
 	fOsc.Send("/HDDRecorder/preparefile", "s", path.c_str());

@@ -127,6 +127,10 @@ main()
 		CHECK(Receive(s) == "/Psysefxvol0/part0 40");
 		for (int i = 1; i < 16; i++)
 			Receive(s);
+		z.SetReverbPreset(5);
+		CHECK(Receive(s) == "/sysefx0/preset 5");
+		z.SetReverbType(2);
+		CHECK(Receive(s) == "/sysefx0/parameter10 2");
 		z.RecordStart("/tmp/out.wav");
 		CHECK(Receive(s) == "/HDDRecorder/preparefile /tmp/out.wav");
 		CHECK(Receive(s) == "/HDDRecorder/start");

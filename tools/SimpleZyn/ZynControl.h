@@ -26,6 +26,10 @@ public:
 	void		SetMasterVolume(int value);							// 0..127
 	void		SetReverb(int value);								// 0..127: how much of every part goes to the reverb
 
+	// The reverb itself (system effect 1)
+	void		SetReverbPreset(int preset);						// 0..12, see kReverbPresets in main.cpp
+	void		SetReverbType(int type);							// 0 Random, 1 Freeverb, 2 Bandwidth
+
 	// Recording into a WAV file (the engine writes the file)
 	void		RecordStart(const std::string& path);
 	void		RecordStop();
