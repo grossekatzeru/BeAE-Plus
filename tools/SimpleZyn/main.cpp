@@ -681,9 +681,19 @@ private:
 			time_t now = time(NULL);
 			struct tm t;
 			localtime_r(&now, &t);
-			char name[64];
-			strftime(name, sizeof(name), "SimpleZyn-%Y%m%d-%H%M%S.wav", &t);
-			dir.Append(name);
+			// file name: instrument of the selected part - day.hour.minutes.seconds
+			std::string base(fParts[fSelectedPart].name);
+			for (size_t i = 0; i < base.size(); i++) {
+				if (base[i] == '/' || base[i] == ':' || (unsigned char)base[i] < 32)
+					base[i] = '_';
+			}
+			if (base.empty())
+				base = "SimpleZyn";
+			char stamp[32];
+			strftime(stamp, sizeof(stamp), "%d.%H.%M.%S", &t);
+			BString name(base.c_str());
+			name << "-" << stamp << ".wav";
+			dir.Append(name.String());
 			fRecordPath = dir.Path();
 
 			fZyn.RecordStart(fRecordPath);

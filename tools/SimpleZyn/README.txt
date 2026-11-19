@@ -15,7 +15,7 @@ What it does
     The box title shows the instrument of the selected part. Loading an instrument switches the part on.
   * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
     how much of every part goes into it), Rst (restart the engine) and Rec.
-  * Rec: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
+  * Rec: writes the sound to ~/SimpleZyn/INSTRUMENT-DD.HH.MM.SS.wav (the instrument of the selected part, day.hour.minutes.seconds) (the engine starts writing
     with the first note). Menu Engine > NewRP (New Record Port; checked or not): when checked, every
     finished recording is sent to BeAE-Plus at once. File > Send last recording does it by hand.
     If BeAE-Plus (3.2 or newer, built from this repository) is already running, the recording goes
