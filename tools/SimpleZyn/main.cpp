@@ -310,14 +310,21 @@ private:
 			"(a live port for BeAE-Plus or a video editor is planned)");
 		fOpenButton->SetEnabled(false);
 
+		// the sliders take the height, the buttons keep their own height
+		fMaster->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
+		fReverb->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
+		const float buttonHeight = be_plain_font->Size() * 2.6f;
+		fRecordButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
+		fOpenButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
+
 		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
-			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 1.0f)
 				.Add(fMaster)
 				.Add(fReverb)
 			.End()
-			.Add(fRecordButton)
-			.Add(fOpenButton)
+			.Add(fRecordButton, 0.0f)
+			.Add(fOpenButton, 0.0f)
 			.View();
 		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, systemContent);
