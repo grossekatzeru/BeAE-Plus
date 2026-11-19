@@ -10,12 +10,13 @@ What it does
     from the non-packaged data folders, and from folders you add (File -> Add banks folder).
     Choose a bank, double-click an instrument to load it (.xiz) into the selected part.
     The search box looks in all banks.
-  * 16 parts, one panel (like in Zyn itself): choose the part number in the "Part" menu, then
-    Enabled, MIDI channel, volume, pan, Mute (the part ignores new notes) and Solo.
-  * Master volume and one Reverb slider (a reverb in system effect 1; how much of every part
-    goes into it).
-  * Record: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
-    with the first note). "Open in BeAE-Plus" sends the file to BeAE-Plus.
+  * 16 parts, one panel (like in Zyn itself): choose the part number in the number menu in the "Part" box,
+    then On, Ch (MIDI channel), Vol, Pan, M (mute: the part ignores new notes) and S (solo).
+  * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
+    how much of every part goes into it), Rec and NewRP.
+  * Rec: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
+    with the first note). NewRP (New Record Port) for now sends the recorded file to BeAE-Plus;
+    a live port for BeAE-Plus or a video editor is planned.
   * MIDI: connect a keyboard to the MIDI consumer "ZynAddSubFX", for example the program
     MidiKeyboard (https://github.com/HaikuArchives/MidiKeyboard) or your USB keyboard.
 

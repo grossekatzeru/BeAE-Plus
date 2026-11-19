@@ -5,6 +5,7 @@
 
 #include <Alert.h>
 #include <Application.h>
+#include <Box.h>
 #include <Button.h>
 #include <CheckBox.h>
 #include <Directory.h>
@@ -155,7 +156,7 @@ class MainWindow : public BWindow {
 public:
 	MainWindow()
 		:
-		BWindow(BRect(80, 60, 520, 560), "SimpleZyn", B_TITLED_WINDOW,
+		BWindow(BRect(80, 60, 700, 480), "SimpleZyn", B_TITLED_WINDOW,
 			B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
 		fSelectedPart(0),
 		fRecording(false),
@@ -297,25 +298,32 @@ private:
 		engine->AddItem(new BMenuItem("Restart engine", new BMessage(MSG_RESTART)));
 		menuBar->AddItem(engine);
 
-		// master volume and reverb
-		fMaster = _NewSlider("master", "Master", MSG_MASTER, 80);
-		fReverb = _NewSlider("reverb", "Reverb", MSG_REVERB, 0);
+		// ---- box "System": things that belong to the whole synthesizer
+		fMaster = _NewSlider("master", "Vol", MSG_MASTER, 80);
+		fMaster->SetToolTip("Master volume");
+		fReverb = _NewSlider("reverb", "Rev", MSG_REVERB, 0);
+		fReverb->SetToolTip("Reverb: how much of every part goes into the reverb");
+		fRecordButton = new BButton("record", "Rec", new BMessage(MSG_RECORD));
+		fRecordButton->SetToolTip("Record the sound to a WAV file (starts with the first note)");
+		fOpenButton = new BButton("newrp", "NewRP", new BMessage(MSG_OPEN_BEAE));
+		fOpenButton->SetToolTip("New Record Port. For now: sends the recorded WAV file to BeAE-Plus "
+			"(a live port for BeAE-Plus or a video editor is planned)");
+		fOpenButton->SetEnabled(false);
 
-		// banks and instruments
-		fSearch = new BTextControl("search", "Search:", "", new BMessage(MSG_SEARCH));
-		fSearch->SetModificationMessage(new BMessage(MSG_SEARCH));
-		fBanks = new BListView("banks");
-		fBanks->SetSelectionMessage(new BMessage(MSG_BANK));
-		fInstruments = new BListView("instruments");
-		fInstruments->SetInvocationMessage(new BMessage(MSG_LOAD));
-		BScrollView* banksScroll = new BScrollView("banksScroll", fBanks, 0, false, true);
-		BScrollView* instrumentsScroll = new BScrollView("instrumentsScroll", fInstruments, 0, false, true);
-		banksScroll->SetExplicitMinSize(BSize(100, 120));
-		instrumentsScroll->SetExplicitMinSize(BSize(140, 120));
-		fHint = new BStringView("hint", "Double-click an instrument to load it into the part");
-		fHint->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));
+		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
+			.SetInsets(B_USE_SMALL_INSETS)
+			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+				.Add(fMaster)
+				.Add(fReverb)
+			.End()
+			.Add(fRecordButton)
+			.Add(fOpenButton)
+			.View();
+		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, systemContent);
+		systemBox->SetLabel("System");
 
-		// one part at a time, like in the original: the part number is chosen in a menu
+		// ---- box "Part": a MIDI channel (part) with its instrument
 		BPopUpMenu* partMenu = new BPopUpMenu("part");
 		for (int i = 0; i < ZYN_PARTS; i++) {
 			BString text;
@@ -328,18 +336,34 @@ private:
 			partMenu->AddItem(item);
 		}
 		partMenu->SetLabelFromMarked(true);
-		fPartMenu = new BMenuField("partField", "Part:", partMenu);
+		fPartMenu = new BMenuField("partField", NULL, partMenu);
+		fPartMenu->SetToolTip("Part (1-16)");
 
-		fEnable = new BCheckBox("enable", "Enabled", new BMessage(MSG_ENABLE));
+		fEnable = new BCheckBox("enable", "On", new BMessage(MSG_ENABLE));
 		fName = new BStringView("name", "(empty)");
 		fName->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));
 
-		fVolume = new BSlider("volume", "Volume", new BMessage(MSG_VOLUME), 0, 127, B_HORIZONTAL);
+		fSearch = new BTextControl("search", NULL, "", new BMessage(MSG_SEARCH));
+		fSearch->SetModificationMessage(new BMessage(MSG_SEARCH));
+		fSearch->SetToolTip("Search instruments in all banks");
+		fBanks = new BListView("banks");
+		fBanks->SetSelectionMessage(new BMessage(MSG_BANK));
+		fInstruments = new BListView("instruments");
+		fInstruments->SetInvocationMessage(new BMessage(MSG_LOAD));
+		fInstruments->SetToolTip("Double-click an instrument to load it into the part");
+		BScrollView* banksScroll = new BScrollView("banksScroll", fBanks, 0, false, true);
+		BScrollView* instrumentsScroll = new BScrollView("instrumentsScroll", fInstruments, 0, false, true);
+		banksScroll->SetExplicitMinSize(BSize(110, 150));
+		instrumentsScroll->SetExplicitMinSize(BSize(150, 150));
+
+		fVolume = new BSlider("volume", "Vol", new BMessage(MSG_VOLUME), 0, 127, B_VERTICAL);
 		fVolume->SetModificationMessage(new BMessage(MSG_VOLUME));
 		fVolume->SetHashMarks(B_HASH_MARKS_NONE);
-		fPan = new BSlider("pan", "Pan", new BMessage(MSG_PAN), 0, 127, B_HORIZONTAL);
+		fVolume->SetToolTip("Part volume");
+		fPan = new BSlider("pan", "Pan", new BMessage(MSG_PAN), 0, 127, B_VERTICAL);
 		fPan->SetModificationMessage(new BMessage(MSG_PAN));
 		fPan->SetHashMarks(B_HASH_MARKS_NONE);
+		fPan->SetToolTip("Panning (the middle is the centre)");
 
 		BPopUpMenu* channelMenu = new BPopUpMenu("channel");
 		for (int ch = 0; ch < 16; ch++) {
@@ -353,15 +377,46 @@ private:
 			channelMenu->AddItem(item);
 		}
 		channelMenu->SetLabelFromMarked(true);
-		fChannel = new BMenuField("channelField", "MIDI channel:", channelMenu);
+		fChannel = new BMenuField("channelField", "Ch", channelMenu);
+		fChannel->SetToolTip("MIDI channel the part listens to");
 
-		fMute = new BCheckBox("mute", "Mute", new BMessage(MSG_MUTE));
-		fSolo = new BCheckBox("solo", "Solo", new BMessage(MSG_SOLO));
+		fMute = new BCheckBox("mute", "M", new BMessage(MSG_MUTE));
+		fMute->SetToolTip("Mute: the part ignores new notes");
+		fSolo = new BCheckBox("solo", "S", new BMessage(MSG_SOLO));
+		fSolo->SetToolTip("Solo");
 
-		// recording
-		fRecordButton = new BButton("record", "Record", new BMessage(MSG_RECORD));
-		fOpenButton = new BButton("openbeae", "Open in BeAE-Plus", new BMessage(MSG_OPEN_BEAE));
-		fOpenButton->SetEnabled(false);
+		BView* partContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
+			.SetInsets(B_USE_SMALL_INSETS)
+			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
+				.Add(fPartMenu)
+				.Add(fEnable)
+				.Add(fName, 1.0f)
+			.End()
+			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
+				.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 3.0f)
+					.Add(fSearch)
+					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+						.Add(banksScroll, 1.0f)
+						.Add(instrumentsScroll, 2.0f)
+					.End()
+				.End()
+				.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 1.0f)
+					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+						.Add(fVolume)
+						.Add(fPan)
+					.End()
+					.Add(fChannel)
+					.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
+						.Add(fMute)
+						.Add(fSolo)
+					.End()
+				.End()
+			.End()
+			.View();
+		BBox* partBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, partContent);
+		partBox->SetLabel("Part");
+
 		fStatus = new BStringView("status", "Engine: starting" B_UTF8_ELLIPSIS);
 		fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// long messages must not widen the window
 
@@ -369,34 +424,9 @@ private:
 			.Add(menuBar)
 			.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
 				.SetInsets(B_USE_WINDOW_INSETS)
-				.Add(fMaster)
-				.Add(fReverb)
-				.Add(fSearch)
-				.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
-					.Add(banksScroll, 1.0f)
-					.Add(instrumentsScroll, 2.0f)
-				.End()
-				.Add(fHint)
-				.AddStrut(B_USE_SMALL_SPACING)
 				.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
-					.Add(fPartMenu)
-					.Add(fEnable)
-					.AddGlue()
-				.End()
-				.Add(fName)
-				.Add(fVolume)
-				.Add(fPan)
-				.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
-					.Add(fChannel)
-					.Add(fMute)
-					.Add(fSolo)
-					.AddGlue()
-				.End()
-				.AddStrut(B_USE_SMALL_SPACING)
-				.AddGroup(B_HORIZONTAL)
-					.Add(fRecordButton)
-					.Add(fOpenButton)
-					.AddGlue()
+					.Add(systemBox, 0.0f)
+					.Add(partBox, 1.0f)
 				.End()
 				.Add(fStatus)
 			.End();
@@ -505,9 +535,7 @@ private:
 			fBanks->AddItem(new BStringItem(text.String()));
 		}
 		if (fBankData.empty())
-			fHint->SetText("No banks found. File \xE2\x86\x92 Add banks folder" B_UTF8_ELLIPSIS);
-		else
-			fHint->SetText("Double-click an instrument to load it into the part");
+			fStatus->SetText("No banks found. File \xE2\x86\x92 Add banks folder" B_UTF8_ELLIPSIS);
 		if (!fBankData.empty())
 			fBanks->Select(0);
 		_ShowInstruments();
@@ -611,7 +639,7 @@ private:
 
 			fZyn.RecordStart(fRecordPath);
 			fRecording = true;
-			fRecordButton->SetLabel("Stop");
+			fRecordButton->SetLabel("End");
 			fOpenButton->SetEnabled(false);
 			BString text("Recording starts with the first note: ");
 			text << fRecordPath.c_str();
@@ -619,7 +647,7 @@ private:
 		} else {
 			fZyn.RecordStop();
 			fRecording = false;
-			fRecordButton->SetLabel("Record");
+			fRecordButton->SetLabel("Rec");
 			fOpenButton->SetEnabled(true);
 			BString text("Saved: ");
 			text << fRecordPath.c_str();
@@ -658,7 +686,6 @@ private:
 	BTextControl*				fSearch;
 	BListView*					fBanks;
 	BListView*					fInstruments;
-	BStringView*				fHint;
 	BMenuField*					fPartMenu;
 	BCheckBox*					fEnable;
 	BStringView*				fName;
