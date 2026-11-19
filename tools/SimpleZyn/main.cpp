@@ -358,11 +358,11 @@ private:
 		banksScroll->SetExplicitMinSize(BSize(110, 150));
 		instrumentsScroll->SetExplicitMinSize(BSize(150, 150));
 
-		fVolume = new BSlider("volume", "Vol", new BMessage(MSG_VOLUME), 0, 127, B_VERTICAL);
+		fVolume = new BSlider("volume", NULL, new BMessage(MSG_VOLUME), 0, 127, B_VERTICAL);
 		fVolume->SetModificationMessage(new BMessage(MSG_VOLUME));
 		fVolume->SetHashMarks(B_HASH_MARKS_NONE);
 		fVolume->SetToolTip("Part volume");
-		fPan = new BSlider("pan", "Pan", new BMessage(MSG_PAN), 0, 127, B_VERTICAL);
+		fPan = new BSlider("pan", NULL, new BMessage(MSG_PAN), 0, 127, B_VERTICAL);
 		fPan->SetModificationMessage(new BMessage(MSG_PAN));
 		fPan->SetHashMarks(B_HASH_MARKS_NONE);
 		fPan->SetToolTip("Panning (the middle is the centre)");
@@ -393,14 +393,19 @@ private:
 		fSearch->SetDivider(labelWidth);
 
 		// grid: Part and Search only over the lists; the sliders start at the lists' top
-		BView* slidersContent = BLayoutBuilder::Group<>(B_HORIZONTAL, B_USE_SMALL_SPACING)
-			.SetInsets(B_USE_SMALL_INSETS)
-			.Add(fVolume)
-			.Add(fPan)
-			.View();
-		BBox* slidersView = new BBox("mix", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
-			B_FANCY_BORDER, slidersContent);
-		slidersView->SetLabel("Mix");
+		// every slider has its own box, the box carries the name
+		BBox* volumeBox = new BBox("volumeBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fVolume).View());
+		volumeBox->SetLabel("Vol");
+		BBox* panBox = new BBox("panBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fPan).View());
+		panBox->SetLabel("Pan");
+		BGroupView* slidersView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		BLayoutBuilder::Group<>(slidersView)
+			.Add(volumeBox)
+			.Add(panBox);
 		BGroupView* listsView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
 		BLayoutBuilder::Group<>(listsView)
 			.Add(banksScroll, 1.0f)
