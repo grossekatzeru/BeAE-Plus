@@ -11,12 +11,14 @@ What it does
     Choose a bank, double-click an instrument to load it (.xiz) into the selected part.
     The search box looks in all banks.
   * 16 parts, one panel (like in Zyn itself): choose the part number in the number menu in the "Part" box,
-    then On, Ch (MIDI channel), Vol, Pan, M (mute: the part ignores new notes) and S (solo).
+    then Ch (MIDI channel), Vol, Pan, M (mute: the part ignores new notes) and S (solo).
+    The box title shows the instrument of the selected part. Loading an instrument switches the part on.
   * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
-    how much of every part goes into it), Rec and NewRP.
+    how much of every part goes into it), Rst (restart the engine) and Rec.
   * Rec: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
-    with the first note). NewRP (New Record Port) for now sends the recorded file to BeAE-Plus;
-    a live port for BeAE-Plus or a video editor is planned.
+    with the first note). Menu Engine > NewRP (New Record Port; checked or not): when checked, every
+    finished recording is sent to BeAE-Plus at once. File > Send last recording does it by hand.
+    A live port for BeAE-Plus or a video editor is planned.
   * MIDI: connect a keyboard to the MIDI consumer "ZynAddSubFX", for example the program
     MidiKeyboard (https://github.com/HaikuArchives/MidiKeyboard) or your USB keyboard.
 

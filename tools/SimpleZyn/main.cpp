@@ -8,6 +8,7 @@
 #include <Box.h>
 #include <Button.h>
 #include <CheckBox.h>
+#include <ControlLook.h>
 #include <Directory.h>
 #include <Entry.h>
 #include <File.h>
@@ -60,6 +61,7 @@ enum {
 	MSG_REVERB = 'rvb_',
 	MSG_RECORD = 'rec_',
 	MSG_OPEN_BEAE = 'obea',
+	MSG_NEWRP = 'nrpt',
 	MSG_ADD_FOLDER = 'addf',
 	MSG_FOLDER_CHOSEN = 'fcho',
 	MSG_RESCAN = 'resc',
@@ -246,6 +248,9 @@ public:
 			case MSG_RECORD:
 				_ToggleRecord();
 				break;
+			case MSG_NEWRP:
+				fNewRPItem->SetMarked(!fNewRPItem->IsMarked());
+				break;
 			case MSG_OPEN_BEAE:
 				_OpenInBeAE();
 				break;
@@ -286,57 +291,17 @@ private:
 		BMenu* file = new BMenu("File");
 		file->AddItem(new BMenuItem("Add banks folder" B_UTF8_ELLIPSIS, new BMessage(MSG_ADD_FOLDER)));
 		file->AddItem(new BMenuItem("Rescan banks", new BMessage(MSG_RESCAN)));
+		fOpenItem = new BMenuItem("Send last recording to BeAE-Plus", new BMessage(MSG_OPEN_BEAE));
+		fOpenItem->SetEnabled(false);
+		file->AddItem(fOpenItem);
 		file->AddSeparatorItem();
 		file->AddItem(new BMenuItem("Quit", new BMessage(B_QUIT_REQUESTED), 'Q'));
 		menuBar->AddItem(file);
 		BMenu* engine = new BMenu("Engine");
 		engine->AddItem(new BMenuItem("Restart engine", new BMessage(MSG_RESTART)));
+		fNewRPItem = new BMenuItem("NewRP: send every recording to BeAE-Plus", new BMessage(MSG_NEWRP));
+		engine->AddItem(fNewRPItem);
 		menuBar->AddItem(engine);
-
-		// ---- box "System": things that belong to the whole synthesizer
-		fMaster = _NewSlider("master", "Vol", MSG_MASTER, 80);
-		fMaster->SetToolTip("Master volume");
-		fReverb = _NewSlider("reverb", "Rev", MSG_REVERB, 0);
-		fReverb->SetToolTip("Reverb: how much of every part goes into the reverb");
-		fRecordButton = new BButton("record", "Rec", new BMessage(MSG_RECORD));
-		fRecordButton->SetToolTip("Record the sound to a WAV file (starts with the first note)");
-		fOpenButton = new BButton("newrp", "NewRP", new BMessage(MSG_OPEN_BEAE));
-		fOpenButton->SetToolTip("New Record Port. For now: sends the recorded WAV file to BeAE-Plus "
-			"(a live port for BeAE-Plus or a video editor is planned)");
-		fOpenButton->SetEnabled(false);
-		fRestartButton = new BButton("restart", "Rst", new BMessage(MSG_RESTART));
-		fRestartButton->SetToolTip("Restart the synthesizer engine");
-
-		// the sliders take the height, the buttons keep their own height
-		fMaster->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
-		fReverb->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
-		const float buttonHeight = be_plain_font->Size() * 2.6f;
-		fRecordButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
-		fOpenButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
-		fRestartButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
-
-		BBox* masterBox = new BBox("masterBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
-			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
-				.SetInsets(B_USE_SMALL_INSETS).Add(fMaster).View());
-		masterBox->SetLabel("Vol");
-		BBox* reverbBox = new BBox("reverbBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
-			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
-				.SetInsets(B_USE_SMALL_INSETS).Add(fReverb).View());
-		reverbBox->SetLabel("Rev");
-
-		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
-			.SetInsets(B_USE_SMALL_INSETS)
-			.Add(fOpenButton, 0.0f)
-			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 1.0f)
-				.Add(masterBox)
-				.Add(reverbBox)
-			.End()
-			.Add(fRestartButton, 0.0f)
-			.Add(fRecordButton, 0.0f)
-			.View();
-		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
-			B_FANCY_BORDER, systemContent);
-		systemBox->SetLabel("System");
 
 		// ---- box "Part": a MIDI channel (part) with its instrument
 		BPopUpMenu* partMenu = new BPopUpMenu("part");
@@ -412,6 +377,7 @@ private:
 				.SetInsets(B_USE_SMALL_INSETS).Add(fPan).View());
 		panBox->SetLabel("Pan");
 		BGroupView* slidersView = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		slidersView->SetExplicitAlignment(BAlignment(B_ALIGN_USE_FULL_WIDTH, B_ALIGN_TOP));
 		BLayoutBuilder::Group<>(slidersView)
 			.Add(volumeBox)
 			.Add(panBox);
@@ -443,6 +409,56 @@ private:
 		fPartBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, partContent);
 		fPartBox->SetLabel("Inst");
+
+		// ---- box "System": things that belong to the whole synthesizer
+		fMaster = _NewSlider("master", "Vol", MSG_MASTER, 80);
+		fMaster->SetToolTip("Master volume");
+		fReverb = _NewSlider("reverb", "Rev", MSG_REVERB, 0);
+		fReverb->SetToolTip("Reverb: how much of every part goes into the reverb");
+		fRecordButton = new BButton("record", "Rec", new BMessage(MSG_RECORD));
+		fRecordButton->SetToolTip("Record the sound to a WAV file (starts with the first note)");
+		fRestartButton = new BButton("restart", "Rst", new BMessage(MSG_RESTART));
+		fRestartButton->SetToolTip("Restart the synthesizer engine");
+
+		// the sliders take the height, the buttons keep their own height
+		// the same height for all four sliders; the System sliders start at the level
+		// where the lists of the Part box start
+		const float spacing = ceilf(be_control_look->ComposeSpacing(B_USE_SMALL_SPACING));
+		const float topOffset = fPartMenu->PreferredSize().height
+			+ fSearch->PreferredSize().height + 2 * spacing;
+		const float kSliderHeight = 150;
+		BSlider* allSliders[] = { fMaster, fReverb, fVolume, fPan };
+		for (int i = 0; i < 4; i++) {
+			allSliders[i]->SetExplicitMinSize(BSize(B_SIZE_UNSET, kSliderHeight));
+			allSliders[i]->SetExplicitMaxSize(BSize(B_SIZE_UNSET, kSliderHeight));
+		}
+		const float buttonHeight = be_plain_font->Size() * 2.6f;
+		fRecordButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
+		fRestartButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
+
+		BBox* masterBox = new BBox("masterBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fMaster).View());
+		masterBox->SetLabel("Vol");
+		BBox* reverbBox = new BBox("reverbBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fReverb).View());
+		reverbBox->SetLabel("Rev");
+
+		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
+			.SetInsets(B_USE_SMALL_INSETS)
+			.AddStrut(topOffset)
+			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 0.0f)
+				.Add(masterBox)
+				.Add(reverbBox)
+			.End()
+			.AddGlue()
+			.Add(fRestartButton, 0.0f)
+			.Add(fRecordButton, 0.0f)
+			.View();
+		BBox* systemBox = new BBox("system", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, systemContent);
+		systemBox->SetLabel("System");
 
 		fStatus = new BStringView("status", "Engine: starting" B_UTF8_ELLIPSIS);
 		fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// long messages must not widen the window
@@ -668,7 +684,7 @@ private:
 			fZyn.RecordStart(fRecordPath);
 			fRecording = true;
 			fRecordButton->SetLabel("End");
-			fOpenButton->SetEnabled(false);
+			fOpenItem->SetEnabled(false);
 			BString text("Recording starts with the first note: ");
 			text << fRecordPath.c_str();
 			fStatus->SetText(text.String());
@@ -676,7 +692,9 @@ private:
 			fZyn.RecordStop();
 			fRecording = false;
 			fRecordButton->SetLabel("Rec");
-			fOpenButton->SetEnabled(true);
+			fOpenItem->SetEnabled(true);
+			if (fNewRPItem->IsMarked())
+				_OpenInBeAE();
 			BString text("Saved: ");
 			text << fRecordPath.c_str();
 			fStatus->SetText(text.String());
@@ -723,7 +741,8 @@ private:
 	BCheckBox*					fSolo;
 	BButton*					fRecordButton;
 	BButton*					fRestartButton;
-	BButton*					fOpenButton;
+	BMenuItem*					fOpenItem;
+	BMenuItem*					fNewRPItem;
 	BStringView*				fStatus;
 
 	int							fSelectedPart;
