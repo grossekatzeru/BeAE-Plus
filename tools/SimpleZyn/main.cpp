@@ -51,7 +51,6 @@ enum {
 	MSG_SEARCH = 'srch',
 	MSG_LOAD = 'load',
 	MSG_TARGET = 'targ',
-	MSG_ENABLE = 'enab',
 	MSG_VOLUME = 'vol_',
 	MSG_PAN = 'pan_',
 	MSG_CHANNEL = 'chan',
@@ -214,10 +213,6 @@ public:
 				}
 				break;
 			}
-			case MSG_ENABLE:
-				p.enabled = fEnable->Value() == B_CONTROL_ON;
-				fZyn.SetEnabled(fSelectedPart, p.enabled);
-				break;
 			case MSG_VOLUME:
 				p.volume = fVolume->Value();
 				fZyn.SetVolume(fSelectedPart, p.volume);
@@ -343,14 +338,10 @@ private:
 			partMenu->AddItem(item);
 		}
 		partMenu->SetLabelFromMarked(true);
-		fPartMenu = new BMenuField("partField", NULL, partMenu);
+		fPartMenu = new BMenuField("partField", "Part", partMenu);
 		fPartMenu->SetToolTip("Part (1-16)");
 
-		fEnable = new BCheckBox("enable", "On", new BMessage(MSG_ENABLE));
-		fName = new BStringView("name", "(empty)");
-		fName->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));
-
-		fSearch = new BTextControl("search", NULL, "", new BMessage(MSG_SEARCH));
+		fSearch = new BTextControl("search", "Search", "", new BMessage(MSG_SEARCH));
 		fSearch->SetModificationMessage(new BMessage(MSG_SEARCH));
 		fSearch->SetToolTip("Search instruments in all banks");
 		fBanks = new BListView("banks");
@@ -363,11 +354,11 @@ private:
 		banksScroll->SetExplicitMinSize(BSize(110, 150));
 		instrumentsScroll->SetExplicitMinSize(BSize(150, 150));
 
-		fVolume = new BSlider("volume", "Vol", new BMessage(MSG_VOLUME), 0, 127, B_VERTICAL);
+		fVolume = new BSlider("volume", NULL, new BMessage(MSG_VOLUME), 0, 127, B_VERTICAL);
 		fVolume->SetModificationMessage(new BMessage(MSG_VOLUME));
 		fVolume->SetHashMarks(B_HASH_MARKS_NONE);
 		fVolume->SetToolTip("Part volume");
-		fPan = new BSlider("pan", "Pan", new BMessage(MSG_PAN), 0, 127, B_VERTICAL);
+		fPan = new BSlider("pan", NULL, new BMessage(MSG_PAN), 0, 127, B_VERTICAL);
 		fPan->SetModificationMessage(new BMessage(MSG_PAN));
 		fPan->SetHashMarks(B_HASH_MARKS_NONE);
 		fPan->SetToolTip("Panning (the middle is the centre)");
@@ -396,8 +387,7 @@ private:
 			.SetInsets(B_USE_SMALL_INSETS)
 			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 				.Add(fPartMenu)
-				.Add(fEnable)
-				.Add(fName, 1.0f)
+				.AddGlue()
 			.End()
 			.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 				.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING, 3.0f)
@@ -420,9 +410,9 @@ private:
 				.End()
 			.End()
 			.View();
-		BBox* partBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+		fPartBox = new BBox("part", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 			B_FANCY_BORDER, partContent);
-		partBox->SetLabel("Part");
+		fPartBox->SetLabel("Inst");
 
 		fStatus = new BStringView("status", "Engine: starting" B_UTF8_ELLIPSIS);
 		fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// long messages must not widen the window
@@ -433,7 +423,7 @@ private:
 				.SetInsets(B_USE_WINDOW_INSETS)
 				.AddGroup(B_HORIZONTAL, B_USE_DEFAULT_SPACING)
 					.Add(systemBox, 0.0f)
-					.Add(partBox, 1.0f)
+					.Add(fPartBox, 1.0f)
 				.End()
 				.Add(fStatus)
 			.End();
@@ -453,8 +443,9 @@ private:
 	{
 		const PartState& p = fParts[fSelectedPart];
 		fPartMenu->Menu()->ItemAt(fSelectedPart)->SetMarked(true);
-		fEnable->SetValue(p.enabled ? B_CONTROL_ON : B_CONTROL_OFF);
-		fName->SetText(p.name.empty() ? "(empty)" : p.name.c_str());
+		BString title("Instrument: ");
+		title << (p.name.empty() ? "(empty)" : p.name.c_str());
+		fPartBox->SetLabel(title.String());
 		fVolume->SetValue(p.volume);
 		fPan->SetValue(p.pan);
 		fChannel->Menu()->ItemAt(p.channel)->SetMarked(true);
@@ -694,8 +685,7 @@ private:
 	BListView*					fBanks;
 	BListView*					fInstruments;
 	BMenuField*					fPartMenu;
-	BCheckBox*					fEnable;
-	BStringView*				fName;
+	BBox*						fPartBox;
 	BSlider*					fVolume;
 	BSlider*					fPan;
 	BMenuField*					fChannel;
