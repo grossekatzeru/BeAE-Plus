@@ -18,6 +18,8 @@ What it does
   * Rec: writes the sound to ~/SimpleZyn/SimpleZyn-DATE-TIME.wav (the engine starts writing
     with the first note). Menu Engine > NewRP (New Record Port; checked or not): when checked, every
     finished recording is sent to BeAE-Plus at once. File > Send last recording does it by hand.
+    If BeAE-Plus (3.2 or newer, built from this repository) is already running, the recording goes
+    to a new track of its open project; otherwise BeAE-Plus is started with the file.
     A live port for BeAE-Plus or a video editor is planned.
   * MIDI: connect a keyboard to the MIDI consumer "ZynAddSubFX", for example the program
     MidiKeyboard (https://github.com/HaikuArchives/MidiKeyboard) or your USB keyboard.

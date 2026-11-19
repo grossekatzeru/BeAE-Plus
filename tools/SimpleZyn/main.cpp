@@ -5,6 +5,8 @@
 
 #include <Alert.h>
 #include <Application.h>
+#include <List.h>
+#include <Messenger.h>
 #include <Box.h>
 #include <Button.h>
 #include <CheckBox.h>
@@ -45,6 +47,7 @@
 
 static const char* kAppSignature = "application/x-vnd.SimpleZyn";
 static const char* kBeAESignature = "application/x-vnd.BeAE-BeAE";
+static const uint32 kAddFileTrack = 'adTr';	// BeAE-Plus: add the files of "refs" as new tracks
 
 enum {
 	MSG_POLL = 'poll',
@@ -751,6 +754,21 @@ private:
 			fStatus->SetText("The recording file was not found (no note was played?)");
 			return;
 		}
+		// BeAE-Plus is already running: the file goes to a new track of its open project
+		// (BeAE-Plus 3.2 and newer; an older one ignores the message)
+		team_id running = -1;
+		BList teams;
+		be_roster->GetAppList(kBeAESignature, &teams);
+		if (teams.CountItems() > 0)
+			running = (team_id)(addr_t)teams.ItemAt(teams.CountItems() - 1);
+		if (running >= 0) {
+			BMessage add(kAddFileTrack);
+			add.AddRef("refs", &ref);
+			BMessenger(kBeAESignature, running).SendMessage(&add);
+			fStatus->SetText("Sent to the open BeAE-Plus project (a new track)");
+			return;
+		}
+
 		BMessage refs(B_REFS_RECEIVED);
 		refs.AddRef("refs", &ref);
 		status_t err = be_roster->Launch(kBeAESignature, &refs);

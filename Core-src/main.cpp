@@ -99,6 +99,9 @@ bool MyApplication::QuitRequested()
 	return true;
 }
 
+// Сообщение от других программ: «refs» - файлы, которые надо добавить дорожками в открытый проект
+static const uint32 MSG_ADD_FILE_TRACK = 'adTr';
+
 void MyApplication::MessageReceived(BMessage *message)
 {
 	switch (message->what){
@@ -123,6 +126,14 @@ void MyApplication::MessageReceived(BMessage *message)
 			app_info info;
 			GetAppInfo(&info);
 			be_roster->Launch(info.signature, message);
+		}
+		break;
+
+	case MSG_ADD_FILE_TRACK:		// другая программа (SimpleZyn): положить файл на новую дорожку этого проекта
+		if (mainWindow){
+			BMessage drop(*message);
+			drop.what = B_SIMPLE_DATA;		// дальше как при перетаскивании файла в окно
+			mainWindow->PostMessage(&drop);
 		}
 		break;
 
