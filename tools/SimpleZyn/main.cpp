@@ -315,12 +315,21 @@ private:
 		fOpenButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
 		fRestartButton->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, buttonHeight));
 
+		BBox* masterBox = new BBox("masterBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fMaster).View());
+		masterBox->SetLabel("Vol");
+		BBox* reverbBox = new BBox("reverbBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, BLayoutBuilder::Group<>(B_VERTICAL, 0)
+				.SetInsets(B_USE_SMALL_INSETS).Add(fReverb).View());
+		reverbBox->SetLabel("Rev");
+
 		BView* systemContent = BLayoutBuilder::Group<>(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_SMALL_INSETS)
 			.Add(fOpenButton, 0.0f)
 			.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING, 1.0f)
-				.Add(fMaster)
-				.Add(fReverb)
+				.Add(masterBox)
+				.Add(reverbBox)
 			.End()
 			.Add(fRestartButton, 0.0f)
 			.Add(fRecordButton, 0.0f)
@@ -452,7 +461,7 @@ private:
 
 	BSlider* _NewSlider(const char* name, const char* label, uint32 what, int32 value)
 	{
-		BSlider* slider = new BSlider(name, label, new BMessage(what), 0, 127, B_VERTICAL);
+		BSlider* slider = new BSlider(name, NULL, new BMessage(what), 0, 127, B_VERTICAL);
 		slider->SetValue(value);
 		slider->SetModificationMessage(new BMessage(what));
 		slider->SetHashMarks(B_HASH_MARKS_NONE);
