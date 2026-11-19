@@ -29,6 +29,9 @@ public:
 	// Recording into a WAV file (the engine writes the file)
 	void		RecordStart(const std::string& path);
 	void		RecordStop();
+	// the engine writes the WAV header only when it closes the file, that is when
+	// the next file is prepared: this makes it close the finished recording now
+	void		RecordFinish();
 
 private:
 	std::string	PartPath(int part, const char* name) const;

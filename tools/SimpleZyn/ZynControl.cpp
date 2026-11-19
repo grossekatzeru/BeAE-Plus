@@ -113,3 +113,10 @@ ZynControl::RecordStop()
 {
 	fOsc.Send("/HDDRecorder/stop", "");
 }
+
+
+void
+ZynControl::RecordFinish()
+{
+	fOsc.Send("/HDDRecorder/preparefile", "s", "/dev/null");
+}

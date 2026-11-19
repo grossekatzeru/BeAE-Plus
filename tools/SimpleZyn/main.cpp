@@ -161,6 +161,7 @@ public:
 			B_ASYNCHRONOUS_CONTROLS | B_AUTO_UPDATE_SIZE_LIMITS),
 		fSelectedPart(0),
 		fRecording(false),
+		fFinishTries(0),
 		fRunner(NULL),
 		fOpenPanel(NULL),
 		fFallbackTried(false),
@@ -199,6 +200,7 @@ public:
 		switch (message->what) {
 			case MSG_POLL:
 				_Poll();
+				_CheckRecordFinished();
 				break;
 			case MSG_BANK:
 			case MSG_SEARCH:
@@ -690,12 +692,51 @@ private:
 			fStatus->SetText(text.String());
 		} else {
 			fZyn.RecordStop();
+			fZyn.RecordFinish();
 			fRecording = false;
 			fRecordButton->SetLabel("Rec");
+			fFinishTries = 25;		// the file is checked every 200 ms, see _CheckRecordFinished()
+			BString text("Finishing: ");
+			text << fRecordPath.c_str();
+			fStatus->SetText(text.String());
+		}
+	}
+
+	// the engine closes the WAV file (and writes its header) a moment after the stop
+	void _CheckRecordFinished()
+	{
+		if (fFinishTries <= 0)
+			return;
+		fFinishTries--;
+
+		bool finished = false;
+		off_t size = 0;
+		FILE* f = fopen(fRecordPath.c_str(), "rb");
+		if (f != NULL) {
+			char head[12];
+			if (fread(head, 1, 12, f) == 12 && memcmp(head, "RIFF", 4) == 0
+				&& memcmp(head + 8, "WAVE", 4) == 0) {
+				finished = true;
+			}
+			fseek(f, 0, SEEK_END);
+			size = ftell(f);
+			fclose(f);
+		}
+
+		if (finished) {
+			fFinishTries = 0;
 			fOpenItem->SetEnabled(true);
+			BString text("Saved: ");
+			text << fRecordPath.c_str();
+			fStatus->SetText(text.String());
 			if (fNewRPItem->IsMarked())
 				_OpenInBeAE();
-			BString text("Saved: ");
+		} else if (fFinishTries == 0) {
+			BString text;
+			if (size <= 44)
+				text << "Nothing was recorded (play a note after Rec): ";
+			else
+				text << "The engine did not finish the file: ";
 			text << fRecordPath.c_str();
 			fStatus->SetText(text.String());
 		}
@@ -747,6 +788,7 @@ private:
 
 	int							fSelectedPart;
 	bool						fRecording;
+	int							fFinishTries;
 	std::string					fRecordPath;
 	BMessageRunner*				fRunner;
 	BFilePanel*					fOpenPanel;
