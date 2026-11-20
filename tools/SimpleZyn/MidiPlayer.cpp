@@ -37,6 +37,7 @@ enum {
 	MSG_MP_TICK		= 'mptk',
 	MSG_MP_ROUTE	= 'mprt',		// "channel", "route"
 	MSG_MP_SWITCH	= 'mpsw',		// mute or solo changed
+	MSG_MP_VOLUME	= 'mpvl',		// "channel": the volume slider of a row
 	MSG_MP_INSTR	= 'mpin'		// the button of the instrument: "channel"
 };
 
@@ -228,6 +229,16 @@ MidiPlayerWindow::_Build()
 		row.instrument->SetExplicitMinSize(BSize(210, B_SIZE_UNSET));
 		row.instrument->SetToolTip("Choose the instrument of the synthesizer for this channel");
 
+		BMessage* vm = new BMessage(MSG_MP_VOLUME);
+		vm->AddInt32("channel", ch);
+		row.volume = new BSlider("volume", NULL, vm, 0, 127, B_HORIZONTAL);
+		row.volume->SetModificationMessage(new BMessage(*vm));
+		row.volume->SetHashMarks(B_HASH_MARKS_NONE);
+		row.volume->SetValue(96);
+		row.volume->SetExplicitMinSize(BSize(110, B_SIZE_UNSET));
+		row.volume->SetExplicitMaxSize(BSize(110, B_SIZE_UNSET));
+		row.volume->SetToolTip("Volume of the channel (the volume of the Zyn part)");
+
 		BMessage* mm = new BMessage(MSG_MP_SWITCH);
 		row.mute = new BCheckBox("mute", "M", mm);
 		row.mute->SetToolTip("Mute the channel");
@@ -241,6 +252,7 @@ MidiPlayerWindow::_Build()
 		line->GroupLayout()->AddView(row.activity);
 		line->GroupLayout()->AddView(row.route);
 		line->GroupLayout()->AddView(row.instrument);
+		line->GroupLayout()->AddView(row.volume);
 		line->GroupLayout()->AddView(row.mute);
 		line->GroupLayout()->AddView(row.solo);
 		line->SetName("line");
@@ -328,6 +340,17 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 				&& channel >= 0 && channel < 16 && route >= 0 && route < kRoutes) {
 				fRows[channel].routeIndex = route;
 				_ApplyChannels();
+			}
+			break;
+		}
+		case MSG_MP_VOLUME: {
+			int32 channel;
+			if (message->FindInt32("channel", &channel) == B_OK && channel >= 0 && channel < 16) {
+				int value = fRows[channel].volume->Value();
+				fZyn->SetVolume(channel, value);
+				char text[64];
+				snprintf(text, sizeof(text), "Channel %d volume: %d", (int)channel + 1, value);
+				fStatus->SetText(text);
 			}
 			break;
 		}
@@ -438,6 +461,12 @@ MidiPlayerWindow::_ShowSong(const SmfSong& song)
 		BMenu* menu = row.route->Menu();
 		menu->ItemAt(0)->SetMarked(true);
 		row.instrument->SetLabel("(as it is in Zyn)");
+		// the volume of the part as the engine has it now
+		char path[48];
+		snprintf(path, sizeof(path), "/part%d/Pvolume", ch);
+		int volume;
+		if (fZyn->GetInt(path, &volume, 60))
+			row.volume->SetValue(volume);
 		if (line->IsHidden())
 			line->Show();
 	}

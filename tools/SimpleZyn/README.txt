@@ -65,7 +65,7 @@ MIDI player (menu MIDI > MIDI player...)
   of the track (and the General MIDI program), a light that flashes with the notes, where the channel
   sounds (Zyn or off), the instrument and the M (mute) and S (solo) boxes. The instrument button opens
   the banks: the choice loads the instrument into the Zyn part of the same number (channel N plays
-  part N) and sets the part to listen to that channel. "(as it is in Zyn)" does not change the part.
+  part N) and sets the part to listen to that channel. Every row has a volume slider (the volume of that part). "(as it is in Zyn)" does not change the part.
   Program changes and controllers of the file are not sent: the instruments are the ones you chose.
   Playing the drum channel through the General MIDI soundfont of the system is not built yet.
 

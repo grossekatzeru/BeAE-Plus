@@ -44,6 +44,7 @@ private:
 		ActivityView*	activity;
 		BMenuField*		route;
 		BButton*		instrument;
+		BSlider*		volume;			// the volume of the Zyn part of this channel
 		BCheckBox*		mute;
 		BCheckBox*		solo;
 		int				routeIndex;		// 0 Zyn, 1 off
