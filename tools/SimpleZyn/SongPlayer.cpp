@@ -1,5 +1,7 @@
 #include "SongPlayer.h"
 
+#include <Synth.h>
+
 #include <algorithm>
 
 SongPlayer::SongPlayer()
@@ -14,11 +16,12 @@ SongPlayer::SongPlayer()
 	fLoop(false),
 	fSendPrograms(false),
 	fSendControllers(false),
+	fGmReady(false),
 	fThread(-1),
 	fQuit(false)
 {
 	for (int ch = 0; ch < 16; ch++) {
-		fChannelOn[ch] = true;
+		fRoute[ch] = kRouteZyn;
 		fLastNote[ch] = 0;
 		fLastVelocity[ch] = 0;
 	}
@@ -154,19 +157,59 @@ SongPlayer::SetSendControllers(bool send)
 
 
 void
-SongPlayer::SetChannelEnabled(int channel, bool on)
+SongPlayer::SetChannelRoute(int channel, int route)
+{
+	if (channel < 0 || channel > 15 || route < kRouteZyn || route > kRouteOff)
+		return;
+	BAutolock lock(fLock);
+	if (fRoute[channel] == route)
+		return;
+	if (route == kRouteGm && !fGmReady)
+		return;
+	// the notes that are sounding at the old place would never get their note off
+	if (fRoute[channel] == kRouteZyn) {
+		SprayControlChange(channel, 123, 0, 0);
+		SprayControlChange(channel, 120, 0, 0);
+	} else if (fRoute[channel] == kRouteGm && fGmReady) {
+		fGm.ControlChange(channel + 1, 123, 0, 0);
+		fGm.ControlChange(channel + 1, 120, 0, 0);
+	}
+	fRoute[channel] = route;
+	// the new place needs the programs and controllers that are in force now
+	_SeekLocked(_PositionLocked());
+}
+
+
+bool
+SongPlayer::EnableGm()
+{
+	BAutolock lock(fLock);
+	if (fGmReady)
+		return true;
+	if (be_synth == NULL || be_synth->LoadSynthData(B_BIG_SYNTH) != B_OK)
+		return false;
+	fGm.EnableInput(true, true);
+	fGmReady = true;
+	return true;
+}
+
+
+bool
+SongPlayer::IsGmReady()
+{
+	BAutolock lock(fLock);
+	return fGmReady;
+}
+
+
+void
+SongPlayer::SetGmVolume(int channel, int value)
 {
 	if (channel < 0 || channel > 15)
 		return;
 	BAutolock lock(fLock);
-	if (fChannelOn[channel] == on)
-		return;
-	fChannelOn[channel] = on;
-	if (!on) {
-		// the notes that are sounding would never get their note off
-		SprayControlChange(channel, 123, 0, 0);
-		SprayControlChange(channel, 120, 0, 0);
-	}
+	if (fGmReady)
+		fGm.ControlChange(channel + 1, 7, value, 0);
 }
 
 
@@ -276,8 +319,13 @@ bool
 SongPlayer::_Passes(const SmfEvent& e) const
 {
 	uint8 cmd = e.status & 0xF0;
-	if (!fChannelOn[e.status & 0x0F])
+	const int route = fRoute[e.status & 0x0F];
+	if (route == kRouteOff)
 		return false;
+	if (route == kRouteGm) {
+		// the synthesizer plays the file as it is, only the volume belongs to the slider of the row
+		return !(cmd == 0xB0 && (e.d1 == 7 || e.d1 == 39));
+	}
 	if (cmd == 0xC0)
 		return fSendPrograms;
 	if (cmd == 0xB0) {
@@ -298,6 +346,14 @@ SongPlayer::_SendLocked(const SmfEvent& e)
 	if (!_Passes(e))
 		return;
 	uchar ch = e.status & 0x0F;
+	if (fRoute[ch] == kRouteGm) {
+		_SendGmLocked(e);
+		if ((e.status & 0xF0) == 0x90) {
+			fLastNote[ch] = system_time();
+			fLastVelocity[ch] = e.d2;
+		}
+		return;
+	}
 	switch (e.status & 0xF0) {
 		case 0x80:	SprayNoteOff(ch, e.d1, e.d2, 0); break;
 		case 0x90:
@@ -314,9 +370,35 @@ SongPlayer::_SendLocked(const SmfEvent& e)
 }
 
 
+// the channel of the synthesizer of the system counts from 1
+void
+SongPlayer::_SendGmLocked(const SmfEvent& e)
+{
+	if (!fGmReady)
+		return;
+	const uchar ch = (e.status & 0x0F) + 1;
+	switch (e.status & 0xF0) {
+		case 0x80:	fGm.NoteOff(ch, e.d1, e.d2, 0); break;
+		case 0x90:	fGm.NoteOn(ch, e.d1, e.d2, 0); break;
+		case 0xA0:	fGm.KeyPressure(ch, e.d1, e.d2, 0); break;
+		case 0xB0:	fGm.ControlChange(ch, e.d1, e.d2, 0); break;
+		case 0xC0:	fGm.ProgramChange(ch, e.d1, 0); break;
+		case 0xD0:	fGm.ChannelPressure(ch, e.d1, 0); break;
+		case 0xE0:	fGm.PitchBend(ch, e.d1, e.d2, 0); break;
+	}
+}
+
+
 void
 SongPlayer::_SilenceLocked()
 {
+	if (fGmReady) {
+		for (int ch = 1; ch <= 16; ch++) {
+			fGm.ControlChange(ch, 64, 0, 0);
+			fGm.ControlChange(ch, 123, 0, 0);
+			fGm.ControlChange(ch, 120, 0, 0);
+		}
+	}
 	for (uchar ch = 0; ch < 16; ch++) {
 		SprayControlChange(ch, 64, 0, 0);		// sustain pedal off
 		SprayControlChange(ch, 123, 0, 0);		// all notes off
@@ -362,10 +444,19 @@ SongPlayer::_SeekLocked(int64 us)
 			controller[c][e.d1] = e.d2;
 	}
 	for (int c = 0; c < 16; c++) {
-		if (program[c] >= 0)
-			SprayProgramChange(c, program[c], 0);
+		const bool gm = fRoute[c] == kRouteGm;
+		if (program[c] >= 0) {
+			if (gm && fGmReady)
+				fGm.ProgramChange(c + 1, program[c], 0);
+			else if (!gm)
+				SprayProgramChange(c, program[c], 0);
+		}
 		for (int k = 0; k < 120; k++) {
-			if (controller[c][k] >= 0)
+			if (controller[c][k] < 0)
+				continue;
+			if (gm && fGmReady)
+				fGm.ControlChange(c + 1, k, controller[c][k], 0);
+			else if (!gm)
 				SprayControlChange(c, k, controller[c][k], 0);
 		}
 	}

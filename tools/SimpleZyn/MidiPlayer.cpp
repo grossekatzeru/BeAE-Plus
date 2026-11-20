@@ -209,7 +209,7 @@ MidiPlayerWindow::_Build()
 		row.activity = new ActivityView();
 
 		BPopUpMenu* menu = new BPopUpMenu("route");
-		const char* kRouteNames[kRoutes] = { "Zyn", "off" };
+		const char* kRouteNames[kRoutes] = { "Zyn", "GM synth", "off" };
 		for (int r = 0; r < kRoutes; r++) {
 			BMessage* m = new BMessage(MSG_MP_ROUTE);
 			m->AddInt32("channel", ch);
@@ -338,7 +338,19 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 			int32 channel, route;
 			if (message->FindInt32("channel", &channel) == B_OK && message->FindInt32("route", &route) == B_OK
 				&& channel >= 0 && channel < 16 && route >= 0 && route < kRoutes) {
-				fRows[channel].routeIndex = route;
+				Row& row = fRows[channel];
+				if (route == SongPlayer::kRouteGm && !fPlayer->IsGmReady()) {
+					fStatus->SetText("Loading the General MIDI synthesizer of the system...");
+					UpdateIfNeeded();
+					if (!fPlayer->EnableGm()) {
+						(new BAlert("err", "The General MIDI synthesizer of the system could not be loaded.",
+							"OK", NULL, NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT))->Go(NULL);
+						row.route->Menu()->ItemAt(row.routeIndex)->SetMarked(true);
+						break;
+					}
+				}
+				row.routeIndex = route;
+				_ShowRoute(channel);
 				_ApplyChannels();
 			}
 			break;
@@ -347,7 +359,10 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 			int32 channel;
 			if (message->FindInt32("channel", &channel) == B_OK && channel >= 0 && channel < 16) {
 				int value = fRows[channel].volume->Value();
-				fZyn->SetVolume(channel, value);
+				if (fRows[channel].routeIndex == SongPlayer::kRouteGm)
+					fPlayer->SetGmVolume(channel, value);
+				else
+					fZyn->SetVolume(channel, value);
 				char text[64];
 				snprintf(text, sizeof(text), "Channel %d volume: %d", (int)channel + 1, value);
 				fStatus->SetText(text);
@@ -426,6 +441,28 @@ MidiPlayerWindow::_Load(const entry_ref& ref)
 
 
 // the rows of the table for the channels of the file
+// what the row shows for the place where the channel sounds
+void
+MidiPlayerWindow::_ShowRoute(int ch)
+{
+	Row& row = fRows[ch];
+	const bool gm = row.routeIndex == SongPlayer::kRouteGm;
+	row.instrument->SetEnabled(!gm);
+	if (gm) {
+		row.instrument->SetLabel("(from the file)");
+		row.volume->SetValue(100);
+		fPlayer->SetGmVolume(ch, 100);
+	} else if (strcmp(row.instrument->Label(), "(from the file)") == 0) {
+		row.instrument->SetLabel("(as it is in Zyn)");
+		char path[48];
+		snprintf(path, sizeof(path), "/part%d/Pvolume", ch);
+		int volume;
+		if (fZyn->GetInt(path, &volume, 60))
+			row.volume->SetValue(volume);
+	}
+}
+
+
 void
 MidiPlayerWindow::_ShowSong(const SmfSong& song)
 {
@@ -461,6 +498,7 @@ MidiPlayerWindow::_ShowSong(const SmfSong& song)
 		BMenu* menu = row.route->Menu();
 		menu->ItemAt(0)->SetMarked(true);
 		row.instrument->SetLabel("(as it is in Zyn)");
+		row.instrument->SetEnabled(true);
 		// the volume of the part as the engine has it now
 		char path[48];
 		snprintf(path, sizeof(path), "/part%d/Pvolume", ch);
@@ -485,9 +523,9 @@ MidiPlayerWindow::_ApplyChannels()
 	}
 	for (int ch = 0; ch < 16; ch++) {
 		const Row& row = fRows[ch];
-		bool on = row.routeIndex == 0 && row.mute->Value() != B_CONTROL_ON
+		const bool audible = row.mute->Value() != B_CONTROL_ON
 			&& (!anySolo || row.solo->Value() == B_CONTROL_ON);
-		fPlayer->SetChannelEnabled(ch, on);
+		fPlayer->SetChannelRoute(ch, audible ? row.routeIndex : (int)SongPlayer::kRouteOff);
 	}
 }
 
@@ -528,7 +566,7 @@ MidiPlayerWindow::_PickInstrument(int channel)
 			fZyn->LoadInstrument(channel, instrument.file);
 			fRows[channel].instrument->SetLabel(instrument.name.c_str());
 			// it sounds now
-			fRows[channel].routeIndex = 0;
+			fRows[channel].routeIndex = SongPlayer::kRouteZyn;
 			fRows[channel].route->Menu()->ItemAt(0)->SetMarked(true);
 			_ApplyChannels();
 		}

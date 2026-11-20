@@ -5,6 +5,7 @@
 #include <Autolock.h>
 #include <Locker.h>
 #include <MidiProducer.h>
+#include <MidiSynth.h>
 #include <OS.h>
 
 #include "SmfFile.h"
@@ -26,7 +27,13 @@ public:
 	void			SetSendPrograms(bool send);		// program changes and bank select (CC 0, 32)
 	void			SetSendControllers(bool send);	// volume, pan, effects and other settings (CC)
 	void			Panic();					// silence everything
-	void			SetChannelEnabled(int channel, bool on);	// 0..15: off = nothing is sent for it
+	// where a channel (0..15) sounds: kRouteZyn (the MIDI output), kRouteGm (the General MIDI
+	// synthesizer of the system, played by this program) or kRouteOff (nothing is sent)
+	enum { kRouteZyn = 0, kRouteGm = 1, kRouteOff = 2 };
+	void			SetChannelRoute(int channel, int route);
+	bool			EnableGm();					// loads the synthesizer of the system; false: it does not work
+	bool			IsGmReady();
+	void			SetGmVolume(int channel, int value);	// 0..127
 	bigtime_t		LastNoteTime(int channel, int* velocity);	// when a note of the channel started
 
 	int64			Position();
@@ -39,6 +46,7 @@ private:
 	int64			_PositionLocked();
 	void			_SendLocked(const SmfEvent& e);
 	void			_SilenceLocked();
+	void			_SendGmLocked(const SmfEvent& e);
 	void			_SeekLocked(int64 us);
 	bool			_Passes(const SmfEvent& e) const;
 
@@ -52,7 +60,9 @@ private:
 	bool			fLoop;
 	bool			fSendPrograms;
 	bool			fSendControllers;
-	bool			fChannelOn[16];
+	int				fRoute[16];
+	BMidiSynth		fGm;
+	bool			fGmReady;
 	bigtime_t		fLastNote[16];
 	int				fLastVelocity[16];
 	thread_id		fThread;

@@ -67,7 +67,10 @@ MIDI player (menu MIDI > MIDI player...)
   the banks: the choice loads the instrument into the Zyn part of the same number (channel N plays
   part N) and sets the part to listen to that channel. Every row has a volume slider (the volume of that part). "(as it is in Zyn)" does not change the part.
   Program changes and controllers of the file are not sent: the instruments are the ones you chose.
-  Playing the drum channel through the General MIDI soundfont of the system is not built yet.
+  The menu "where it sounds" has three choices: Zyn, GM synth and off. GM synth is the General MIDI
+  synthesizer of Haiku (the one the system MidiPlayer uses; it loads when you first choose it, it takes
+  a moment): the channel is played with the instrument of the file (programs and drums of General
+  MIDI), and the slider is its volume. Choose it for the drum channel (10) to get a real drum kit.
 
 History
   0.3  MIDI player. Effects of the part with EQ (8 bands) and DynFilter. Per-voice amplitude envelope, filter and

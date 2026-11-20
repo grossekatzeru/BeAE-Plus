@@ -37,7 +37,7 @@ public:
 	void			SetBanks(const std::vector<Bank>& banks);
 
 private:
-	enum { kRoutes = 2 };
+	enum { kRoutes = 3 };
 	struct Row {
 		BStringView*	channel;
 		BStringView*	name;
@@ -47,13 +47,14 @@ private:
 		BSlider*		volume;			// the volume of the Zyn part of this channel
 		BCheckBox*		mute;
 		BCheckBox*		solo;
-		int				routeIndex;		// 0 Zyn, 1 off
+		int				routeIndex;		// 0 Zyn, 1 GM synth, 2 off
 		bool			used;			// the file plays this channel
 	};
 
 	void			_Build();
 	void			_Load(const entry_ref& ref);
 	void			_ShowSong(const SmfSong& song);
+	void			_ShowRoute(int channel);
 	void			_ApplyChannels();	// route, mute and solo of all rows go to the player
 	void			_PickInstrument(int channel);
 	void			_ShowTime(int64 us);
