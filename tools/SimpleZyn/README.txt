@@ -27,7 +27,9 @@ What it does
     ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
     Punch (Str, Tim: how strong and how long the beginning of the note is) is next to the envelopes,
     Stereo (the ADsynth plays in stereo or mono) is under Vol of the Out box.
-    The third row is the effects of the part: three slots, each with the type (Reverb, Echo, Chorus,
+    The third row is the voice: the amplitude envelope (VAmp), the filter (VFlt: Cut, Res) and its
+    envelope (VFEnv) of the voice chosen in the Voice box. They only work when the On box of the
+    group is ticked. The fourth row is the effects of the part: three slots, each with the type (Reverb, Echo, Chorus,
     Phaser, Alienwah, Distortion, EQ, DynFilter), a preset and the main parameters on sliders. The
     effect is an insert of the part (the Rev slider of the main window is a separate send reverb).
     The EQ has 8 bands: the menu next to the type chooses the band, and the sliders (Typ, Frq, Gai,
@@ -57,7 +59,8 @@ Not done yet: saving the set of instruments, effects other than the reverb, the 
 connection of MidiKeyboard.
 
 History
-  0.3  Effects of the part with EQ (8 bands) and DynFilter. Editor: second row (envelopes, pitch,
+  0.3  Effects of the part with EQ (8 bands) and DynFilter. Per-voice amplitude envelope, filter and
+       filter envelope (VAmp, VFlt, VFEnv). Editor: second row (envelopes, pitch,
        Punch), voices 1-8, Stereo, units in the tooltips, values are read from the engine in a
        background thread.
   0.2  Window in the style of the original: System and Instrument boxes, a slider with its own box for

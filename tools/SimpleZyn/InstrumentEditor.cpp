@@ -34,6 +34,7 @@ enum {
 	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
 	MSG_ED_VOICE	= 'edvc',		// voice: "voice"
 	MSG_ED_VON		= 'edvo',		// the voice is on or off
+	MSG_ED_TOGGLE	= 'edtg',		// a switch of the voice (envelope, filter): "index"
 	MSG_ED_STEREO	= 'edst',		// ADsynth: stereo or mono
 	MSG_ED_FXTYPE	= 'edxt',		// effect: "slot", "type"
 	MSG_ED_FXPRESET	= 'edxp',		// effect: "slot", "preset"
@@ -113,9 +114,49 @@ static const EditParam kParams[] = {
 	{ 1, "Punch", "Str", "GlobalPar/PPunchStrength", K_INT, 0, 127, 0, 0, 0, false,
 		"Punch: how strong the beginning of the note is" },
 	{ 1, "Punch", "Tim", "GlobalPar/PPunchTime", K_INT, 0, 127, 0, 0, 60, false,
-		"Punch: how long the strong beginning lasts" }
+		"Punch: how long the strong beginning lasts" },
+	// the third row: the envelopes and the filter of the voice that the Voice box shows
+	{ 2, "VAmp", "Att", "VoicePar0/AmpEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 0, false,
+		"Voice amplitude envelope: attack time" },
+	{ 2, "VAmp", "Dec", "VoicePar0/AmpEnvelope/PD_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Voice amplitude envelope: decay time" },
+	{ 2, "VAmp", "Sus", "VoicePar0/AmpEnvelope/PS_val", K_INT, 0, 127, 0, 0, 127, false,
+		"Voice amplitude envelope: sustain level" },
+	{ 2, "VAmp", "Rel", "VoicePar0/AmpEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Voice amplitude envelope: release time" },
+	{ 2, "VFlt", "Cut", "VoicePar0/VoiceFilter/basefreq", K_LOG, 0, 127, 31.25, 32000.0, 127, false,
+		"Voice filter: cutoff frequency" },
+	{ 2, "VFlt", "Res", "VoicePar0/VoiceFilter/baseq", K_LOG, 0, 127, 0.3, 30.0, 40, false,
+		"Voice filter: resonance (Q)" },
+	{ 2, "VFEnv", "Sta", "VoicePar0/FilterEnvelope/PA_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Voice filter envelope: where the cutoff starts (64 = the cutoff of the filter)" },
+	{ 2, "VFEnv", "Att", "VoicePar0/FilterEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 20, false,
+		"Voice filter envelope: time from the start level to the peak" },
+	{ 2, "VFEnv", "Pea", "VoicePar0/FilterEnvelope/PD_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Voice filter envelope: the peak level (above 64 opens the filter)" },
+	{ 2, "VFEnv", "Dec", "VoicePar0/FilterEnvelope/PD_dt", K_INT, 0, 127, 0, 0, 60, false,
+		"Voice filter envelope: time from the peak back to the cutoff" },
+	{ 2, "VFEnv", "Rel", "VoicePar0/FilterEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Voice filter envelope: release time" },
+	{ 2, "VFEnv", "End", "VoicePar0/FilterEnvelope/PR_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Voice filter envelope: the level the release goes to" }
 };
 static const int kParamCount = sizeof(kParams) / sizeof(kParams[0]);
+
+// the switches that make the envelopes and the filter of a voice work (they are off in the engine
+// until they are switched on)
+struct EditToggle {
+	const char*	group;			// the box that gets the check box
+	const char*	path;
+	const char*	tip;
+};
+
+static const EditToggle kToggles[] = {
+	{ "VAmp", "VoicePar0/PAmpEnvelopeEnabled", "Use the amplitude envelope of the voice" },
+	{ "VFlt", "VoicePar0/PFilterEnabled", "Use the filter of the voice" },
+	{ "VFEnv", "VoicePar0/PFilterEnvelopeEnabled", "Use the filter envelope of the voice" }
+};
+static const int kToggleCount = sizeof(kToggles) / sizeof(kToggles[0]);
 
 static const char* const kWaves[] = {
 	"Sine", "Triangle", "Pulse", "Saw", "Power", "Gauss", "Diode", "Abs sine", "Pulse sine",
@@ -352,6 +393,8 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 	fStereo(NULL),
 	fFxRunner(NULL)
 {
+	for (int t = 0; t < 3; t++)
+		fToggles[t] = NULL;
 	for (int slot = 0; slot < kFxSlots; slot++) {
 		fFx[slot].typeField = NULL;
 		fFx[slot].presetField = NULL;
@@ -364,7 +407,7 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 			fFx[slot].loaded[k] = kNotRead;
 		}
 	}
-	for (int i = 0; i < 40; i++) {
+	for (int i = 0; i < 64; i++) {
 		fSliders[i] = NULL;
 		fLoadedValue[i] = kNotRead;
 	}
@@ -413,9 +456,9 @@ InstrumentEditor::_Build()
 	menuBar->AddItem(file);
 
 	// one box around every group, inside it one box with the name for each slider
-	BGroupView* rows[3];
+	BGroupView* rows[4];
 	BGroupView* outColumn = NULL;
-	for (int r = 0; r < 3; r++)
+	for (int r = 0; r < 4; r++)
 		rows[r] = new BGroupView(B_HORIZONTAL, B_USE_DEFAULT_SPACING);
 	const char* lastGroup = NULL;
 	BGroupView* groupRow = NULL;
@@ -446,6 +489,15 @@ InstrumentEditor::_Build()
 				fFilterType = MakeChoice("filterTypeField", kFilterTypes, kFilterTypeCount, MSG_ED_FTYPE,
 					"type", "Type of the filter");
 				groupColumn->GroupLayout()->AddView(fFilterType);
+			}
+			for (int t = 0; t < kToggleCount; t++) {
+				if (strcmp(p.group, kToggles[t].group) != 0)
+					continue;
+				BMessage* tm = new BMessage(MSG_ED_TOGGLE);
+				tm->AddInt32("index", t);
+				fToggles[t] = new BCheckBox("toggle", "On", tm);
+				fToggles[t]->SetToolTip(kToggles[t].tip);
+				groupColumn->GroupLayout()->AddView(fToggles[t]);
 			}
 			groupColumn->GroupLayout()->AddView(groupRow);
 			rows[p.row]->GroupLayout()->AddView(groupBox);
@@ -481,7 +533,7 @@ InstrumentEditor::_Build()
 		fStereo->SetValue(B_CONTROL_ON);
 		outColumn->GroupLayout()->AddView(fStereo);
 	}
-	_BuildEffects(rows[2]);
+	_BuildEffects(rows[3]);
 
 	fStatus = new BStringView("status", "");
 	fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// a long message must not widen the window
@@ -493,6 +545,7 @@ InstrumentEditor::_Build()
 			.Add(rows[0])
 			.Add(rows[1])
 			.Add(rows[2])
+			.Add(rows[3])
 			.Add(fStatus)
 		.End();
 }
@@ -747,6 +800,14 @@ LoadThread(void* data)
 	result.AddBool("answered", answered);
 
 	char padPath[64];
+	for (int t = 0; t < kToggleCount; t++) {
+		int tv = kNotRead;
+		if (answered && !*job->cancel && zyn->GetInt(ResolvePath(job->part, job->voice, kToggles[t].path), &v, timeout))
+			tv = v;
+		else
+			answered = false;
+		result.AddInt32("toggle", tv);
+	}
 	snprintf(padPath, sizeof(padPath), "/part%d/kit0/Padenabled", job->part);
 	result.AddInt32("ad", answered && zyn->GetInt(padPath, &v, timeout) ? v : kNotRead);
 
@@ -843,6 +904,13 @@ InstrumentEditor::_ApplyLoaded(const BMessage* result)
 			fSliders[i]->SetValue(value);
 		}
 		_ShowValue(i, false);
+	}
+	for (int t = 0; t < kToggleCount; t++) {
+		if (fToggles[t] != NULL && result->FindInt32("toggle", t, &value) == B_OK && value != kNotRead) {
+			fApplying = true;
+			fToggles[t]->SetValue(value ? B_CONTROL_ON : B_CONTROL_OFF);
+			fApplying = false;
+		}
 	}
 	if (fStereo != NULL && result->FindInt32("stereo", &value) == B_OK && value != kNotRead) {
 		fApplying = true;
@@ -1000,6 +1068,13 @@ InstrumentEditor::MessageReceived(BMessage* message)
 				fVoice = voice;
 				_Load();
 			}
+			break;
+		}
+		case MSG_ED_TOGGLE: {
+			int32 t;
+			if (!fApplying && message->FindInt32("index", &t) == B_OK && t >= 0 && t < kToggleCount
+				&& fToggles[t] != NULL)
+				fZyn->SetBool(_Path(kToggles[t].path), fToggles[t]->Value() == B_CONTROL_ON);
 			break;
 		}
 		case MSG_ED_VON:

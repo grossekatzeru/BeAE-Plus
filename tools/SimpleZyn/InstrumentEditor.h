@@ -50,7 +50,7 @@ private:
 	uint32			fSavedWhat;
 	int				fPart;
 	std::string		fName;
-	BSlider*		fSliders[40];
+	BSlider*		fSliders[64];
 	BMenuField*		fWave;
 	BMenuField*		fFilterType;
 	BMenuField*		fVoiceMenu;
@@ -62,7 +62,7 @@ private:
 	bool			fApplying;
 	int				fGeneration;
 	thread_id		fLoader;
-	int32			fLoadedValue[40];	// what the sliders were set to from the engine
+	int32			fLoadedValue[64];	// what the sliders were set to from the engine
 
 	BStringView*	fStatus;
 	BFilePanel*		fSavePanel;
@@ -80,6 +80,7 @@ private:
 	};
 	FxSlot			fFx[3];
 	BCheckBox*		fStereo;
+	BCheckBox*		fToggles[3];		// voice: envelope and filter switches
 	BMessageRunner*	fFxRunner;			// reads the effect again a moment after a change of its type
 };
 
