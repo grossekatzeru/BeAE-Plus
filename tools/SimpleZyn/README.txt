@@ -1,4 +1,4 @@
-SimpleZyn 0.1 (alpha) - a simple native control panel for ZynAddSubFX
+SimpleZyn 0.2 (alpha) - a simple native control panel for ZynAddSubFX
 ======================================================================
 
 SimpleZyn starts the ZynAddSubFX engine without its own window ("zynaddsubfx --no-gui")
@@ -41,3 +41,11 @@ Check the portable part anywhere (OSC, banks, launcher):   make test
 
 Not done yet: saving the set of instruments, effects other than the reverb, the automatic
 connection of MidiKeyboard.
+
+History
+  0.2  Window in the style of the original: System and Instrument boxes, a slider with its own box for
+       every value. Reverb menu (presets and types). Instrument editor (File > Edit instrument) with
+       saving to .xiz. A recording is named after the instrument; it goes to a new track of the open
+       BeAE-Plus project (NewRP in the Engine menu: automatically). The WAV header problem of the
+       engine is solved. Rst button.
+  0.1  First version: banks, instruments, 16 parts, volume, pan, channel, mute, solo, reverb, recording.
