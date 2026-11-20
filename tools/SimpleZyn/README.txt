@@ -58,8 +58,19 @@ Check the portable part anywhere (OSC, banks, launcher):   make test
 Not done yet: saving the set of instruments, effects other than the reverb, the automatic
 connection of MidiKeyboard.
 
+MIDI player (menu MIDI > MIDI player...)
+  A separate window like the editor. Open a .mid file (or drop it on the window), Play/Pause, Stop,
+  Silence, a position slider, Tempo 25-200 %, Repeat. The player connects to the MIDI consumer
+  "ZynAddSubFX" by itself. The table has a row for every channel the file plays: the channel, the name
+  of the track (and the General MIDI program), a light that flashes with the notes, where the channel
+  sounds (Zyn or off), the instrument and the M (mute) and S (solo) boxes. The instrument button opens
+  the banks: the choice loads the instrument into the Zyn part of the same number (channel N plays
+  part N) and sets the part to listen to that channel. "(as it is in Zyn)" does not change the part.
+  Program changes and controllers of the file are not sent: the instruments are the ones you chose.
+  Playing the drum channel through the General MIDI soundfont of the system is not built yet.
+
 History
-  0.3  Effects of the part with EQ (8 bands) and DynFilter. Per-voice amplitude envelope, filter and
+  0.3  MIDI player. Effects of the part with EQ (8 bands) and DynFilter. Per-voice amplitude envelope, filter and
        filter envelope (VAmp, VFlt, VFEnv). Rows of the editor fold with the button over them. Editor: second row (envelopes, pitch,
        Punch), voices 1-8, Stereo, units in the tooltips, values are read from the engine in a
        background thread.

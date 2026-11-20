@@ -44,6 +44,7 @@
 #include "Banks.h"
 #include "Engine.h"
 #include "InstrumentEditor.h"
+#include "MidiPlayer.h"
 #include "ZynControl.h"
 
 static const char* kAppSignature = "application/x-vnd.SimpleZyn";
@@ -74,6 +75,7 @@ enum {
 	MSG_OPEN_BEAE = 'obea',
 	MSG_NEWRP = 'nrpt',
 	MSG_EDIT_INSTR = 'edin',
+	MSG_MIDI_PLAYER = 'mpwn',
 	MSG_EDITOR_REFRESH = 'edrf',
 	MSG_SAVED = 'svdi',
 	MSG_REV_PRESET = 'rvpr',
@@ -185,6 +187,7 @@ public:
 		fFinishTries(0),
 		fEditor(NULL),
 		fEditorRunner(NULL),
+		fMidiPlayer(NULL),
 		fRescanRunner(NULL),
 		fRevPreset(-1),
 		fRevType(-1),
@@ -219,6 +222,9 @@ public:
 		if (fEditor != NULL && fEditor->Lock())
 			fEditor->Quit();				// it only hides itself when it is closed
 		fEditor = NULL;
+		if (fMidiPlayer != NULL && fMidiPlayer->Lock())
+			fMidiPlayer->Quit();
+		fMidiPlayer = NULL;
 		if (fRecording)
 			fZyn.RecordStop();
 		be_app->PostMessage(B_QUIT_REQUESTED);
@@ -313,6 +319,18 @@ public:
 				}
 				_UpdateEditor(false);
 				break;
+			case MSG_MIDI_PLAYER:
+				if (fMidiPlayer == NULL)
+					fMidiPlayer = new MidiPlayerWindow(&fZyn, fBankData);
+				if (fMidiPlayer->Lock()) {
+					fMidiPlayer->SetBanks(fBankData);
+					if (fMidiPlayer->IsHidden())
+						fMidiPlayer->Show();
+					else
+						fMidiPlayer->Activate();
+					fMidiPlayer->Unlock();
+				}
+				break;
 			case MSG_EDITOR_REFRESH:
 				if (fEditor != NULL) {
 					BMessage show = InstrumentEditor::MsgSetPart(fSelectedPart,
@@ -402,8 +420,7 @@ private:
 		menuBar->AddItem(reverbMenu);
 		// MIDI: the player of .mid files will be here, and the start of MidiKeyboard
 		BMenu* midiMenu = new BMenu("MIDI");
-		BMenuItem* playerItem = new BMenuItem("MIDI player" B_UTF8_ELLIPSIS, new BMessage('mpl_'));
-		playerItem->SetEnabled(false);		// not built yet
+		BMenuItem* playerItem = new BMenuItem("MIDI player" B_UTF8_ELLIPSIS, new BMessage(MSG_MIDI_PLAYER));
 		midiMenu->AddItem(playerItem);
 		BMenuItem* keyboardItem = new BMenuItem("MIDI keyboard", new BMessage('mkb_'));
 		keyboardItem->SetEnabled(false);	// not built yet
@@ -691,6 +708,10 @@ private:
 		for (size_t i = 0; i < fUserFolders.size(); i++)
 			roots.push_back(fUserFolders[i]);
 		ScanBanks(roots, fBankData);
+		if (fMidiPlayer != NULL && fMidiPlayer->LockWithTimeout(100000) == B_OK) {
+			fMidiPlayer->SetBanks(fBankData);		// the window may be waiting in a menu: then it keeps the old list
+			fMidiPlayer->Unlock();
+		}
 
 		fBanks->MakeEmpty();
 		for (size_t i = 0; i < fBankData.size(); i++) {
@@ -949,6 +970,7 @@ private:
 	int							fFinishTries;
 	InstrumentEditor*			fEditor;
 	BMessageRunner*				fEditorRunner;
+	MidiPlayerWindow*			fMidiPlayer;
 	BMessageRunner*				fRescanRunner;
 	int							fRevPreset;		// -1: not chosen, the engine's own
 	int							fRevType;

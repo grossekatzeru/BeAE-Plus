@@ -5,6 +5,7 @@
 #include "Banks.h"
 #include "Engine.h"
 #include "Osc.h"
+#include "SmfFile.h"
 #include "ZynControl.h"
 
 #include <arpa/inet.h>
@@ -258,6 +259,37 @@ main()
 			usleep(100000);
 		}
 		CHECK(exited);
+	}
+
+	// the MIDI file reader: two tracks, a name and a program on channel 1, notes on channels 1 and 10
+	{
+		static const uint8_t smf[] = {
+			'M','T','h','d', 0,0,0,6, 0,1, 0,2, 0x01,0xE0,
+			'M','T','r','k', 0,0,0,0x1d,
+				0x00,0xFF,0x03,0x05,'P','i','a','n','o',
+				0x00,0xC0,0x00,
+				0x00,0x90,0x3C,0x64,
+				0x83,0x60,0x90,0x3C,0x00,
+				0x00,0x90,0x40,0x50,
+				0x00,0xFF,0x2F,0x00,
+			'M','T','r','k', 0,0,0,0xc,
+				0x00,0x99,0x24,0x7F,
+				0x60,0x89,0x24,0x00,
+				0x00,0xFF,0x2F,0x00
+		};
+		SmfSong song;
+		std::string error;
+		bool ok = ParseSmf(smf, sizeof(smf), song, error);
+		CHECK(ok);
+		if (ok) {
+			CHECK(song.channels[0].notes == 2);
+			CHECK(song.channels[0].program == 0);
+			CHECK(song.channels[0].name == "Piano");
+			CHECK(song.channels[9].notes == 1);
+			CHECK(song.channels[9].name.empty());
+			CHECK(song.channels[1].notes == 0);
+			CHECK(song.tracks == 2);
+		}
 	}
 
 	printf(failures ? "FAILED: %d\n" : "all tests passed\n", failures);
