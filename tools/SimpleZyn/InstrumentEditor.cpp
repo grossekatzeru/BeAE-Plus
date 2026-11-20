@@ -38,6 +38,7 @@ enum {
 	MSG_ED_FXTYPE	= 'edxt',		// effect: "slot", "type"
 	MSG_ED_FXPRESET	= 'edxp',		// effect: "slot", "preset"
 	MSG_ED_FXPAR	= 'edxr',		// effect: a slider moved: "slot", "k"
+	MSG_ED_FXBAND	= 'edxb',		// EQ: the band to edit: "slot", "band"
 	MSG_ED_FXRELOAD	= 'edxl',		// read the effects again
 	MSG_ED_LOADED	= 'edld',		// the thread has read the values of the engine
 	MSG_ED_PART		= 'edpt',		// show another part: "part", "name"
@@ -142,7 +143,10 @@ struct FxSlider {
 	int			index;			// the number of the parameter in the engine
 	int			min, max;
 	const char*	tip;
+	const char*	band;			// EQ: the name of the parameter of the band (index = kEqBand), else NULL
 };
+
+static const int kEqBand = 1000;
 
 struct FxType {
 	const char*			name;
@@ -161,6 +165,11 @@ static const char* const kChorusPresets[] = { "Chorus 1", "Chorus 2", "Chorus 3"
 static const char* const kPhaserPresets[] = { "Phaser 1", "Phaser 2", "Phaser 3", "Phaser 4", "Phaser 5",
 	"Phaser 6", "APhaser 1", "APhaser 2", "APhaser 3", "APhaser 4", "APhaser 5", "APhaser 6" };
 static const char* const kWahPresets[] = { "Wah 1", "Wah 2", "Wah 3", "Wah 4" };
+static const char* const kDynPresets[] = { "WahWah", "AutoWah", "Sweep", "Vocal Morph 1", "Vocal Morph 2" };
+static const char* const kEqBands[] = { "Band 1", "Band 2", "Band 3", "Band 4", "Band 5", "Band 6",
+	"Band 7", "Band 8" };
+static const char* const kEqTypes[] = { "off", "low pass 1", "high pass 1", "low pass 2", "high pass 2",
+	"band pass", "notch", "peak", "low shelf", "high shelf" };
 static const char* const kDistortionPresets[] = { "Overdrive 1", "Overdrive 2", "A. Exciter 1",
 	"A. Exciter 2", "Guitar Amp", "Quantisize" };
 
@@ -191,8 +200,18 @@ static const FxType kFxTypes[] = {
 		{ "Out", 4, 0, 127, "Output level" }, { "LPF", 7, 0, 127, "Low pass filter" },
 		{ "HPF", 8, 0, 127, "High pass filter" } },
 		kDistortionPresets, 6 },
-	{ "EQ", 0, {}, NULL, 0 },
-	{ "DynFilter", 0, {}, NULL, 0 }
+	// the EQ has 8 bands; the menu of "presets" chooses the band the four sliders edit
+	{ "EQ", 5, { { "Vol", 0, 0, 127, "Output level" },
+		{ "Typ", kEqBand, 0, 9, "Type of the band: 0 off, 1 low pass, 2 high pass, 3 low pass 2, "
+			"4 high pass 2, 5 band pass, 6 notch, 7 peak, 8 low shelf, 9 high shelf", "Ptype" },
+		{ "Frq", kEqBand, 0, 127, "Frequency of the band", "Pfreq" },
+		{ "Gai", kEqBand, 0, 127, "Gain of the band (64 = no change)", "Pgain" },
+		{ "Q", kEqBand, 0, 127, "Width of the band (resonance)", "Pq" } },
+		kEqBands, 8 },
+	{ "DynFilter", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Frq", 2, 0, 127, "Speed of the filter sweep" },
+		{ "Dep", 6, 0, 127, "Depth of the sweep" }, { "Sns", 7, 0, 127, "How much the loudness of the sound moves the filter" },
+		{ "Smo", 9, 0, 127, "How smooth the loudness is followed" } },
+		kDynPresets, 5 }
 };
 static const int kFxTypeCount = sizeof(kFxTypes) / sizeof(kFxTypes[0]);
 static const int kFxSlots = 3;
@@ -337,6 +356,7 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 		fFx[slot].typeField = NULL;
 		fFx[slot].presetField = NULL;
 		fFx[slot].type = 0;
+		fFx[slot].band = 0;
 		for (int k = 0; k < kFxSliders; k++) {
 			fFx[slot].boxes[k] = NULL;
 			fFx[slot].sliders[k] = NULL;
@@ -577,10 +597,14 @@ InstrumentEditor::_SetFxType(int slot, int type)
 	while (menu->CountItems() > 0)
 		delete menu->RemoveItem((int32)0);
 	for (int i = 0; i < ft.presetCount; i++) {
-		BMessage* m = new BMessage(MSG_ED_FXPRESET);
+		const bool isEq = (ft.sliders[1].band != NULL);
+		BMessage* m = new BMessage(isEq ? MSG_ED_FXBAND : MSG_ED_FXPRESET);
 		m->AddInt32("slot", slot);
-		m->AddInt32("preset", i);
-		menu->AddItem(new BMenuItem(ft.presets[i], m));
+		m->AddInt32(isEq ? "band" : "preset", i);
+		BMenuItem* item = new BMenuItem(ft.presets[i], m);
+		if (isEq && i == fx.band)
+			item->SetMarked(true);
+		menu->AddItem(item);
 	}
 	fx.presetField->SetEnabled(ft.presetCount > 0);
 
@@ -603,6 +627,20 @@ InstrumentEditor::_SetFxType(int slot, int type)
 }
 
 
+// the path of the parameter k of the effect in a slot (an EQ edits the band `band`)
+static std::string
+FxParamPath(int part, int slot, int type, int band, int k)
+{
+	const FxSlider& fs = kFxTypes[type].sliders[k];
+	char path[112];
+	if (fs.index >= kEqBand)
+		snprintf(path, sizeof(path), "/part%d/partefx%d/filter%d/%s", part, slot, band, fs.band);
+	else
+		snprintf(path, sizeof(path), "/part%d/partefx%d/parameter%d", part, slot, fs.index);
+	return path;
+}
+
+
 void
 InstrumentEditor::_SendFxSlider(int slot, int k)
 {
@@ -619,10 +657,17 @@ InstrumentEditor::_SendFxSlider(int slot, int k)
 			return;
 	}
 	const FxSlider& fs = kFxTypes[fx.type].sliders[k];
-	fZyn->SetInt(_FxPath(slot, "parameter", fs.index), fx.sliders[k]->Value());
-	char text[96];
-	snprintf(text, sizeof(text), "Effect %d, %s: %d   (%s)", slot + 1, fs.label,
-		(int)fx.sliders[k]->Value(), fs.tip);
+	fZyn->SetInt(FxParamPath(fPart, slot, fx.type, fx.band, k), fx.sliders[k]->Value());
+	char text[256];
+	const int value = fx.sliders[k]->Value();
+	if (fs.band != NULL && strcmp(fs.band, "Ptype") == 0)
+		snprintf(text, sizeof(text), "Effect %d, band %d, type: %d, %s", slot + 1, fx.band + 1, value,
+			kEqTypes[value < 0 || value > 9 ? 0 : value]);
+	else if (fs.band != NULL)
+		snprintf(text, sizeof(text), "Effect %d, band %d, %s: %d   (%s)", slot + 1, fx.band + 1,
+			fs.label, value, fs.tip);
+	else
+		snprintf(text, sizeof(text), "Effect %d, %s: %d   (%s)", slot + 1, fs.label, value, fs.tip);
 	fStatus->SetText(text);
 }
 
@@ -645,6 +690,7 @@ struct LoadJob {
 	int			part;
 	int			voice;
 	int			generation;
+	int			bands[3];		// the band of the EQ in every slot
 	volatile bool* cancel;
 };
 
@@ -715,9 +761,7 @@ LoadThread(void* data)
 		for (int k = 0; k < kFxSliders; k++) {
 			int32 slider = kNotRead;
 			if (type > 0 && type < kFxTypeCount && k < kFxTypes[type].count && !*job->cancel) {
-				snprintf(path, sizeof(path), "/part%d/partefx%d/parameter%d", job->part, slot,
-					kFxTypes[type].sliders[k].index);
-				if (zyn->GetInt(path, &v, timeout))
+				if (zyn->GetInt(FxParamPath(job->part, slot, type, job->bands[slot], k), &v, timeout))
 					slider = v;
 			}
 			result.AddInt32("fxslider", slider);
@@ -757,6 +801,8 @@ InstrumentEditor::_Load()
 	job->part = fPart;
 	job->voice = fVoice;
 	job->generation = ++fGeneration;
+	for (int slot = 0; slot < kFxSlots; slot++)
+		job->bands[slot] = fFx[slot].band;
 	job->cancel = &fCancel;
 	fLoader = spawn_thread(LoadThread, "SimpleZyn editor load", B_NORMAL_PRIORITY, job);
 	if (fLoader < 0) {
@@ -934,6 +980,15 @@ InstrumentEditor::MessageReceived(BMessage* message)
 			int32 slot, k;
 			if (message->FindInt32("slot", &slot) == B_OK && message->FindInt32("k", &k) == B_OK)
 				_SendFxSlider(slot, k);
+			break;
+		}
+		case MSG_ED_FXBAND: {
+			int32 slot, band;
+			if (message->FindInt32("slot", &slot) == B_OK && message->FindInt32("band", &band) == B_OK
+				&& slot >= 0 && slot < kFxSlots && band >= 0 && band < 8) {
+				fFx[slot].band = band;
+				_Load();					// the sliders show this band
+			}
 			break;
 		}
 		case MSG_ED_FXRELOAD:

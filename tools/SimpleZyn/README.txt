@@ -1,4 +1,4 @@
-SimpleZyn 0.2 (alpha) - a simple native control panel for ZynAddSubFX
+SimpleZyn 0.3 (alpha) - a simple native control panel for ZynAddSubFX
 ======================================================================
 
 SimpleZyn starts the ZynAddSubFX engine without its own window ("zynaddsubfx --no-gui")
@@ -28,9 +28,11 @@ What it does
     Punch (Str, Tim: how strong and how long the beginning of the note is) is next to the envelopes,
     Stereo (the ADsynth plays in stereo or mono) is under Vol of the Out box.
     The third row is the effects of the part: three slots, each with the type (Reverb, Echo, Chorus,
-    Phaser, Alienwah, Distortion), a preset and the main parameters on sliders. The effect is an
-    insert of the part (the Rev slider of the main window is a separate send reverb). EQ and
-    DynFilter are shown as types but have no sliders yet.
+    Phaser, Alienwah, Distortion, EQ, DynFilter), a preset and the main parameters on sliders. The
+    effect is an insert of the part (the Rev slider of the main window is a separate send reverb).
+    The EQ has 8 bands: the menu next to the type chooses the band, and the sliders (Typ, Frq, Gai,
+    Q) edit that band; Vol is the output level. DynFilter has 5 presets (WahWah, AutoWah, Sweep,
+    Vocal Morph 1/2) and the sliders Vol, Frq, Dep, Sns, Smo.
     A slider shows its value in the units of the sound (seconds, semitones, octaves, Hz) in the
     status line while it is moved, and in its tool tip.
     Not in the editor yet: PADsynth, SUBsynth, the amplitude and filter of every voice, effects of the part.
@@ -55,6 +57,9 @@ Not done yet: saving the set of instruments, effects other than the reverb, the 
 connection of MidiKeyboard.
 
 History
+  0.3  Effects of the part with EQ (8 bands) and DynFilter. Editor: second row (envelopes, pitch,
+       Punch), voices 1-8, Stereo, units in the tooltips, values are read from the engine in a
+       background thread.
   0.2  Window in the style of the original: System and Instrument boxes, a slider with its own box for
        every value. Reverb menu (presets and types). Instrument editor (File > Edit instrument) with
        saving to .xiz. A recording is named after the instrument; it goes to a new track of the open

@@ -75,6 +75,7 @@ private:
 		BSlider*	sliders[5];
 		bool		shown[5];
 		int			type;
+		int			band;			// the band of the EQ that the sliders edit
 		int32		loaded[5];
 	};
 	FxSlot			fFx[3];
