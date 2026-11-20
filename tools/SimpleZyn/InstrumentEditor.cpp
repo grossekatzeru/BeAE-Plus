@@ -28,6 +28,7 @@
 enum {
 	MSG_ED_PARAM	= 'edpr',		// a slider moved: "index"
 	MSG_ED_WAVE		= 'edwv',		// base waveform: "wave"
+	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
 	MSG_ED_PART		= 'edpt',		// show another part: "part", "name"
 	MSG_ED_SAVE_AS	= 'edsa',		// menu: save the instrument
 	MSG_ED_SAVE		= 'edsv'		// the file panel is done
@@ -35,9 +36,10 @@ enum {
 
 
 // How a slider (always 0..127, or min..max) becomes a parameter of the engine
-enum Kind { K_INT, K_LOG };
+enum Kind { K_INT, K_LOG, K_FINE };		// K_FINE: fine detune, 8192 + 128 * slider
 
 struct EditParam {
+	int			row;			// 0: the upper row of boxes, 1: the lower one
 	const char*	group;			// box around several sliders
 	const char*	label;			// at most three letters
 	const char*	path;			// below /partN/kit0/adpars/
@@ -50,23 +52,48 @@ struct EditParam {
 };
 
 static const EditParam kParams[] = {
-	{ "Amp", "Att", "GlobalPar/AmpEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 0, false, "Attack time" },
-	{ "Amp", "Dec", "GlobalPar/AmpEnvelope/PD_dt", K_INT, 0, 127, 0, 0, 40, false, "Decay time" },
-	{ "Amp", "Sus", "GlobalPar/AmpEnvelope/PS_val", K_INT, 0, 127, 0, 0, 127, false, "Sustain level" },
-	{ "Amp", "Rel", "GlobalPar/AmpEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false, "Release time" },
-	{ "Filter", "Cut", "GlobalPar/GlobalFilter/basefreq", K_LOG, 0, 127, 31.25, 32000.0, 127, false,
+	{ 0, "Amp", "Att", "GlobalPar/AmpEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 0, false, "Attack time" },
+	{ 0, "Amp", "Dec", "GlobalPar/AmpEnvelope/PD_dt", K_INT, 0, 127, 0, 0, 40, false, "Decay time" },
+	{ 0, "Amp", "Sus", "GlobalPar/AmpEnvelope/PS_val", K_INT, 0, 127, 0, 0, 127, false, "Sustain level" },
+	{ 0, "Amp", "Rel", "GlobalPar/AmpEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false, "Release time" },
+	{ 0, "Filter", "Cut", "GlobalPar/GlobalFilter/basefreq", K_LOG, 0, 127, 31.25, 32000.0, 127, false,
 		"Filter cutoff frequency" },
-	{ "Filter", "Res", "GlobalPar/GlobalFilter/baseq", K_LOG, 0, 127, 0.3, 30.0, 40, false,
+	{ 0, "Filter", "Res", "GlobalPar/GlobalFilter/baseq", K_LOG, 0, 127, 0.3, 30.0, 40, false,
 		"Filter resonance (Q)" },
-	{ "Osc", "Shp", "VoicePar0/OscilSmp/Pbasefuncpar", K_INT, 0, 127, 0, 0, 64, true,
+	{ 0, "Filter", "Stg", "GlobalPar/GlobalFilter/Pstages", K_INT, 0, 5, 0, 0, 0, false,
+		"Filter stages: the slope gets steeper" },
+	{ 0, "Osc", "Shp", "VoicePar0/OscilSmp/Pbasefuncpar", K_INT, 0, 127, 0, 0, 64, true,
 		"Shape of the waveform (what it does depends on the waveform)" },
-	{ "Osc", "Uni", "VoicePar0/Unison_size", K_INT, 1, 8, 0, 0, 1, false,
+	{ 0, "Osc", "Uni", "VoicePar0/Unison_size", K_INT, 1, 8, 0, 0, 1, false,
 		"Unison: how many copies of the voice play together" },
-	{ "Osc", "Spr", "VoicePar0/Unison_frequency_spread", K_INT, 0, 127, 0, 0, 60, false,
+	{ 0, "Osc", "Spr", "VoicePar0/Unison_frequency_spread", K_INT, 0, 127, 0, 0, 60, false,
 		"Unison: how far the copies are detuned" },
-	{ "LFO", "Dep", "GlobalPar/FreqLfo/Pintensity", K_INT, 0, 127, 0, 0, 0, false, "Vibrato depth" },
-	{ "LFO", "Spd", "GlobalPar/FreqLfo/freq", K_LOG, 0, 127, 0.0776, 85.25, 60, false, "Vibrato speed" },
-	{ "Out", "Vol", "GlobalPar/PVolume", K_INT, 0, 127, 0, 0, 90, false, "Volume of the instrument" }
+	{ 0, "LFO", "Dep", "GlobalPar/FreqLfo/Pintensity", K_INT, 0, 127, 0, 0, 0, false, "Vibrato depth" },
+	{ 0, "LFO", "Spd", "GlobalPar/FreqLfo/freq", K_LOG, 0, 127, 0.0776, 85.25, 60, false, "Vibrato speed" },
+	{ 0, "Out", "Vol", "GlobalPar/PVolume", K_INT, 0, 127, 0, 0, 90, false, "Volume of the instrument" },
+	{ 1, "FEnv", "Sta", "GlobalPar/FilterEnvelope/PA_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Filter envelope: where the cutoff starts (64 = the cutoff of the filter)" },
+	{ 1, "FEnv", "Att", "GlobalPar/FilterEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 20, false,
+		"Filter envelope: time from the start level to the peak" },
+	{ 1, "FEnv", "Pea", "GlobalPar/FilterEnvelope/PD_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Filter envelope: the peak level (above 64 opens the filter)" },
+	{ 1, "FEnv", "Dec", "GlobalPar/FilterEnvelope/PD_dt", K_INT, 0, 127, 0, 0, 60, false,
+		"Filter envelope: time from the peak back to the cutoff of the filter" },
+	{ 1, "FEnv", "Rel", "GlobalPar/FilterEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Filter envelope: release time" },
+	{ 1, "FEnv", "End", "GlobalPar/FilterEnvelope/PR_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Filter envelope: the level the release goes to" },
+	{ 1, "Pitch", "Oct", "GlobalPar/octave", K_INT, -8, 7, 0, 0, 0, false, "Octave" },
+	{ 1, "Pitch", "Crs", "GlobalPar/coarsedetune", K_INT, -64, 63, 0, 0, 0, false, "Coarse tuning (semitones)" },
+	{ 1, "Pitch", "Fin", "GlobalPar/PDetune", K_FINE, -64, 63, 0, 0, 0, false, "Fine tuning" },
+	{ 1, "PEnv", "Sta", "GlobalPar/FreqEnvelope/PA_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Pitch envelope: where the pitch starts (64 = the pitch of the note)" },
+	{ 1, "PEnv", "Att", "GlobalPar/FreqEnvelope/PA_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Pitch envelope: time from the start pitch to the pitch of the note" },
+	{ 1, "PEnv", "End", "GlobalPar/FreqEnvelope/PR_val", K_INT, 0, 127, 0, 0, 64, false,
+		"Pitch envelope: where the pitch goes when the key is released" },
+	{ 1, "PEnv", "Rel", "GlobalPar/FreqEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false,
+		"Pitch envelope: release time" }
 };
 static const int kParamCount = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -76,6 +103,14 @@ static const char* const kWaves[] = {
 };
 static const int kWaveCount = sizeof(kWaves) / sizeof(kWaves[0]);
 
+static const char* const kFilterTypes[] = {
+	"Low pass 1", "High pass 1", "Low pass 2", "High pass 2", "Band pass", "Notch", "Peak",
+	"Low shelf", "High shelf"
+};
+static const int kFilterTypeCount = sizeof(kFilterTypes) / sizeof(kFilterTypes[0]);
+
+static const char* kFilterTypePath = "GlobalPar/GlobalFilter/Ptype";
+static const char* kFilterClassPath = "GlobalPar/GlobalFilter/Pcategory";	// 0: analog, the only one with these types
 static const char* kWavePath = "VoicePar0/OscilSmp/Pcurrentbasefunc";
 static const char* kPreparePath = "VoicePar0/OscilSmp/prepare";
 
@@ -83,7 +118,9 @@ static const char* kPreparePath = "VoicePar0/OscilSmp/prepare";
 static int
 SliderFromValue(const EditParam& p, double value)
 {
-	if (p.kind == K_INT)
+	if (p.kind == K_FINE)
+		value = (value - 8192.0) / 128.0;
+	if (p.kind == K_INT || p.kind == K_FINE)
 		return value < p.min ? p.min : (value > p.max ? p.max : (int)floor(value + 0.5));
 	if (value < p.lo)
 		value = p.lo;
@@ -99,8 +136,31 @@ ValueFromSlider(const EditParam& p, int slider)
 {
 	if (p.kind == K_INT)
 		return slider;
+	if (p.kind == K_FINE)
+		return 8192.0 + 128.0 * slider;
 	double position = (double)(slider - p.min) / (double)(p.max - p.min);
 	return p.lo * pow(p.hi / p.lo, position);
+}
+
+
+// a popup menu of choices: every item sends `what` with the number under `key`
+static BMenuField*
+MakeChoice(const char* name, const char* const* items, int count, uint32 what, const char* key,
+	const char* tip)
+{
+	BPopUpMenu* menu = new BPopUpMenu(name);
+	for (int i = 0; i < count; i++) {
+		BMessage* m = new BMessage(what);
+		m->AddInt32(key, i);
+		BMenuItem* item = new BMenuItem(items[i], m);
+		if (i == 0)
+			item->SetMarked(true);
+		menu->AddItem(item);
+	}
+	menu->SetLabelFromMarked(true);
+	BMenuField* field = new BMenuField(name, NULL, menu);
+	field->SetToolTip(tip);
+	return field;
 }
 
 
@@ -113,10 +173,11 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 	fSavedWhat(savedWhat),
 	fPart(0),
 	fWave(NULL),
+	fFilterType(NULL),
 	fStatus(NULL),
 	fSavePanel(NULL)
 {
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < 40; i++)
 		fSliders[i] = NULL;
 	_Build();
 }
@@ -157,7 +218,9 @@ InstrumentEditor::_Build()
 	menuBar->AddItem(file);
 
 	// one box around every group, inside it one box with the name for each slider
-	BGroupView* row = new BGroupView(B_HORIZONTAL, B_USE_DEFAULT_SPACING);
+	BGroupView* rows[2];
+	for (int r = 0; r < 2; r++)
+		rows[r] = new BGroupView(B_HORIZONTAL, B_USE_DEFAULT_SPACING);
 	const char* lastGroup = NULL;
 	BGroupView* groupRow = NULL;
 	for (int i = 0; i < kParamCount; i++) {
@@ -169,24 +232,18 @@ InstrumentEditor::_Build()
 			BBox* groupBox = new BBox(p.group, B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
 				B_FANCY_BORDER, groupColumn);
 			groupBox->SetLabel(p.group);
+			// a menu goes on top of the sliders of a group
 			if (strcmp(p.group, "Osc") == 0) {
-				// the waveform menu goes on top of the sliders of the oscillator
-				BPopUpMenu* waves = new BPopUpMenu("wave");
-				for (int w = 0; w < kWaveCount; w++) {
-					BMessage* m = new BMessage(MSG_ED_WAVE);
-					m->AddInt32("wave", w);
-					BMenuItem* item = new BMenuItem(kWaves[w], m);
-					if (w == 0)
-						item->SetMarked(true);
-					waves->AddItem(item);
-				}
-				waves->SetLabelFromMarked(true);
-				fWave = new BMenuField("waveField", NULL, waves);
-				fWave->SetToolTip("Waveform of the oscillator");
+				fWave = MakeChoice("waveField", kWaves, kWaveCount, MSG_ED_WAVE, "wave",
+					"Waveform of the oscillator");
 				groupColumn->GroupLayout()->AddView(fWave);
+			} else if (strcmp(p.group, "Filter") == 0) {
+				fFilterType = MakeChoice("filterTypeField", kFilterTypes, kFilterTypeCount, MSG_ED_FTYPE,
+					"type", "Type of the filter");
+				groupColumn->GroupLayout()->AddView(fFilterType);
 			}
 			groupColumn->GroupLayout()->AddView(groupRow);
-			row->GroupLayout()->AddView(groupBox);
+			rows[p.row]->GroupLayout()->AddView(groupBox);
 			lastGroup = p.group;
 		}
 
@@ -217,7 +274,8 @@ InstrumentEditor::_Build()
 		.Add(menuBar)
 		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
 			.SetInsets(B_USE_WINDOW_INSETS)
-			.Add(row)
+			.Add(rows[0])
+			.Add(rows[1])
 			.Add(fStatus)
 		.End();
 }
@@ -250,6 +308,15 @@ InstrumentEditor::_Load()
 			fWave->Menu()->ItemAt(wave)->SetMarked(true);
 	} else {
 		answered = false;
+	}
+	int filterClass = 0;
+	int filterType = 0;
+	if (fFilterType != NULL && fZyn->GetInt(ZynControl::AdPath(fPart, kFilterClassPath), &filterClass)
+		&& fZyn->GetInt(ZynControl::AdPath(fPart, kFilterTypePath), &filterType)) {
+		// only the analog class has these types; the menu is for it
+		fFilterType->SetEnabled(filterClass == 0);
+		if (filterClass == 0 && filterType >= 0 && filterType < kFilterTypeCount)
+			fFilterType->Menu()->ItemAt(filterType)->SetMarked(true);
 	}
 	for (int i = 0; i < kParamCount && answered; i++) {
 		const EditParam& p = kParams[i];
@@ -315,6 +382,12 @@ InstrumentEditor::MessageReceived(BMessage* message)
 				fZyn->SetInt(ZynControl::AdPath(fPart, kWavePath), wave);
 				fZyn->Perform(ZynControl::AdPath(fPart, kPreparePath));
 			}
+			break;
+		}
+		case MSG_ED_FTYPE: {
+			int32 type;
+			if (message->FindInt32("type", &type) == B_OK)
+				fZyn->SetInt(ZynControl::AdPath(fPart, kFilterTypePath), type);
 			break;
 		}
 		case MSG_ED_PART: {

@@ -38,8 +38,9 @@ private:
 	uint32			fSavedWhat;
 	int				fPart;
 	std::string		fName;
-	BSlider*		fSliders[16];
+	BSlider*		fSliders[40];
 	BMenuField*		fWave;
+	BMenuField*		fFilterType;
 	BStringView*	fStatus;
 	BFilePanel*		fSavePanel;
 };

@@ -16,8 +16,11 @@ What it does
   * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
     how much of every part goes into it), Rst (restart the engine) and Rec.
   * File > Edit instrument (Ctrl+E): a window with the main parameters of the ADsynth of the selected
-    part: Amp (Att, Dec, Sus, Rel), Filter (Cut, Res), Osc (waveform, Shp, Uni, Spr: the shape of
-    the wave, unison size and detune), LFO (Dep, Spd: vibrato) and Vol. The window follows the
+    part. Upper row: Amp (Att, Dec, Sus, Rel), Filter (type, Cut, Res, Stg: stages), Osc (waveform,
+    Shp, Uni, Spr: the shape of the wave, unison size and detune), LFO (Dep, Spd: vibrato), Vol.
+    Lower row: FEnv, the filter envelope (Sta start level, Att, Pea peak level, Dec, Rel, End release
+    level; 64 means "the cutoff of the filter"), Pitch (Oct, Crs, Fin: octave, coarse and fine tuning)
+    and PEnv, the pitch envelope (Sta, Att, End, Rel; 64 means "the pitch of the note"). The window follows the
     selected part and reads the real values from the engine (if the engine does not answer, the
     status line says so). File > Save instrument as... writes a .xiz file; the default folder is
     ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
