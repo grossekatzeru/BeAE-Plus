@@ -17,6 +17,7 @@
 #include <String.h>
 #include <StringView.h>
 
+#include <OS.h>
 #include <math.h>
 #include <strings.h>
 #include <string.h>
@@ -32,6 +33,7 @@ enum {
 	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
 	MSG_ED_VOICE	= 'edvc',		// voice: "voice"
 	MSG_ED_VON		= 'edvo',		// the voice is on or off
+	MSG_ED_LOADED	= 'edld',		// the thread has read the values of the engine
 	MSG_ED_PART		= 'edpt',		// show another part: "part", "name"
 	MSG_ED_SAVE_AS	= 'edsa',		// menu: save the instrument
 	MSG_ED_SAVE		= 'edsv'		// the file panel is done
@@ -125,6 +127,24 @@ static const int kVoiceCount = sizeof(kVoices) / sizeof(kVoices[0]);
 
 static const char* kWavePath = "VoicePar0/OscilSmp/Pcurrentbasefunc";
 static const char* kPreparePath = "VoicePar0/OscilSmp/prepare";
+
+// the parameter of the voice are written for "VoicePar0/"; the number of the voice replaces the 0
+static std::string
+ResolvePath(int part, int voice, const char* suffix)
+{
+	std::string path(suffix);
+	if (path.compare(0, 10, "VoicePar0/") == 0) {
+		char number[8];
+		snprintf(number, sizeof(number), "%d", voice);
+		path = "VoicePar" + std::string(number) + path.substr(9);
+	}
+	return ZynControl::AdPath(part, path.c_str());
+}
+
+
+static const int32 kNotRead = -1000000;
+
+
 
 
 static int
@@ -230,17 +250,30 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 	fVoiceMenu(NULL),
 	fVoiceOn(NULL),
 	fVoice(0),
+	fLoading(false),
+	fReload(false),
+	fCancel(false),
+	fApplying(false),
+	fGeneration(0),
+	fLoader(-1),
 	fStatus(NULL),
 	fSavePanel(NULL)
 {
-	for (int i = 0; i < 40; i++)
+	for (int i = 0; i < 40; i++) {
 		fSliders[i] = NULL;
+		fLoadedValue[i] = kNotRead;
+	}
 	_Build();
 }
 
 
 InstrumentEditor::~InstrumentEditor()
 {
+	if (fLoading) {
+		fCancel = true;
+		status_t unused;
+		wait_for_thread(fLoader, &unused);	// the thread ends quickly: it stops at the next question
+	}
 	delete fSavePanel;
 }
 
@@ -346,17 +379,10 @@ InstrumentEditor::_Build()
 }
 
 
-// the parameters of the voice are written for "VoicePar0/"; the selected voice replaces the 0
 std::string
 InstrumentEditor::_Path(const char* suffix) const
 {
-	std::string path(suffix);
-	if (path.compare(0, 10, "VoicePar0/") == 0) {
-		char number[8];
-		snprintf(number, sizeof(number), "%d", fVoice);
-		path = "VoicePar" + std::string(number) + path.substr(9);
-	}
-	return ZynControl::AdPath(fPart, path.c_str());
+	return ResolvePath(fPart, fVoice, suffix);
 }
 
 
@@ -372,7 +398,77 @@ InstrumentEditor::ShowPart(int part, const char* instrumentName)
 }
 
 
-// reads the values from the engine
+struct LoadJob {
+	BMessenger	target;
+	ZynControl*	zyn;
+	int			part;
+	int			voice;
+	int			generation;
+	volatile bool* cancel;
+};
+
+
+// Reads the values from the engine. It runs in a thread of its own: the engine may be slow or
+// silent (a disabled voice, for instance), and the window must go on working meanwhile.
+// The result goes to the window as a message.
+static int32
+LoadThread(void* data)
+{
+	LoadJob* job = (LoadJob*)data;
+	ZynControl* zyn = job->zyn;
+	BMessage result(MSG_ED_LOADED);
+	result.AddInt32("generation", job->generation);
+
+	bool answered = true;
+	int v = 0;
+	const int timeout = 100;
+	// the first question tells whether the engine answers at all
+	answered = zyn->GetInt(ResolvePath(job->part, job->voice, kWavePath), &v, timeout);
+	result.AddInt32("wave", answered ? v : kNotRead);
+	result.AddInt32("voiceon", zyn->GetInt(ResolvePath(job->part, job->voice, "VoicePar0/Enabled"), &v,
+		timeout) ? v : kNotRead);
+	int filterClass = kNotRead;
+	int filterType = kNotRead;
+	if (zyn->GetInt(ZynControl::AdPath(job->part, kFilterClassPath), &v, timeout))
+		filterClass = v;
+	if (zyn->GetInt(ZynControl::AdPath(job->part, kFilterTypePath), &v, timeout))
+		filterType = v;
+	result.AddInt32("filterclass", filterClass);
+	result.AddInt32("filtertype", filterType);
+
+	for (int i = 0; i < kParamCount; i++) {
+		int32 slider = kNotRead;
+		if (answered && !*job->cancel) {
+			const EditParam& p = kParams[i];
+			const std::string path = ResolvePath(job->part, job->voice, p.path);
+			if (p.kind == K_INT || p.kind == K_FINE) {
+				int iv;
+				if (zyn->GetInt(path, &iv, timeout))
+					slider = SliderFromValue(p, iv);
+				else
+					answered = false;
+			} else {
+				float fv;
+				if (zyn->GetFloat(path, &fv, timeout))
+					slider = SliderFromValue(p, fv);
+				else
+					answered = false;
+			}
+		}
+		result.AddInt32("slider", slider);
+	}
+	result.AddBool("answered", answered);
+
+	char padPath[64];
+	snprintf(padPath, sizeof(padPath), "/part%d/kit0/Padenabled", job->part);
+	result.AddInt32("ad", answered && zyn->GetInt(padPath, &v, timeout) ? v : kNotRead);
+
+	job->target.SendMessage(&result);
+	delete job;
+	return 0;
+}
+
+
 void
 InstrumentEditor::_Load()
 {
@@ -382,55 +478,70 @@ InstrumentEditor::_Load()
 			_ShowValue(i, false);
 		return;
 	}
-	bool answered = true;
-	int wave = 0;
-	if (fZyn->GetInt(_Path(kWavePath), &wave)) {
-		if (fWave != NULL && wave >= 0 && wave < kWaveCount)
-			fWave->Menu()->ItemAt(wave)->SetMarked(true);
-	} else {
-		answered = false;
+	if (fLoading) {
+		fReload = true;			// start again with the new part or voice when this one is done
+		fCancel = true;
+		return;
 	}
-	int voiceOn = 1;
-	char enabledPath[64];
-	snprintf(enabledPath, sizeof(enabledPath), "VoicePar0/Enabled");
-	if (fVoiceOn != NULL && fZyn->GetInt(_Path(enabledPath), &voiceOn))
-		fVoiceOn->SetValue(voiceOn ? B_CONTROL_ON : B_CONTROL_OFF);
-	int filterClass = 0;
-	int filterType = 0;
-	if (fFilterType != NULL && fZyn->GetInt(ZynControl::AdPath(fPart, kFilterClassPath), &filterClass)
-		&& fZyn->GetInt(ZynControl::AdPath(fPart, kFilterTypePath), &filterType)) {
+	fCancel = false;
+	fLoading = true;
+	fStatus->SetText("Reading the values from the engine" B_UTF8_ELLIPSIS);
+	LoadJob* job = new LoadJob;
+	job->target = BMessenger(this);
+	job->zyn = fZyn;
+	job->part = fPart;
+	job->voice = fVoice;
+	job->generation = ++fGeneration;
+	job->cancel = &fCancel;
+	fLoader = spawn_thread(LoadThread, "SimpleZyn editor load", B_NORMAL_PRIORITY, job);
+	if (fLoader < 0) {
+		delete job;
+		fLoading = false;
+		fStatus->SetText("Could not start reading the engine");
+		return;
+	}
+	resume_thread(fLoader);
+}
+
+
+// the values have been read: they go to the sliders, but not back to the engine
+void
+InstrumentEditor::_ApplyLoaded(const BMessage* result)
+{
+	int32 value;
+	if (fWave != NULL && result->FindInt32("wave", &value) == B_OK && value >= 0 && value < kWaveCount)
+		fWave->Menu()->ItemAt(value)->SetMarked(true);
+	if (fVoiceOn != NULL && result->FindInt32("voiceon", &value) == B_OK && value != kNotRead) {
+		fApplying = true;
+		fVoiceOn->SetValue(value ? B_CONTROL_ON : B_CONTROL_OFF);
+		fApplying = false;
+	}
+	int32 filterClass = kNotRead, filterType = kNotRead;
+	result->FindInt32("filterclass", &filterClass);
+	result->FindInt32("filtertype", &filterType);
+	if (fFilterType != NULL && filterClass != kNotRead && filterType != kNotRead) {
 		// only the analog class has these types; the menu is for it
 		fFilterType->SetEnabled(filterClass == 0);
 		if (filterClass == 0 && filterType >= 0 && filterType < kFilterTypeCount)
 			fFilterType->Menu()->ItemAt(filterType)->SetMarked(true);
 	}
-	for (int i = 0; i < kParamCount && answered; i++) {
-		const EditParam& p = kParams[i];
-		const std::string path = _Path(p.path);
-		if (p.kind == K_INT) {
-			int v;
-			if (fZyn->GetInt(path, &v))
-				fSliders[i]->SetValue(SliderFromValue(p, v));
-			else
-				answered = false;
-		} else {
-			float v;
-			if (fZyn->GetFloat(path, &v))
-				fSliders[i]->SetValue(SliderFromValue(p, v));
-			else
-				answered = false;
+	for (int i = 0; i < kParamCount; i++) {
+		if (result->FindInt32("slider", i, &value) == B_OK && value != kNotRead) {
+			// the slider may send its message when it is set: that one is not written to the engine
+			fLoadedValue[i] = value;
+			fSliders[i]->SetValue(value);
 		}
-	}
-	for (int i = 0; i < kParamCount; i++)
 		_ShowValue(i, false);
+	}
+	bool answered = false;
+	result->FindBool("answered", &answered);
 	if (!answered) {
 		fStatus->SetText("The engine did not answer: the sliders show typical values, not the real ones");
 		return;
 	}
-	int ad = 1;
-	char path[64];
-	snprintf(path, sizeof(path), "/part%d/kit0/Padenabled", fPart);
-	if (fZyn->GetInt(path, &ad) && ad == 0)
+	int32 ad = 1;
+	result->FindInt32("ad", &ad);
+	if (ad == 0)
 		fStatus->SetText("This instrument has no ADsynth: these sliders will not change its sound");
 	else
 		fStatus->SetText("Values read from the engine");
@@ -463,6 +574,13 @@ InstrumentEditor::_Send(int index)
 	if (index < 0 || index >= kParamCount || fSliders[index] == NULL)
 		return;
 	_ShowValue(index, true);
+	if (fLoadedValue[index] != kNotRead) {
+		// this message comes from setting the slider to the value that was read: nothing to write
+		const bool same = fSliders[index]->Value() == fLoadedValue[index];
+		fLoadedValue[index] = kNotRead;
+		if (same)
+			return;
+	}
 	const EditParam& p = kParams[index];
 	const std::string path = _Path(p.path);
 	const double value = ValueFromSlider(p, fSliders[index]->Value());
@@ -493,6 +611,16 @@ InstrumentEditor::MessageReceived(BMessage* message)
 			}
 			break;
 		}
+		case MSG_ED_LOADED: {
+			fLoading = false;
+			if (fReload) {
+				fReload = false;
+				_Load();				// the part or the voice has changed: this answer is old
+			} else {
+				_ApplyLoaded(message);
+			}
+			break;
+		}
 		case MSG_ED_VOICE: {
 			int32 voice;
 			if (message->FindInt32("voice", &voice) == B_OK && voice >= 0 && voice < kVoiceCount) {
@@ -502,7 +630,8 @@ InstrumentEditor::MessageReceived(BMessage* message)
 			break;
 		}
 		case MSG_ED_VON:
-			fZyn->SetBool(_Path("VoicePar0/Enabled"), fVoiceOn->Value() == B_CONTROL_ON);
+			if (!fApplying)
+				fZyn->SetBool(_Path("VoicePar0/Enabled"), fVoiceOn->Value() == B_CONTROL_ON);
 			break;
 		case MSG_ED_FTYPE: {
 			int32 type;

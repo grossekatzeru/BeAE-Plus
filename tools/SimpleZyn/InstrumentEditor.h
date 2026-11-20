@@ -5,6 +5,7 @@
 
 #include <Window.h>
 #include <Messenger.h>
+#include <OS.h>
 #include <string>
 
 class BCheckBox;
@@ -31,6 +32,7 @@ public:
 private:
 	void			_Build();
 	void			_Load();
+	void			_ApplyLoaded(const BMessage* result);
 	std::string		_Path(const char* suffix) const;	// "VoicePar0/..." is the selected voice
 	void			_Send(int index);
 	void			_ShowValue(int index, bool inStatus);
@@ -47,6 +49,13 @@ private:
 	BMenuField*		fVoiceMenu;
 	BCheckBox*		fVoiceOn;
 	int				fVoice;			// the voice (0..7) of the Voice box
+	bool			fLoading;		// the thread that reads the engine is running
+	bool			fReload;		// ... and the part or the voice has changed meanwhile
+	volatile bool	fCancel;
+	bool			fApplying;
+	int				fGeneration;
+	thread_id		fLoader;
+	int32			fLoadedValue[40];	// what the sliders were set to from the engine
 	BStringView*	fStatus;
 	BFilePanel*		fSavePanel;
 };
