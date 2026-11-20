@@ -7,6 +7,7 @@
 #include <Messenger.h>
 #include <string>
 
+class BCheckBox;
 class BFilePanel;
 class BMenuField;
 class BSlider;
@@ -30,6 +31,7 @@ public:
 private:
 	void			_Build();
 	void			_Load();
+	std::string		_Path(const char* suffix) const;	// "VoicePar0/..." is the selected voice
 	void			_Send(int index);
 	void			_ShowValue(int index, bool inStatus);
 	void			_Save(const BMessage* message);
@@ -42,6 +44,9 @@ private:
 	BSlider*		fSliders[40];
 	BMenuField*		fWave;
 	BMenuField*		fFilterType;
+	BMenuField*		fVoiceMenu;
+	BCheckBox*		fVoiceOn;
+	int				fVoice;			// the voice (0..7) of the Voice box
 	BStringView*	fStatus;
 	BFilePanel*		fSavePanel;
 };

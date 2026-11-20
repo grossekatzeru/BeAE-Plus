@@ -1,6 +1,7 @@
 #include "InstrumentEditor.h"
 
 #include <Box.h>
+#include <CheckBox.h>
 #include <FilePanel.h>
 #include <FindDirectory.h>
 #include <LayoutBuilder.h>
@@ -29,6 +30,8 @@ enum {
 	MSG_ED_PARAM	= 'edpr',		// a slider moved: "index"
 	MSG_ED_WAVE		= 'edwv',		// base waveform: "wave"
 	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
+	MSG_ED_VOICE	= 'edvc',		// voice: "voice"
+	MSG_ED_VON		= 'edvo',		// the voice is on or off
 	MSG_ED_PART		= 'edpt',		// show another part: "part", "name"
 	MSG_ED_SAVE_AS	= 'edsa',		// menu: save the instrument
 	MSG_ED_SAVE		= 'edsv'		// the file panel is done
@@ -62,11 +65,15 @@ static const EditParam kParams[] = {
 		"Filter resonance (Q)" },
 	{ 0, "Filter", "Stg", "GlobalPar/GlobalFilter/Pstages", K_INT, 0, 5, 0, 0, 0, false,
 		"Filter stages: the slope gets steeper" },
-	{ 0, "Osc", "Shp", "VoicePar0/OscilSmp/Pbasefuncpar", K_INT, 0, 127, 0, 0, 64, true,
+	{ 0, "Voice", "Vol", "VoicePar0/PVolume", K_INT, 0, 127, 0, 0, 100, false,
+		"Volume of the voice" },
+	{ 0, "Voice", "Pan", "VoicePar0/PPanning", K_INT, 0, 127, 0, 0, 64, false,
+		"Panning of the voice (64 is the middle, 0 is random)" },
+	{ 0, "Voice", "Shp", "VoicePar0/OscilSmp/Pbasefuncpar", K_INT, 0, 127, 0, 0, 64, true,
 		"Shape of the waveform (what it does depends on the waveform)" },
-	{ 0, "Osc", "Uni", "VoicePar0/Unison_size", K_INT, 1, 8, 0, 0, 1, false,
+	{ 0, "Voice", "Uni", "VoicePar0/Unison_size", K_INT, 1, 8, 0, 0, 1, false,
 		"Unison: how many copies of the voice play together" },
-	{ 0, "Osc", "Spr", "VoicePar0/Unison_frequency_spread", K_INT, 0, 127, 0, 0, 60, false,
+	{ 0, "Voice", "Spr", "VoicePar0/Unison_frequency_spread", K_INT, 0, 127, 0, 0, 60, false,
 		"Unison: how far the copies are detuned" },
 	{ 0, "LFO", "Dep", "GlobalPar/FreqLfo/Pintensity", K_INT, 0, 127, 0, 0, 0, false, "Vibrato depth" },
 	{ 0, "LFO", "Spd", "GlobalPar/FreqLfo/freq", K_LOG, 0, 127, 0.0776, 85.25, 60, false, "Vibrato speed" },
@@ -111,6 +118,11 @@ static const int kFilterTypeCount = sizeof(kFilterTypes) / sizeof(kFilterTypes[0
 
 static const char* kFilterTypePath = "GlobalPar/GlobalFilter/Ptype";
 static const char* kFilterClassPath = "GlobalPar/GlobalFilter/Pcategory";	// 0: analog, the only one with these types
+static const char* const kVoices[] = {
+	"Voice 1", "Voice 2", "Voice 3", "Voice 4", "Voice 5", "Voice 6", "Voice 7", "Voice 8"
+};
+static const int kVoiceCount = sizeof(kVoices) / sizeof(kVoices[0]);
+
 static const char* kWavePath = "VoicePar0/OscilSmp/Pcurrentbasefunc";
 static const char* kPreparePath = "VoicePar0/OscilSmp/prepare";
 
@@ -215,6 +227,9 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 	fPart(0),
 	fWave(NULL),
 	fFilterType(NULL),
+	fVoiceMenu(NULL),
+	fVoiceOn(NULL),
+	fVoice(0),
 	fStatus(NULL),
 	fSavePanel(NULL)
 {
@@ -274,7 +289,16 @@ InstrumentEditor::_Build()
 				B_FANCY_BORDER, groupColumn);
 			groupBox->SetLabel(p.group);
 			// a menu goes on top of the sliders of a group
-			if (strcmp(p.group, "Osc") == 0) {
+			if (strcmp(p.group, "Voice") == 0) {
+				// which voice of the instrument this box edits, and whether it plays
+				fVoiceMenu = MakeChoice("voiceField", kVoices, kVoiceCount, MSG_ED_VOICE, "voice",
+					"The voice of the instrument that this box edits");
+				fVoiceOn = new BCheckBox("voiceOn", "On", new BMessage(MSG_ED_VON));
+				fVoiceOn->SetToolTip("The voice plays");
+				BGroupView* voiceRow = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+				voiceRow->GroupLayout()->AddView(fVoiceMenu);
+				voiceRow->GroupLayout()->AddView(fVoiceOn);
+				groupColumn->GroupLayout()->AddView(voiceRow);
 				fWave = MakeChoice("waveField", kWaves, kWaveCount, MSG_ED_WAVE, "wave",
 					"Waveform of the oscillator");
 				groupColumn->GroupLayout()->AddView(fWave);
@@ -322,6 +346,20 @@ InstrumentEditor::_Build()
 }
 
 
+// the parameters of the voice are written for "VoicePar0/"; the selected voice replaces the 0
+std::string
+InstrumentEditor::_Path(const char* suffix) const
+{
+	std::string path(suffix);
+	if (path.compare(0, 10, "VoicePar0/") == 0) {
+		char number[8];
+		snprintf(number, sizeof(number), "%d", fVoice);
+		path = "VoicePar" + std::string(number) + path.substr(9);
+	}
+	return ZynControl::AdPath(fPart, path.c_str());
+}
+
+
 void
 InstrumentEditor::ShowPart(int part, const char* instrumentName)
 {
@@ -346,12 +384,17 @@ InstrumentEditor::_Load()
 	}
 	bool answered = true;
 	int wave = 0;
-	if (fZyn->GetInt(ZynControl::AdPath(fPart, kWavePath), &wave)) {
+	if (fZyn->GetInt(_Path(kWavePath), &wave)) {
 		if (fWave != NULL && wave >= 0 && wave < kWaveCount)
 			fWave->Menu()->ItemAt(wave)->SetMarked(true);
 	} else {
 		answered = false;
 	}
+	int voiceOn = 1;
+	char enabledPath[64];
+	snprintf(enabledPath, sizeof(enabledPath), "VoicePar0/Enabled");
+	if (fVoiceOn != NULL && fZyn->GetInt(_Path(enabledPath), &voiceOn))
+		fVoiceOn->SetValue(voiceOn ? B_CONTROL_ON : B_CONTROL_OFF);
 	int filterClass = 0;
 	int filterType = 0;
 	if (fFilterType != NULL && fZyn->GetInt(ZynControl::AdPath(fPart, kFilterClassPath), &filterClass)
@@ -363,7 +406,7 @@ InstrumentEditor::_Load()
 	}
 	for (int i = 0; i < kParamCount && answered; i++) {
 		const EditParam& p = kParams[i];
-		const std::string path = ZynControl::AdPath(fPart, p.path);
+		const std::string path = _Path(p.path);
 		if (p.kind == K_INT) {
 			int v;
 			if (fZyn->GetInt(path, &v))
@@ -421,14 +464,14 @@ InstrumentEditor::_Send(int index)
 		return;
 	_ShowValue(index, true);
 	const EditParam& p = kParams[index];
-	const std::string path = ZynControl::AdPath(fPart, p.path);
+	const std::string path = _Path(p.path);
 	const double value = ValueFromSlider(p, fSliders[index]->Value());
 	if (p.kind == K_INT)
 		fZyn->SetInt(path, (int)value);
 	else
 		fZyn->SetFloat(path, (float)value);
 	if (p.oscillator)
-		fZyn->Perform(ZynControl::AdPath(fPart, kPreparePath));
+		fZyn->Perform(_Path(kPreparePath));
 }
 
 
@@ -445,11 +488,22 @@ InstrumentEditor::MessageReceived(BMessage* message)
 		case MSG_ED_WAVE: {
 			int32 wave;
 			if (message->FindInt32("wave", &wave) == B_OK) {
-				fZyn->SetInt(ZynControl::AdPath(fPart, kWavePath), wave);
-				fZyn->Perform(ZynControl::AdPath(fPart, kPreparePath));
+				fZyn->SetInt(_Path(kWavePath), wave);
+				fZyn->Perform(_Path(kPreparePath));
 			}
 			break;
 		}
+		case MSG_ED_VOICE: {
+			int32 voice;
+			if (message->FindInt32("voice", &voice) == B_OK && voice >= 0 && voice < kVoiceCount) {
+				fVoice = voice;
+				_Load();
+			}
+			break;
+		}
+		case MSG_ED_VON:
+			fZyn->SetBool(_Path("VoicePar0/Enabled"), fVoiceOn->Value() == B_CONTROL_ON);
+			break;
 		case MSG_ED_FTYPE: {
 			int32 type;
 			if (message->FindInt32("type", &type) == B_OK)

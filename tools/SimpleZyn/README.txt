@@ -16,8 +16,9 @@ What it does
   * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
     how much of every part goes into it), Rst (restart the engine) and Rec.
   * File > Edit instrument (Ctrl+E): a window with the main parameters of the ADsynth of the selected
-    part. Upper row: Amp (Att, Dec, Sus, Rel), Filter (type, Cut, Res, Stg: stages), Osc (waveform,
-    Shp, Uni, Spr: the shape of the wave, unison size and detune), LFO (Dep, Spd: vibrato), Vol.
+    part. Upper row: Amp (Att, Dec, Sus, Rel), Filter (type, Cut, Res, Stg: stages), Voice (the voice 1..8
+    of the ADsynth that the box edits and its On switch, waveform, Vol, Pan, Shp, Uni, Spr: shape of
+    the wave, unison size and detune), LFO (Dep, Spd: vibrato), Vol.
     Lower row: FEnv, the filter envelope (Sta start level, Att, Pea peak level, Dec, Rel, End release
     level; 64 means "the cutoff of the filter"), Pitch (Oct, Crs, Fin: octave, coarse and fine tuning)
     and PEnv, the pitch envelope (Sta, Att, End, Rel; 64 means "the pitch of the note"). The window follows the
@@ -26,7 +27,7 @@ What it does
     ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
     A slider shows its value in the units of the sound (seconds, semitones, octaves, Hz) in the
     status line while it is moved, and in its tool tip.
-    Not in the editor yet: PADsynth, SUBsynth, the other voices of the ADsynth, effects of the part.
+    Not in the editor yet: PADsynth, SUBsynth, the amplitude and filter of every voice, effects of the part.
   * Menu Reverb: Preset (13 presets of the engine: halls, rooms, a tunnel...; a preset sets all the
     reverb parameters) and Type: Random, Freeverb, Bandwidth (the last one adds a shimmering,
     slightly detuned smear to the tail). The Rev slider is how much of every part goes into it.

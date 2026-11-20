@@ -94,7 +94,7 @@ static void*
 FakeEngine(void* arg)
 {
 	int s = *(int*)arg;
-	for (int n = 0; n < 4; n++) {
+	for (int n = 0; n < 5; n++) {
 		char buf[1024];
 		struct sockaddr_in from;
 		socklen_t len = sizeof(from);
@@ -162,6 +162,7 @@ main()
 		CHECK(z.GetFloat("/answer/float", &fv) && fv == 2.5f);
 		CHECK(!z.GetInt("/nobody/answers", &iv, 80));		// no answer: false after the timeout
 		z.SaveInstrument(3, "/tmp/x.xiz");
+		z.SetBool("/x/y", true);
 		pthread_join(th, NULL);
 		CHECK(ZynControl::AdPath(2, "GlobalPar/PVolume") == "/part2/kit0/adpars/GlobalPar/PVolume");
 		close(s);

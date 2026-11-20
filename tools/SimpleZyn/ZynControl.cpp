@@ -138,6 +138,13 @@ ZynControl::SetFloat(const std::string& path, float value)
 
 
 void
+ZynControl::SetBool(const std::string& path, bool value)
+{
+	fOsc.Send(path.c_str(), value ? "T" : "F");
+}
+
+
+void
 ZynControl::Perform(const std::string& path)
 {
 	fOsc.Send(path.c_str(), "");

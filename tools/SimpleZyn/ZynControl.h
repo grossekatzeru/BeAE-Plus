@@ -34,6 +34,7 @@ public:
 	static std::string	AdPath(int part, const char* suffix);
 	void		SetInt(const std::string& path, int value);
 	void		SetFloat(const std::string& path, float value);
+	void		SetBool(const std::string& path, bool value);
 	void		Perform(const std::string& path);					// a message without arguments
 	// The engine answers a request without arguments with the value. false: no answer in time.
 	bool		GetInt(const std::string& path, int* value, int timeoutMs = 150);
