@@ -31,6 +31,7 @@ private:
 	void			_Build();
 	void			_Load();
 	void			_Send(int index);
+	void			_ShowValue(int index, bool inStatus);
 	void			_Save(const BMessage* message);
 
 	ZynControl*		fZyn;

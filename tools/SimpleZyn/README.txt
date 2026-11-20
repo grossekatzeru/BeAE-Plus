@@ -24,6 +24,8 @@ What it does
     selected part and reads the real values from the engine (if the engine does not answer, the
     status line says so). File > Save instrument as... writes a .xiz file; the default folder is
     ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
+    A slider shows its value in the units of the sound (seconds, semitones, octaves, Hz) in the
+    status line while it is moved, and in its tool tip.
     Not in the editor yet: PADsynth, SUBsynth, the other voices of the ADsynth, effects of the part.
   * Menu Reverb: Preset (13 presets of the engine: halls, rooms, a tunnel...; a preset sets all the
     reverb parameters) and Type: Random, Freeverb, Bandwidth (the last one adds a shimmering,

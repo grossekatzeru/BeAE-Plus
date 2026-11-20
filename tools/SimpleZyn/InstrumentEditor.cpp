@@ -164,6 +164,47 @@ MakeChoice(const char* name, const char* const* items, int count, uint32 what, c
 }
 
 
+// What the value of a slider means in the units of the sound: seconds, semitones, Hz...
+// (the formulas are those of the engine)
+static BString
+ValueText(const EditParam& p, int slider)
+{
+	const double value = ValueFromSlider(p, slider);
+	char text[64];
+	if (strstr(p.path, "_dt") != NULL) {
+		// the times of the envelopes: 0 .. 127 is 0 .. 41 s, exponentially
+		const double seconds = (pow(2.0, slider / 127.0 * 12.0) - 1.0) / 100.0;
+		if (seconds < 1.0)
+			snprintf(text, sizeof(text), "%.0f ms", seconds * 1000.0);
+		else
+			snprintf(text, sizeof(text), "%.1f s", seconds);
+	} else if (strstr(p.path, "FreqEnvelope") != NULL && strstr(p.path, "_val") != NULL) {
+		// 64 = the pitch of the note
+		const double semitones = (slider < 64 ? -1.0 : 1.0) * (pow(2.0, 6.0 * fabs(slider / 64.0 - 1.0)) - 1.0);
+		snprintf(text, sizeof(text), "%+.1f semitones", semitones);
+	} else if (strstr(p.path, "FilterEnvelope") != NULL && strstr(p.path, "_val") != NULL) {
+		// 64 = the cutoff of the filter
+		snprintf(text, sizeof(text), "%+.1f octaves", (slider - 64.0) / 64.0 * 6.0);
+	} else if (strstr(p.path, "basefreq") != NULL) {
+		if (value >= 1000.0)
+			snprintf(text, sizeof(text), "%.1f kHz", value / 1000.0);
+		else
+			snprintf(text, sizeof(text), "%.0f Hz", value);
+	} else if (strstr(p.path, "FreqLfo/freq") != NULL) {
+		snprintf(text, sizeof(text), "%.2f Hz", value);
+	} else if (strstr(p.path, "baseq") != NULL) {
+		snprintf(text, sizeof(text), "Q %.1f", value);
+	} else if (strstr(p.path, "GlobalPar/octave") != NULL) {
+		snprintf(text, sizeof(text), "%+d octaves", slider);
+	} else if (strstr(p.path, "coarsedetune") != NULL) {
+		snprintf(text, sizeof(text), "%+d semitones", slider);
+	} else {
+		snprintf(text, sizeof(text), "%d", slider);
+	}
+	return BString(text);
+}
+
+
 InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uint32 savedWhat)
 	:
 	BWindow(BRect(120, 100, 700, 420), "Instrument", B_TITLED_WINDOW,
@@ -299,6 +340,8 @@ InstrumentEditor::_Load()
 {
 	if (!fZyn->IsConnected()) {
 		fStatus->SetText("The engine is not connected");
+		for (int i = 0; i < kParamCount; i++)
+			_ShowValue(i, false);
 		return;
 	}
 	bool answered = true;
@@ -335,6 +378,8 @@ InstrumentEditor::_Load()
 				answered = false;
 		}
 	}
+	for (int i = 0; i < kParamCount; i++)
+		_ShowValue(i, false);
 	if (!answered) {
 		fStatus->SetText("The engine did not answer: the sliders show typical values, not the real ones");
 		return;
@@ -349,11 +394,32 @@ InstrumentEditor::_Load()
 }
 
 
+// the description and the value in the units of the sound: in the tool tip, and when the slider
+// is moved, in the status line as well
+void
+InstrumentEditor::_ShowValue(int index, bool inStatus)
+{
+	if (index < 0 || index >= kParamCount || fSliders[index] == NULL)
+		return;
+	const EditParam& p = kParams[index];
+	const BString value = ValueText(p, fSliders[index]->Value());
+	BString tip(p.tip);
+	tip << "\n" << value;
+	fSliders[index]->SetToolTip(tip.String());
+	if (inStatus) {
+		BString text(p.group);
+		text << " " << p.label << ": " << value << "   (" << p.tip << ")";
+		fStatus->SetText(text.String());
+	}
+}
+
+
 void
 InstrumentEditor::_Send(int index)
 {
 	if (index < 0 || index >= kParamCount || fSliders[index] == NULL)
 		return;
+	_ShowValue(index, true);
 	const EditParam& p = kParams[index];
 	const std::string path = ZynControl::AdPath(fPart, p.path);
 	const double value = ValueFromSlider(p, fSliders[index]->Value());
