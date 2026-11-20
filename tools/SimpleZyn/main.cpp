@@ -400,6 +400,15 @@ private:
 		}
 		reverbMenu->AddItem(fRevTypeMenu);
 		menuBar->AddItem(reverbMenu);
+		// MIDI: the player of .mid files will be here, and the start of MidiKeyboard
+		BMenu* midiMenu = new BMenu("MIDI");
+		BMenuItem* playerItem = new BMenuItem("MIDI player" B_UTF8_ELLIPSIS, new BMessage('mpl_'));
+		playerItem->SetEnabled(false);		// not built yet
+		midiMenu->AddItem(playerItem);
+		BMenuItem* keyboardItem = new BMenuItem("MIDI keyboard", new BMessage('mkb_'));
+		keyboardItem->SetEnabled(false);	// not built yet
+		midiMenu->AddItem(keyboardItem);
+		menuBar->AddItem(midiMenu);
 
 		// ---- box "Part": a MIDI channel (part) with its instrument
 		BPopUpMenu* partMenu = new BPopUpMenu("part");
