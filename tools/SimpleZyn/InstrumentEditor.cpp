@@ -1,6 +1,7 @@
 #include "InstrumentEditor.h"
 
 #include <Box.h>
+#include <Button.h>
 #include <CheckBox.h>
 #include <FilePanel.h>
 #include <FindDirectory.h>
@@ -34,6 +35,7 @@ enum {
 	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
 	MSG_ED_VOICE	= 'edvc',		// voice: "voice"
 	MSG_ED_VON		= 'edvo',		// the voice is on or off
+	MSG_ED_ROW		= 'edrw',		// fold or unfold a row of boxes: "row"
 	MSG_ED_TOGGLE	= 'edtg',		// a switch of the voice (envelope, filter): "index"
 	MSG_ED_STEREO	= 'edst',		// ADsynth: stereo or mono
 	MSG_ED_FXTYPE	= 'edxt',		// effect: "slot", "type"
@@ -395,6 +397,11 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 {
 	for (int t = 0; t < 3; t++)
 		fToggles[t] = NULL;
+	for (int r = 0; r < 4; r++) {
+		fRowViews[r] = NULL;
+		fRowButtons[r] = NULL;
+		fRowNames[r] = "";
+	}
 	for (int slot = 0; slot < kFxSlots; slot++) {
 		fFx[slot].typeField = NULL;
 		fFx[slot].presetField = NULL;
@@ -538,16 +545,35 @@ InstrumentEditor::_Build()
 	fStatus = new BStringView("status", "");
 	fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// a long message must not widen the window
 
+	// every row has a button over it that folds it
+	static const char* const kRowNames[4] = { "Instrument", "Envelopes, pitch, punch", "Voice envelopes",
+		"Effects" };
+	BGroupView* all = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+	all->GroupLayout()->SetInsets(B_USE_WINDOW_INSETS);
+	for (int r = 0; r < 4; r++) {
+		BMessage* rm = new BMessage(MSG_ED_ROW);
+		rm->AddInt32("row", r);
+		fRowNames[r] = kRowNames[r];
+		fRowViews[r] = rows[r];
+		fRowButtons[r] = new BButton("rowButton", "", rm);
+		fRowButtons[r]->SetFlat(true);
+		_UpdateRowButton(r);
+		all->GroupLayout()->AddView(fRowButtons[r]);
+		all->GroupLayout()->AddView(rows[r]);
+	}
+	all->GroupLayout()->AddView(fStatus);
 	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
 		.Add(menuBar)
-		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
-			.SetInsets(B_USE_WINDOW_INSETS)
-			.Add(rows[0])
-			.Add(rows[1])
-			.Add(rows[2])
-			.Add(rows[3])
-			.Add(fStatus)
-		.End();
+		.Add(all);
+}
+
+
+void
+InstrumentEditor::_UpdateRowButton(int row)
+{
+	BString label(fRowViews[row]->IsHidden() ? "\xE2\x96\xB8 " : "\xE2\x96\xBE ");
+	label << fRowNames[row];
+	fRowButtons[row]->SetLabel(label.String());
 }
 
 
@@ -1067,6 +1093,19 @@ InstrumentEditor::MessageReceived(BMessage* message)
 			if (message->FindInt32("voice", &voice) == B_OK && voice >= 0 && voice < kVoiceCount) {
 				fVoice = voice;
 				_Load();
+			}
+			break;
+		}
+		case MSG_ED_ROW: {
+			int32 row;
+			if (message->FindInt32("row", &row) == B_OK && row >= 0 && row < 4) {
+				if (fRowViews[row]->IsHidden())
+					fRowViews[row]->Show();
+				else
+					fRowViews[row]->Hide();
+				_UpdateRowButton(row);
+				Layout(true);
+				ResizeTo(Bounds().Width(), GetLayout()->PreferredSize().height);
 			}
 			break;
 		}

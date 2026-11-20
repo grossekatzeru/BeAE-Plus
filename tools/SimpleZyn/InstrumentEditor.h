@@ -38,6 +38,7 @@ private:
 	void			_ApplyLoaded(const BMessage* result);
 	std::string		_Path(const char* suffix) const;
 	void			_BuildEffects(BGroupView* row);
+	void			_UpdateRowButton(int row);
 	void			_SetFxType(int slot, int type);		// menus and sliders for this effect type
 	void			_SendFxSlider(int slot, int k);
 	std::string		_FxPath(int slot, const char* name, int index = -1) const;	// "VoicePar0/..." is the selected voice
@@ -80,6 +81,9 @@ private:
 	};
 	FxSlot			fFx[3];
 	BCheckBox*		fStereo;
+	BGroupView*		fRowViews[4];		// the rows of boxes that can be folded
+	BButton*		fRowButtons[4];
+	const char*		fRowNames[4];
 	BCheckBox*		fToggles[3];		// voice: envelope and filter switches
 	BMessageRunner*	fFxRunner;			// reads the effect again a moment after a change of its type
 };

@@ -60,7 +60,7 @@ connection of MidiKeyboard.
 
 History
   0.3  Effects of the part with EQ (8 bands) and DynFilter. Per-voice amplitude envelope, filter and
-       filter envelope (VAmp, VFlt, VFEnv). Editor: second row (envelopes, pitch,
+       filter envelope (VAmp, VFlt, VFEnv). Rows of the editor fold with the button over them. Editor: second row (envelopes, pitch,
        Punch), voices 1-8, Stereo, units in the tooltips, values are read from the engine in a
        background thread.
   0.2  Window in the style of the original: System and Instrument boxes, a slider with its own box for
