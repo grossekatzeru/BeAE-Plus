@@ -43,6 +43,7 @@
 
 #include "Banks.h"
 #include "Engine.h"
+#include "InstrumentEditor.h"
 #include "ZynControl.h"
 
 static const char* kAppSignature = "application/x-vnd.SimpleZyn";
@@ -72,6 +73,9 @@ enum {
 	MSG_RECORD = 'rec_',
 	MSG_OPEN_BEAE = 'obea',
 	MSG_NEWRP = 'nrpt',
+	MSG_EDIT_INSTR = 'edin',
+	MSG_EDITOR_REFRESH = 'edrf',
+	MSG_SAVED = 'svdi',
 	MSG_REV_PRESET = 'rvpr',
 	MSG_REV_TYPE = 'rvty',
 	MSG_ADD_FOLDER = 'addf',
@@ -146,6 +150,11 @@ DefaultBankRoots(std::vector<std::string>& roots)
 		path.Append("zynaddsubfx/banks");
 		roots.push_back(path.Path());
 	}
+	// the instruments saved by the editor of SimpleZyn: ~/SimpleZyn/Banks/My
+	if (find_directory(B_USER_DIRECTORY, &path) == B_OK) {
+		path.Append("SimpleZyn/Banks");
+		roots.push_back(path.Path());
+	}
 }
 
 
@@ -174,6 +183,9 @@ public:
 		fSelectedPart(0),
 		fRecording(false),
 		fFinishTries(0),
+		fEditor(NULL),
+		fEditorRunner(NULL),
+		fRescanRunner(NULL),
 		fRevPreset(-1),
 		fRevType(-1),
 		fRunner(NULL),
@@ -197,11 +209,16 @@ public:
 	~MainWindow()
 	{
 		delete fRunner;
+		delete fEditorRunner;
+		delete fRescanRunner;
 		delete fOpenPanel;
 	}
 
 	virtual bool QuitRequested()
 	{
+		if (fEditor != NULL && fEditor->Lock())
+			fEditor->Quit();				// it only hides itself when it is closed
+		fEditor = NULL;
 		if (fRecording)
 			fZyn.RecordStop();
 		be_app->PostMessage(B_QUIT_REQUESTED);
@@ -228,6 +245,7 @@ public:
 				if (message->FindInt32("part", &part) == B_OK && part >= 0 && part < ZYN_PARTS) {
 					fSelectedPart = part;
 					_ShowPart();
+					_UpdateEditor(false);
 				}
 				break;
 			}
@@ -283,6 +301,30 @@ public:
 				}
 				break;
 			}
+			case MSG_EDIT_INSTR:
+				if (fEditor == NULL)
+					fEditor = new InstrumentEditor(&fZyn, BMessenger(this), MSG_SAVED);
+				if (fEditor->Lock()) {
+					if (fEditor->IsHidden())
+						fEditor->Show();
+					else
+						fEditor->Activate();
+					fEditor->Unlock();
+				}
+				_UpdateEditor(false);
+				break;
+			case MSG_EDITOR_REFRESH:
+				if (fEditor != NULL) {
+					BMessage show = InstrumentEditor::MsgSetPart(fSelectedPart,
+						fParts[fSelectedPart].name.c_str());
+					fEditor->PostMessage(&show);
+				}
+				break;
+			case MSG_SAVED:
+				// the engine writes the file a moment later; then the banks are read again
+				delete fRescanRunner;
+				fRescanRunner = new BMessageRunner(BMessenger(this), new BMessage(MSG_RESCAN), 700000, 1);
+				break;
 			case MSG_NEWRP:
 				fNewRPItem->SetMarked(!fNewRPItem->IsMarked());
 				break;
@@ -324,6 +366,8 @@ private:
 	{
 		BMenuBar* menuBar = new BMenuBar("menu");
 		BMenu* file = new BMenu("File");
+		file->AddItem(new BMenuItem("Edit instrument" B_UTF8_ELLIPSIS, new BMessage(MSG_EDIT_INSTR), 'E'));
+		file->AddSeparatorItem();
 		file->AddItem(new BMenuItem("Add banks folder" B_UTF8_ELLIPSIS, new BMessage(MSG_ADD_FOLDER)));
 		file->AddItem(new BMenuItem("Rescan banks", new BMessage(MSG_RESCAN)));
 		fOpenItem = new BMenuItem("Send last recording to BeAE-Plus", new BMessage(MSG_OPEN_BEAE));
@@ -683,6 +727,20 @@ private:
 		}
 	}
 
+	// the editor shows the selected part; after loading an instrument it waits for the engine
+	void _UpdateEditor(bool delayed)
+	{
+		if (fEditor == NULL)
+			return;
+		if (delayed) {
+			delete fEditorRunner;
+			fEditorRunner = new BMessageRunner(BMessenger(this), new BMessage(MSG_EDITOR_REFRESH),
+				500000, 1);
+		} else {
+			PostMessage(MSG_EDITOR_REFRESH);
+		}
+	}
+
 	void _LoadSelected()
 	{
 		int32 at = fInstruments->CurrentSelection();
@@ -694,9 +752,10 @@ private:
 		p.file = ins->file;
 		p.enabled = true;
 		_ShowPart();
-		if (fConnected)
+		if (fConnected) {
 			fZyn.LoadInstrument(fSelectedPart, ins->file);
-		else
+			_UpdateEditor(true);			// the engine needs a moment to load it
+		} else
 			fStatus->SetText("Engine is not ready yet; the instrument will be loaded when it starts");
 	}
 
@@ -879,6 +938,9 @@ private:
 	int							fSelectedPart;
 	bool						fRecording;
 	int							fFinishTries;
+	InstrumentEditor*			fEditor;
+	BMessageRunner*				fEditorRunner;
+	BMessageRunner*				fRescanRunner;
 	int							fRevPreset;		// -1: not chosen, the engine's own
 	int							fRevType;
 	BMenu*						fRevPresetMenu;

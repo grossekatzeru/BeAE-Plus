@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
@@ -170,4 +171,96 @@ OscClient::Send(const char* path, const char* types, ...)
 		return false;
 	fSent++;
 	return true;
+}
+
+
+static bool
+ReadString(const char* buf, size_t size, size_t& at, std::string& out)
+{
+	size_t end = at;
+	while (end < size && buf[end] != 0)
+		end++;
+	if (end >= size)
+		return false;					// no terminating zero
+	out.assign(buf + at, end - at);
+	at += Padded(end - at);
+	return at <= size;
+}
+
+
+bool
+OscParse(const char* buf, size_t size, OscMessage& out)
+{
+	out.path.clear();
+	out.args.clear();
+	size_t at = 0;
+	if (size < 4 || buf[0] != '/')
+		return false;					// also rejects "#bundle"
+	if (!ReadString(buf, size, at, out.path))
+		return false;
+	if (at >= size)
+		return true;					// old style message without type tags
+	std::string tags;
+	if (!ReadString(buf, size, at, tags) || tags.empty() || tags[0] != ',')
+		return false;
+	for (size_t t = 1; t < tags.size(); t++) {
+		OscArg a;
+		a.type = tags[t];
+		a.i = 0;
+		a.f = 0;
+		switch (a.type) {
+			case 'i': {
+				if (at + 4 > size)
+					return false;
+				uint32_t v;
+				memcpy(&v, buf + at, 4);
+				a.i = (int)ntohl(v);
+				at += 4;
+				break;
+			}
+			case 'f': {
+				if (at + 4 > size)
+					return false;
+				uint32_t v;
+				memcpy(&v, buf + at, 4);
+				v = ntohl(v);
+				memcpy(&a.f, &v, 4);
+				at += 4;
+				break;
+			}
+			case 's':
+				if (!ReadString(buf, size, at, a.s))
+					return false;
+				break;
+			case 'T':
+				a.i = 1;
+				break;
+			case 'F':
+				a.i = 0;
+				break;
+			default:
+				return false;
+		}
+		out.args.push_back(a);
+	}
+	return true;
+}
+
+
+bool
+OscClient::Receive(OscMessage& out, int timeoutMs)
+{
+	if (fSocket < 0)
+		return false;
+	struct pollfd p;
+	p.fd = fSocket;
+	p.events = POLLIN;
+	p.revents = 0;
+	if (poll(&p, 1, timeoutMs) <= 0 || !(p.revents & POLLIN))
+		return false;
+	char buf[2048];
+	ssize_t n = recv(fSocket, buf, sizeof(buf), 0);
+	if (n <= 0)
+		return false;
+	return OscParse(buf, (size_t)n, out);
 }

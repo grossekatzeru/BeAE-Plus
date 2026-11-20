@@ -15,6 +15,13 @@ What it does
     The box title shows the instrument of the selected part. Loading an instrument switches the part on.
   * Box "System" (the whole synthesizer): Vol (master volume), Rev (one reverb in system effect 1;
     how much of every part goes into it), Rst (restart the engine) and Rec.
+  * File > Edit instrument (Ctrl+E): a window with the main parameters of the ADsynth of the selected
+    part: Amp (Att, Dec, Sus, Rel), Filter (Cut, Res), Osc (waveform, Shp, Uni, Spr: the shape of
+    the wave, unison size and detune), LFO (Dep, Spd: vibrato) and Vol. The window follows the
+    selected part and reads the real values from the engine (if the engine does not answer, the
+    status line says so). File > Save instrument as... writes a .xiz file; the default folder is
+    ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
+    Not in the editor yet: PADsynth, SUBsynth, the other voices of the ADsynth, effects of the part.
   * Menu Reverb: Preset (13 presets of the engine: halls, rooms, a tunnel...; a preset sets all the
     reverb parameters) and Type: Random, Freeverb, Bandwidth (the last one adds a shimmering,
     slightly detuned smear to the tail). The Rev slider is how much of every part goes into it.

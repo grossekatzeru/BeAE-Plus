@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <string>
 #include <vector>
@@ -87,6 +88,38 @@ Receive(int s)
 }
 
 
+// a fake engine for the queries: answers /answer/int with 42 and /answer/float with 2.5,
+// first sends an unrelated message, and says nothing to anything else
+static void*
+FakeEngine(void* arg)
+{
+	int s = *(int*)arg;
+	for (int n = 0; n < 4; n++) {
+		char buf[1024];
+		struct sockaddr_in from;
+		socklen_t len = sizeof(from);
+		ssize_t got = recvfrom(s, buf, sizeof(buf), 0, (struct sockaddr*)&from, &len);
+		if (got <= 0)
+			continue;
+		OscMessage m;
+		if (!OscParse(buf, (size_t)got, m))
+			continue;
+		char out[256];
+		size_t size = 0;
+		if (m.path == "/answer/int" || m.path == "/answer/float") {
+			size = OscBuild(out, sizeof(out), "/noise", "i", 7);
+			sendto(s, out, size, 0, (struct sockaddr*)&from, len);
+			if (m.path == "/answer/int")
+				size = OscBuild(out, sizeof(out), "/answer/int", "i", 42);
+			else
+				size = OscBuild(out, sizeof(out), "/answer/float", "f", 2.5);
+			sendto(s, out, size, 0, (struct sockaddr*)&from, len);
+		}
+	}
+	return NULL;
+}
+
+
 int
 main()
 {
@@ -100,6 +133,38 @@ main()
 		CHECK(n == 16 + 4);						// 15+1 padded path, ",T" padded
 		n = OscBuild(buf, 8, "/too/long/path", "i", 1);
 		CHECK(n == 0);
+	}
+
+	// --- parsing and queries
+	{
+		char buf[128];
+		size_t n = OscBuild(buf, sizeof(buf), "/x/y", "ifsTF", -5, 1.5, "hello");
+		OscMessage m;
+		CHECK(OscParse(buf, n, m));
+		CHECK(m.path == "/x/y" && m.args.size() == 5);
+		CHECK(m.args[0].type == 'i' && m.args[0].i == -5);
+		CHECK(m.args[1].type == 'f' && m.args[1].f == 1.5f);
+		CHECK(m.args[2].type == 's' && m.args[2].s == "hello");
+		CHECK(m.args[3].type == 'T' && m.args[3].i == 1);
+		CHECK(m.args[4].type == 'F' && m.args[4].i == 0);
+		CHECK(!OscParse("#bundle\0\0\0\0\0\0\0\0\0", 16, m));
+		CHECK(!OscParse(buf, 6, m));						// cut in the middle
+
+		int port;
+		int s = OpenServer(&port);
+		pthread_t th;
+		pthread_create(&th, NULL, FakeEngine, &s);
+		ZynControl z;
+		CHECK(z.Connect(port));
+		int iv = 0;
+		float fv = 0;
+		CHECK(z.GetInt("/answer/int", &iv) && iv == 42);
+		CHECK(z.GetFloat("/answer/float", &fv) && fv == 2.5f);
+		CHECK(!z.GetInt("/nobody/answers", &iv, 80));		// no answer: false after the timeout
+		z.SaveInstrument(3, "/tmp/x.xiz");
+		pthread_join(th, NULL);
+		CHECK(ZynControl::AdPath(2, "GlobalPar/PVolume") == "/part2/kit0/adpars/GlobalPar/PVolume");
+		close(s);
 	}
 
 	// --- ZynControl messages

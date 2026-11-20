@@ -114,6 +114,98 @@ ZynControl::SetReverbType(int type)
 }
 
 
+std::string
+ZynControl::AdPath(int part, const char* suffix)
+{
+	char path[160];
+	snprintf(path, sizeof(path), "/part%d/kit0/adpars/%s", Clamp(part, 0, ZYN_PARTS - 1), suffix);
+	return path;
+}
+
+
+void
+ZynControl::SetInt(const std::string& path, int value)
+{
+	fOsc.Send(path.c_str(), "i", value);
+}
+
+
+void
+ZynControl::SetFloat(const std::string& path, float value)
+{
+	fOsc.Send(path.c_str(), "f", value);
+}
+
+
+void
+ZynControl::Perform(const std::string& path)
+{
+	fOsc.Send(path.c_str(), "");
+}
+
+
+bool
+ZynControl::Query(const std::string& path, OscMessage& answer, int timeoutMs)
+{
+	if (!fOsc.IsOpen())
+		return false;
+	OscMessage old;
+	while (fOsc.Receive(old, 0)) {
+	}										// forget what the engine said before
+	if (!fOsc.Send(path.c_str(), ""))
+		return false;
+	// the engine may also send other messages: wait for the one with our path
+	for (int tries = 0; tries < 20; tries++) {
+		if (!fOsc.Receive(answer, timeoutMs))
+			return false;
+		if (answer.path == path && !answer.args.empty())
+			return true;
+	}
+	return false;
+}
+
+
+bool
+ZynControl::GetInt(const std::string& path, int* value, int timeoutMs)
+{
+	OscMessage m;
+	if (!Query(path, m, timeoutMs))
+		return false;
+	const OscArg& a = m.args[0];
+	if (a.type == 'i' || a.type == 'T' || a.type == 'F')
+		*value = a.i;
+	else if (a.type == 'f')
+		*value = (int)(a.f + (a.f < 0 ? -0.5f : 0.5f));
+	else
+		return false;
+	return true;
+}
+
+
+bool
+ZynControl::GetFloat(const std::string& path, float* value, int timeoutMs)
+{
+	OscMessage m;
+	if (!Query(path, m, timeoutMs))
+		return false;
+	const OscArg& a = m.args[0];
+	if (a.type == 'f')
+		*value = a.f;
+	else if (a.type == 'i')
+		*value = (float)a.i;
+	else
+		return false;
+	return true;
+}
+
+
+void
+ZynControl::SaveInstrument(int part, const std::string& file)
+{
+	fOsc.Send("/save_xiz", "is", Clamp(part, 0, ZYN_PARTS - 1), file.c_str());
+}
+
+
 void
 ZynControl::RecordStart(const std::string& path)
 {

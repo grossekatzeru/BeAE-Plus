@@ -30,6 +30,17 @@ public:
 	void		SetReverbPreset(int preset);						// 0..12, see kReverbPresets in main.cpp
 	void		SetReverbType(int type);							// 0 Random, 1 Freeverb, 2 Bandwidth
 
+	// Any parameter of an instrument's ADsynth: path = "/part0/kit0/adpars/" + suffix
+	static std::string	AdPath(int part, const char* suffix);
+	void		SetInt(const std::string& path, int value);
+	void		SetFloat(const std::string& path, float value);
+	void		Perform(const std::string& path);					// a message without arguments
+	// The engine answers a request without arguments with the value. false: no answer in time.
+	bool		GetInt(const std::string& path, int* value, int timeoutMs = 150);
+	bool		GetFloat(const std::string& path, float* value, int timeoutMs = 150);
+	// Writes the instrument of a part into a .xiz file (the engine writes it)
+	void		SaveInstrument(int part, const std::string& file);
+
 	// Recording into a WAV file (the engine writes the file)
 	void		RecordStart(const std::string& path);
 	void		RecordStop();
@@ -38,6 +49,8 @@ public:
 	void		RecordFinish();
 
 private:
+	bool		Query(const std::string& path, OscMessage& answer, int timeoutMs);
+
 	std::string	PartPath(int part, const char* name) const;
 
 	OscClient	fOsc;

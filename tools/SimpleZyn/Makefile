@@ -3,13 +3,14 @@
 CXX ?= g++
 CXXFLAGS ?= -O2 -Wall
 CORE = Osc.cpp Engine.cpp Banks.cpp ZynControl.cpp
+GUI = InstrumentEditor.cpp
 
-SimpleZyn: main.cpp $(CORE) Osc.h Engine.h Banks.h ZynControl.h
-	$(CXX) $(CXXFLAGS) -o $@ main.cpp $(CORE) -lbe -ltracker -lnetwork
+SimpleZyn: main.cpp $(GUI) $(CORE) Osc.h Engine.h Banks.h ZynControl.h InstrumentEditor.h
+	$(CXX) $(CXXFLAGS) -o $@ main.cpp $(GUI) $(CORE) -lbe -ltracker -lnetwork
 	-if command -v rc >/dev/null 2>&1; then rc -o SimpleZyn.rsrc SimpleZyn.rdef && xres -o $@ SimpleZyn.rsrc; fi
 
 test: test_core.cpp $(CORE) Osc.h Engine.h Banks.h ZynControl.h
-	$(CXX) -std=c++11 -Wall -o test_core test_core.cpp $(CORE)
+	$(CXX) -std=c++11 -Wall -pthread -o test_core test_core.cpp $(CORE)
 	./test_core
 
 clean:
