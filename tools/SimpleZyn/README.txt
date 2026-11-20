@@ -25,6 +25,12 @@ What it does
     selected part and reads the real values from the engine (if the engine does not answer, the
     status line says so). File > Save instrument as... writes a .xiz file; the default folder is
     ~/SimpleZyn/Banks/My, which is scanned like every other bank folder.
+    Punch (Str, Tim: how strong and how long the beginning of the note is) is next to the envelopes,
+    Stereo (the ADsynth plays in stereo or mono) is under Vol of the Out box.
+    The third row is the effects of the part: three slots, each with the type (Reverb, Echo, Chorus,
+    Phaser, Alienwah, Distortion), a preset and the main parameters on sliders. The effect is an
+    insert of the part (the Rev slider of the main window is a separate send reverb). EQ and
+    DynFilter are shown as types but have no sliders yet.
     A slider shows its value in the units of the sound (seconds, semitones, octaves, Hz) in the
     status line while it is moved, and in its tool tip.
     Not in the editor yet: PADsynth, SUBsynth, the amplitude and filter of every voice, effects of the part.

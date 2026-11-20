@@ -8,7 +8,10 @@
 #include <OS.h>
 #include <string>
 
+class BBox;
 class BCheckBox;
+class BMessageRunner;
+class BGroupView;
 class BFilePanel;
 class BMenuField;
 class BSlider;
@@ -33,7 +36,11 @@ private:
 	void			_Build();
 	void			_Load();
 	void			_ApplyLoaded(const BMessage* result);
-	std::string		_Path(const char* suffix) const;	// "VoicePar0/..." is the selected voice
+	std::string		_Path(const char* suffix) const;
+	void			_BuildEffects(BGroupView* row);
+	void			_SetFxType(int slot, int type);		// menus and sliders for this effect type
+	void			_SendFxSlider(int slot, int k);
+	std::string		_FxPath(int slot, const char* name, int index = -1) const;	// "VoicePar0/..." is the selected voice
 	void			_Send(int index);
 	void			_ShowValue(int index, bool inStatus);
 	void			_Save(const BMessage* message);
@@ -56,8 +63,23 @@ private:
 	int				fGeneration;
 	thread_id		fLoader;
 	int32			fLoadedValue[40];	// what the sliders were set to from the engine
+
 	BStringView*	fStatus;
 	BFilePanel*		fSavePanel;
+
+	// the effects of the part
+	struct FxSlot {
+		BMenuField*	typeField;
+		BMenuField*	presetField;
+		BBox*		boxes[5];
+		BSlider*	sliders[5];
+		bool		shown[5];
+		int			type;
+		int32		loaded[5];
+	};
+	FxSlot			fFx[3];
+	BCheckBox*		fStereo;
+	BMessageRunner*	fFxRunner;			// reads the effect again a moment after a change of its type
 };
 
 #endif

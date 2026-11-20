@@ -12,6 +12,7 @@
 #include <Path.h>
 #include <Directory.h>
 #include <Entry.h>
+#include <MessageRunner.h>
 #include <PopUpMenu.h>
 #include <Slider.h>
 #include <String.h>
@@ -33,6 +34,11 @@ enum {
 	MSG_ED_FTYPE	= 'edft',		// filter type: "type"
 	MSG_ED_VOICE	= 'edvc',		// voice: "voice"
 	MSG_ED_VON		= 'edvo',		// the voice is on or off
+	MSG_ED_STEREO	= 'edst',		// ADsynth: stereo or mono
+	MSG_ED_FXTYPE	= 'edxt',		// effect: "slot", "type"
+	MSG_ED_FXPRESET	= 'edxp',		// effect: "slot", "preset"
+	MSG_ED_FXPAR	= 'edxr',		// effect: a slider moved: "slot", "k"
+	MSG_ED_FXRELOAD	= 'edxl',		// read the effects again
 	MSG_ED_LOADED	= 'edld',		// the thread has read the values of the engine
 	MSG_ED_PART		= 'edpt',		// show another part: "part", "name"
 	MSG_ED_SAVE_AS	= 'edsa',		// menu: save the instrument
@@ -102,7 +108,11 @@ static const EditParam kParams[] = {
 	{ 1, "PEnv", "End", "GlobalPar/FreqEnvelope/PR_val", K_INT, 0, 127, 0, 0, 64, false,
 		"Pitch envelope: where the pitch goes when the key is released" },
 	{ 1, "PEnv", "Rel", "GlobalPar/FreqEnvelope/PR_dt", K_INT, 0, 127, 0, 0, 40, false,
-		"Pitch envelope: release time" }
+		"Pitch envelope: release time" },
+	{ 1, "Punch", "Str", "GlobalPar/PPunchStrength", K_INT, 0, 127, 0, 0, 0, false,
+		"Punch: how strong the beginning of the note is" },
+	{ 1, "Punch", "Tim", "GlobalPar/PPunchTime", K_INT, 0, 127, 0, 0, 60, false,
+		"Punch: how long the strong beginning lasts" }
 };
 static const int kParamCount = sizeof(kParams) / sizeof(kParams[0]);
 
@@ -126,6 +136,68 @@ static const char* const kVoices[] = {
 static const int kVoiceCount = sizeof(kVoices) / sizeof(kVoices[0]);
 
 static const char* kWavePath = "VoicePar0/OscilSmp/Pcurrentbasefunc";
+// ---- the effects of the part (three slots): the type, a preset, and the main parameters
+struct FxSlider {
+	const char*	label;
+	int			index;			// the number of the parameter in the engine
+	int			min, max;
+	const char*	tip;
+};
+
+struct FxType {
+	const char*			name;
+	int					count;				// sliders in use
+	FxSlider			sliders[5];
+	const char* const*	presets;
+	int					presetCount;
+};
+
+static const char* const kReverbPresets[] = { "Cathedral 1", "Cathedral 2", "Cathedral 3", "Hall 1", "Hall 2",
+	"Room 1", "Room 2", "Basement", "Tunnel", "Echoed 1", "Echoed 2", "Very long 1", "Very long 2" };
+static const char* const kEchoPresets[] = { "Echo 1", "Echo 2", "Echo 3", "Simple Echo", "Canyon",
+	"Panning Echo 1", "Panning Echo 2", "Panning Echo 3", "Feedback Echo" };
+static const char* const kChorusPresets[] = { "Chorus 1", "Chorus 2", "Chorus 3", "Celeste 1", "Celeste 2",
+	"Flange 1", "Flange 2", "Flange 3", "Flange 4", "Flange 5" };
+static const char* const kPhaserPresets[] = { "Phaser 1", "Phaser 2", "Phaser 3", "Phaser 4", "Phaser 5",
+	"Phaser 6", "APhaser 1", "APhaser 2", "APhaser 3", "APhaser 4", "APhaser 5", "APhaser 6" };
+static const char* const kWahPresets[] = { "Wah 1", "Wah 2", "Wah 3", "Wah 4" };
+static const char* const kDistortionPresets[] = { "Overdrive 1", "Overdrive 2", "A. Exciter 1",
+	"A. Exciter 2", "Guitar Amp", "Quantisize" };
+
+// the order is that of the engine ("efftype")
+static const FxType kFxTypes[] = {
+	{ "None", 0, {}, NULL, 0 },
+	{ "Reverb", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Tim", 2, 0, 127, "Length of the reverb" },
+		{ "Dly", 3, 0, 127, "Delay of the first reflection" }, { "Siz", 11, 0, 127, "Size of the room" },
+		{ "Dmp", 9, 0, 127, "Damping of the low and high frequencies" } },
+		kReverbPresets, 13 },
+	{ "Echo", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Dly", 2, 0, 127, "Length of the echo" },
+		{ "Fbk", 5, 0, 127, "Feedback: how many repeats" }, { "Dmp", 6, 0, 127, "Damping of the high frequencies" },
+		{ "Pan", 1, 0, 127, "Panning" } },
+		kEchoPresets, 9 },
+	{ "Chorus", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Frq", 2, 0, 127, "Speed of the modulation" },
+		{ "Dep", 6, 0, 127, "Depth of the modulation" }, { "Dly", 7, 0, 127, "Delay" },
+		{ "Fbk", 8, 0, 127, "Feedback" } },
+		kChorusPresets, 10 },
+	{ "Phaser", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Frq", 2, 0, 127, "Speed of the modulation" },
+		{ "Dep", 6, 0, 127, "Depth of the modulation" }, { "Fbk", 7, 0, 127, "Feedback" },
+		{ "Stg", 8, 1, 12, "Stages" } },
+		kPhaserPresets, 12 },
+	{ "Alienwah", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Frq", 2, 0, 127, "Speed of the modulation" },
+		{ "Dep", 6, 0, 127, "Depth of the modulation" }, { "Fbk", 7, 0, 127, "Feedback" },
+		{ "Dly", 8, 1, 100, "Delay" } },
+		kWahPresets, 4 },
+	{ "Distortion", 5, { { "Vol", 0, 0, 127, "Wet level" }, { "Drv", 3, 0, 127, "Drive: how much the signal is pushed" },
+		{ "Out", 4, 0, 127, "Output level" }, { "LPF", 7, 0, 127, "Low pass filter" },
+		{ "HPF", 8, 0, 127, "High pass filter" } },
+		kDistortionPresets, 6 },
+	{ "EQ", 0, {}, NULL, 0 },
+	{ "DynFilter", 0, {}, NULL, 0 }
+};
+static const int kFxTypeCount = sizeof(kFxTypes) / sizeof(kFxTypes[0]);
+static const int kFxSlots = 3;
+static const int kFxSliders = 5;
+
 static const char* kPreparePath = "VoicePar0/OscilSmp/prepare";
 
 // the parameter of the voice are written for "VoicePar0/"; the number of the voice replaces the 0
@@ -257,8 +329,21 @@ InstrumentEditor::InstrumentEditor(ZynControl* zyn, const BMessenger& owner, uin
 	fGeneration(0),
 	fLoader(-1),
 	fStatus(NULL),
-	fSavePanel(NULL)
+	fSavePanel(NULL),
+	fStereo(NULL),
+	fFxRunner(NULL)
 {
+	for (int slot = 0; slot < kFxSlots; slot++) {
+		fFx[slot].typeField = NULL;
+		fFx[slot].presetField = NULL;
+		fFx[slot].type = 0;
+		for (int k = 0; k < kFxSliders; k++) {
+			fFx[slot].boxes[k] = NULL;
+			fFx[slot].sliders[k] = NULL;
+			fFx[slot].shown[k] = true;
+			fFx[slot].loaded[k] = kNotRead;
+		}
+	}
 	for (int i = 0; i < 40; i++) {
 		fSliders[i] = NULL;
 		fLoadedValue[i] = kNotRead;
@@ -275,6 +360,7 @@ InstrumentEditor::~InstrumentEditor()
 		wait_for_thread(fLoader, &unused);	// the thread ends quickly: it stops at the next question
 	}
 	delete fSavePanel;
+	delete fFxRunner;
 }
 
 
@@ -307,8 +393,9 @@ InstrumentEditor::_Build()
 	menuBar->AddItem(file);
 
 	// one box around every group, inside it one box with the name for each slider
-	BGroupView* rows[2];
-	for (int r = 0; r < 2; r++)
+	BGroupView* rows[3];
+	BGroupView* outColumn = NULL;
+	for (int r = 0; r < 3; r++)
 		rows[r] = new BGroupView(B_HORIZONTAL, B_USE_DEFAULT_SPACING);
 	const char* lastGroup = NULL;
 	BGroupView* groupRow = NULL;
@@ -342,6 +429,8 @@ InstrumentEditor::_Build()
 			}
 			groupColumn->GroupLayout()->AddView(groupRow);
 			rows[p.row]->GroupLayout()->AddView(groupBox);
+			if (strcmp(p.group, "Out") == 0)
+				outColumn = groupColumn;
 			lastGroup = p.group;
 		}
 
@@ -365,6 +454,15 @@ InstrumentEditor::_Build()
 		groupRow->GroupLayout()->AddView(box);
 	}
 
+	// the Out group: the volume of the ADsynth, and whether it is stereo
+	if (outColumn != NULL) {
+		fStereo = new BCheckBox("stereo", "Stereo", new BMessage(MSG_ED_STEREO));
+		fStereo->SetToolTip("The ADsynth plays in stereo (off: mono)");
+		fStereo->SetValue(B_CONTROL_ON);
+		outColumn->GroupLayout()->AddView(fStereo);
+	}
+	_BuildEffects(rows[2]);
+
 	fStatus = new BStringView("status", "");
 	fStatus->SetExplicitMinSize(BSize(50, B_SIZE_UNSET));	// a long message must not widen the window
 
@@ -374,6 +472,7 @@ InstrumentEditor::_Build()
 			.SetInsets(B_USE_WINDOW_INSETS)
 			.Add(rows[0])
 			.Add(rows[1])
+			.Add(rows[2])
 			.Add(fStatus)
 		.End();
 }
@@ -383,6 +482,148 @@ std::string
 InstrumentEditor::_Path(const char* suffix) const
 {
 	return ResolvePath(fPart, fVoice, suffix);
+}
+
+
+std::string
+InstrumentEditor::_FxPath(int slot, const char* name, int index) const
+{
+	char path[96];
+	if (index >= 0)
+		snprintf(path, sizeof(path), "/part%d/partefx%d/%s%d", fPart, slot, name, index);
+	else
+		snprintf(path, sizeof(path), "/part%d/partefx%d/%s", fPart, slot, name);
+	return path;
+}
+
+
+// the third row: three effect slots, each with the type, a preset and up to five sliders
+void
+InstrumentEditor::_BuildEffects(BGroupView* row)
+{
+	for (int slot = 0; slot < kFxSlots; slot++) {
+		FxSlot& fx = fFx[slot];
+		char title[16];
+		snprintf(title, sizeof(title), "Effect %d", slot + 1);
+
+		BPopUpMenu* types = new BPopUpMenu("type");
+		for (int t = 0; t < kFxTypeCount; t++) {
+			BMessage* m = new BMessage(MSG_ED_FXTYPE);
+			m->AddInt32("slot", slot);
+			m->AddInt32("type", t);
+			BMenuItem* item = new BMenuItem(kFxTypes[t].name, m);
+			if (t == 0)
+				item->SetMarked(true);
+			types->AddItem(item);
+		}
+		types->SetLabelFromMarked(true);
+		fx.typeField = new BMenuField("fxType", NULL, types);
+		fx.typeField->SetToolTip("Type of the effect");
+
+		BPopUpMenu* presets = new BPopUpMenu("Preset");
+		fx.presetField = new BMenuField("fxPreset", NULL, presets);
+		fx.presetField->SetToolTip("Presets of the effect");
+
+		BGroupView* menus = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		menus->GroupLayout()->AddView(fx.typeField);
+		menus->GroupLayout()->AddView(fx.presetField);
+
+		BGroupView* sliders = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
+		for (int k = 0; k < kFxSliders; k++) {
+			BMessage* m = new BMessage(MSG_ED_FXPAR);
+			m->AddInt32("slot", slot);
+			m->AddInt32("k", k);
+			BSlider* slider = new BSlider("fxSlider", NULL, m, 0, 127, B_VERTICAL);
+			slider->SetModificationMessage(new BMessage(*m));
+			slider->SetHashMarks(B_HASH_MARKS_NONE);
+			slider->SetExplicitMinSize(BSize(B_SIZE_UNSET, 150));
+			slider->SetExplicitMaxSize(BSize(B_SIZE_UNSET, 150));
+			fx.sliders[k] = slider;
+			BGroupView* inner = new BGroupView(B_VERTICAL, 0);
+			inner->GroupLayout()->SetInsets(B_USE_SMALL_INSETS);
+			inner->GroupLayout()->AddView(slider);
+			fx.boxes[k] = new BBox("fxBox", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+				B_FANCY_BORDER, inner);
+			fx.boxes[k]->SetLabel("Vol");
+			sliders->GroupLayout()->AddView(fx.boxes[k]);
+		}
+
+		BGroupView* column = new BGroupView(B_VERTICAL, B_USE_SMALL_SPACING);
+		column->GroupLayout()->SetInsets(B_USE_SMALL_INSETS);
+		column->GroupLayout()->AddView(menus);
+		column->GroupLayout()->AddView(sliders);
+		BBox* group = new BBox("fxGroup", B_WILL_DRAW | B_FRAME_EVENTS | B_NAVIGABLE_JUMP,
+			B_FANCY_BORDER, column);
+		group->SetLabel(title);
+		row->GroupLayout()->AddView(group);
+		_SetFxType(slot, 0);
+	}
+}
+
+
+// the menu of presets and the sliders of an effect type (the values come later from the engine)
+void
+InstrumentEditor::_SetFxType(int slot, int type)
+{
+	if (type < 0 || type >= kFxTypeCount)
+		type = 0;
+	FxSlot& fx = fFx[slot];
+	fx.type = type;
+	const FxType& ft = kFxTypes[type];
+
+	fx.typeField->Menu()->ItemAt(type)->SetMarked(true);
+
+	BMenu* menu = fx.presetField->Menu();
+	while (menu->CountItems() > 0)
+		delete menu->RemoveItem((int32)0);
+	for (int i = 0; i < ft.presetCount; i++) {
+		BMessage* m = new BMessage(MSG_ED_FXPRESET);
+		m->AddInt32("slot", slot);
+		m->AddInt32("preset", i);
+		menu->AddItem(new BMenuItem(ft.presets[i], m));
+	}
+	fx.presetField->SetEnabled(ft.presetCount > 0);
+
+	for (int k = 0; k < kFxSliders; k++) {
+		const bool use = k < ft.count;
+		if (use) {
+			const FxSlider& fs = ft.sliders[k];
+			fx.boxes[k]->SetLabel(fs.label);
+			fx.sliders[k]->SetLimits(fs.min, fs.max);
+			fx.sliders[k]->SetToolTip(fs.tip);
+		}
+		if (use && !fx.shown[k]) {
+			fx.boxes[k]->Show();
+			fx.shown[k] = true;
+		} else if (!use && fx.shown[k]) {
+			fx.boxes[k]->Hide();
+			fx.shown[k] = false;
+		}
+	}
+}
+
+
+void
+InstrumentEditor::_SendFxSlider(int slot, int k)
+{
+	if (slot < 0 || slot >= kFxSlots || k < 0 || k >= kFxSliders)
+		return;
+	FxSlot& fx = fFx[slot];
+	if (k >= kFxTypes[fx.type].count)
+		return;
+	if (fx.loaded[k] != kNotRead) {
+		// the message of a slider that was set from the engine: nothing to write
+		const bool same = fx.sliders[k]->Value() == fx.loaded[k];
+		fx.loaded[k] = kNotRead;
+		if (same)
+			return;
+	}
+	const FxSlider& fs = kFxTypes[fx.type].sliders[k];
+	fZyn->SetInt(_FxPath(slot, "parameter", fs.index), fx.sliders[k]->Value());
+	char text[96];
+	snprintf(text, sizeof(text), "Effect %d, %s: %d   (%s)", slot + 1, fs.label,
+		(int)fx.sliders[k]->Value(), fs.tip);
+	fStatus->SetText(text);
 }
 
 
@@ -463,6 +704,30 @@ LoadThread(void* data)
 	snprintf(padPath, sizeof(padPath), "/part%d/kit0/Padenabled", job->part);
 	result.AddInt32("ad", answered && zyn->GetInt(padPath, &v, timeout) ? v : kNotRead);
 
+	// the effects of the part: the type of every slot and the values of its sliders
+	for (int slot = 0; slot < kFxSlots; slot++) {
+		char path[96];
+		snprintf(path, sizeof(path), "/part%d/partefx%d/efftype", job->part, slot);
+		int type = kNotRead;
+		if (!*job->cancel && zyn->GetInt(path, &v, timeout))
+			type = v;
+		result.AddInt32("fxtype", type);
+		for (int k = 0; k < kFxSliders; k++) {
+			int32 slider = kNotRead;
+			if (type > 0 && type < kFxTypeCount && k < kFxTypes[type].count && !*job->cancel) {
+				snprintf(path, sizeof(path), "/part%d/partefx%d/parameter%d", job->part, slot,
+					kFxTypes[type].sliders[k].index);
+				if (zyn->GetInt(path, &v, timeout))
+					slider = v;
+			}
+			result.AddInt32("fxslider", slider);
+		}
+	}
+	int stereo = kNotRead;
+	if (answered && zyn->GetInt(ZynControl::AdPath(job->part, "GlobalPar/PStereo"), &v, timeout))
+		stereo = v;
+	result.AddInt32("stereo", stereo);
+
 	job->target.SendMessage(&result);
 	delete job;
 	return 0;
@@ -532,6 +797,24 @@ InstrumentEditor::_ApplyLoaded(const BMessage* result)
 			fSliders[i]->SetValue(value);
 		}
 		_ShowValue(i, false);
+	}
+	if (fStereo != NULL && result->FindInt32("stereo", &value) == B_OK && value != kNotRead) {
+		fApplying = true;
+		fStereo->SetValue(value ? B_CONTROL_ON : B_CONTROL_OFF);
+		fApplying = false;
+	}
+	for (int slot = 0; slot < kFxSlots; slot++) {
+		int32 type = kNotRead;
+		if (result->FindInt32("fxtype", slot, &type) != B_OK || type == kNotRead)
+			continue;
+		_SetFxType(slot, type);
+		for (int k = 0; k < kFxSliders; k++) {
+			int32 v = kNotRead;
+			if (result->FindInt32("fxslider", slot * kFxSliders + k, &v) == B_OK && v != kNotRead) {
+				fFx[slot].loaded[k] = v;
+				fFx[slot].sliders[k]->SetValue(v);
+			}
+		}
 	}
 	bool answered = false;
 	result->FindBool("answered", &answered);
@@ -621,6 +904,41 @@ InstrumentEditor::MessageReceived(BMessage* message)
 			}
 			break;
 		}
+		case MSG_ED_STEREO:
+			if (!fApplying)
+				fZyn->SetBool(ZynControl::AdPath(fPart, "GlobalPar/PStereo"), fStereo->Value() == B_CONTROL_ON);
+			break;
+		case MSG_ED_FXTYPE: {
+			int32 slot, type;
+			if (message->FindInt32("slot", &slot) == B_OK && message->FindInt32("type", &type) == B_OK
+				&& slot >= 0 && slot < kFxSlots) {
+				fZyn->SetInt(_FxPath(slot, "efftype"), type);
+				_SetFxType(slot, type);
+				// the engine needs a moment to make the effect; then its values are read
+				delete fFxRunner;
+				fFxRunner = new BMessageRunner(BMessenger(this), new BMessage(MSG_ED_FXRELOAD), 400000, 1);
+			}
+			break;
+		}
+		case MSG_ED_FXPRESET: {
+			int32 slot, preset;
+			if (message->FindInt32("slot", &slot) == B_OK && message->FindInt32("preset", &preset) == B_OK
+				&& slot >= 0 && slot < kFxSlots) {
+				fZyn->SetInt(_FxPath(slot, "preset"), preset);
+				delete fFxRunner;
+				fFxRunner = new BMessageRunner(BMessenger(this), new BMessage(MSG_ED_FXRELOAD), 400000, 1);
+			}
+			break;
+		}
+		case MSG_ED_FXPAR: {
+			int32 slot, k;
+			if (message->FindInt32("slot", &slot) == B_OK && message->FindInt32("k", &k) == B_OK)
+				_SendFxSlider(slot, k);
+			break;
+		}
+		case MSG_ED_FXRELOAD:
+			_Load();
+			break;
 		case MSG_ED_VOICE: {
 			int32 voice;
 			if (message->FindInt32("voice", &voice) == B_OK && voice >= 0 && voice < kVoiceCount) {
