@@ -6,6 +6,8 @@
 #include <Locker.h>
 #include <MidiProducer.h>
 #include <MidiSynth.h>
+#include <deque>
+#include <Locker.h>
 #include <OS.h>
 
 #include "SmfFile.h"
@@ -31,8 +33,9 @@ public:
 	// synthesizer of the system, played by this program) or kRouteOff (nothing is sent)
 	enum { kRouteZyn = 0, kRouteGm = 1, kRouteOff = 2 };
 	void			SetChannelRoute(int channel, int route);
-	bool			EnableGm();					// loads the synthesizer of the system; false: it does not work
-	bool			IsGmReady();
+	void			RequestGm();				// loads the synthesizer of the system in the background
+	bool			IsGmReady();				// loaded
+	bool			GmFailed();					// it could not be loaded
 	void			SetGmVolume(int channel, int value);	// 0..127
 	bigtime_t		LastNoteTime(int channel, int* velocity);	// when a note of the channel started
 
@@ -46,7 +49,9 @@ private:
 	int64			_PositionLocked();
 	void			_SendLocked(const SmfEvent& e);
 	void			_SilenceLocked();
-	void			_SendGmLocked(const SmfEvent& e);
+	void			_GmPost(uint8 status, uint8 d1, uint8 d2);	// a command for the synthesizer of the system
+	void			_GmRun();
+	static int32	_GmThreadEntry(void* self);
 	void			_SeekLocked(int64 us);
 	bool			_Passes(const SmfEvent& e) const;
 
@@ -61,8 +66,15 @@ private:
 	bool			fSendPrograms;
 	bool			fSendControllers;
 	int				fRoute[16];
+	// the synthesizer of the system is used only by its own thread: its calls may wait a long time
 	BMidiSynth		fGm;
-	bool			fGmReady;
+	BLocker			fGmLock;
+	std::deque<uint32>	fGmQueue;			// status | d1 << 8 | d2 << 16; status 0: load the synthesizer
+	sem_id			fGmSem;
+	thread_id		fGmThread;
+	volatile bool	fGmReady;
+	volatile bool	fGmLoading;
+	volatile bool	fGmFailed;
 	bigtime_t		fLastNote[16];
 	int				fLastVelocity[16];
 	thread_id		fThread;

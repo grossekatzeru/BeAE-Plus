@@ -16,7 +16,12 @@ SongPlayer::SongPlayer()
 	fLoop(false),
 	fSendPrograms(false),
 	fSendControllers(false),
+	fGmLock("gm"),
+	fGmSem(-1),
+	fGmThread(-1),
 	fGmReady(false),
+	fGmLoading(false),
+	fGmFailed(false),
 	fThread(-1),
 	fQuit(false)
 {
@@ -38,6 +43,10 @@ SongPlayer::Start()
 	fThread = spawn_thread(_ThreadEntry, "MIDI player", B_URGENT_DISPLAY_PRIORITY, this);
 	if (fThread < B_OK)
 		return false;
+	fGmSem = create_sem(0, "gm commands");
+	fGmThread = spawn_thread(_GmThreadEntry, "GM synth", B_NORMAL_PRIORITY, this);
+	if (fGmThread >= B_OK)
+		resume_thread(fGmThread);
 	resume_thread(fThread);
 	return true;
 }
@@ -57,6 +66,16 @@ SongPlayer::Shutdown()
 		fPlaying = false;
 		_SilenceLocked();
 	}
+	fQuit = true;
+	if (fGmThread >= B_OK) {
+		release_sem(fGmSem);
+		status_t result;
+		wait_for_thread(fGmThread, &result);	// it ends after the commands that wait
+		fGmThread = -1;
+	}
+	if (fGmSem >= 0)
+		delete_sem(fGmSem);
+	fGmSem = -1;
 	Unregister();
 }
 
@@ -170,9 +189,9 @@ SongPlayer::SetChannelRoute(int channel, int route)
 	if (fRoute[channel] == kRouteZyn) {
 		SprayControlChange(channel, 123, 0, 0);
 		SprayControlChange(channel, 120, 0, 0);
-	} else if (fRoute[channel] == kRouteGm && fGmReady) {
-		fGm.ControlChange(channel + 1, 123, 0, 0);
-		fGm.ControlChange(channel + 1, 120, 0, 0);
+	} else if (fRoute[channel] == kRouteGm) {
+		_GmPost(0xB0 | channel, 123, 0);
+		_GmPost(0xB0 | channel, 120, 0);
 	}
 	fRoute[channel] = route;
 	// the new place needs the programs and controllers that are in force now
@@ -180,25 +199,30 @@ SongPlayer::SetChannelRoute(int channel, int route)
 }
 
 
-bool
-SongPlayer::EnableGm()
+void
+SongPlayer::RequestGm()
 {
-	BAutolock lock(fLock);
-	if (fGmReady)
-		return true;
-	if (be_synth == NULL || be_synth->LoadSynthData(B_BIG_SYNTH) != B_OK)
-		return false;
-	fGm.EnableInput(true, true);
-	fGmReady = true;
-	return true;
+	if (fGmReady || fGmLoading || fGmThread < B_OK)
+		return;
+	fGmLoading = true;
+	fGmFailed = false;
+	BAutolock lock(fGmLock);
+	fGmQueue.push_back(0);
+	release_sem(fGmSem);
 }
 
 
 bool
 SongPlayer::IsGmReady()
 {
-	BAutolock lock(fLock);
 	return fGmReady;
+}
+
+
+bool
+SongPlayer::GmFailed()
+{
+	return fGmFailed;
 }
 
 
@@ -207,9 +231,7 @@ SongPlayer::SetGmVolume(int channel, int value)
 {
 	if (channel < 0 || channel > 15)
 		return;
-	BAutolock lock(fLock);
-	if (fGmReady)
-		fGm.ControlChange(channel + 1, 7, value, 0);
+	_GmPost(0xB0 | channel, 7, value);
 }
 
 
@@ -347,7 +369,7 @@ SongPlayer::_SendLocked(const SmfEvent& e)
 		return;
 	uchar ch = e.status & 0x0F;
 	if (fRoute[ch] == kRouteGm) {
-		_SendGmLocked(e);
+		_GmPost(e.status, e.d1, e.d2);
 		if ((e.status & 0xF0) == 0x90) {
 			fLastNote[ch] = system_time();
 			fLastVelocity[ch] = e.d2;
@@ -370,21 +392,64 @@ SongPlayer::_SendLocked(const SmfEvent& e)
 }
 
 
-// the channel of the synthesizer of the system counts from 1
+// a command for the thread of the synthesizer (the synthesizer is slow to load and may wait)
 void
-SongPlayer::_SendGmLocked(const SmfEvent& e)
+SongPlayer::_GmPost(uint8 status, uint8 d1, uint8 d2)
 {
 	if (!fGmReady)
 		return;
-	const uchar ch = (e.status & 0x0F) + 1;
-	switch (e.status & 0xF0) {
-		case 0x80:	fGm.NoteOff(ch, e.d1, e.d2, 0); break;
-		case 0x90:	fGm.NoteOn(ch, e.d1, e.d2, 0); break;
-		case 0xA0:	fGm.KeyPressure(ch, e.d1, e.d2, 0); break;
-		case 0xB0:	fGm.ControlChange(ch, e.d1, e.d2, 0); break;
-		case 0xC0:	fGm.ProgramChange(ch, e.d1, 0); break;
-		case 0xD0:	fGm.ChannelPressure(ch, e.d1, 0); break;
-		case 0xE0:	fGm.PitchBend(ch, e.d1, e.d2, 0); break;
+	BAutolock lock(fGmLock);
+	fGmQueue.push_back((uint32)status | ((uint32)d1 << 8) | ((uint32)d2 << 16));
+	release_sem(fGmSem);
+}
+
+
+int32
+SongPlayer::_GmThreadEntry(void* self)
+{
+	static_cast<SongPlayer*>(self)->_GmRun();
+	return 0;
+}
+
+
+void
+SongPlayer::_GmRun()
+{
+	while (!fQuit) {
+		acquire_sem_etc(fGmSem, 1, B_RELATIVE_TIMEOUT, 200000);
+		for (;;) {
+			uint32 command;
+			{
+				BAutolock lock(fGmLock);
+				if (fGmQueue.empty())
+					break;
+				command = fGmQueue.front();
+				fGmQueue.pop_front();
+			}
+			const uint8 status = command & 0xFF;
+			const uint8 d1 = (command >> 8) & 0xFF;
+			const uint8 d2 = (command >> 16) & 0xFF;
+			if (status == 0) {
+				if (be_synth != NULL && be_synth->LoadSynthData(B_BIG_SYNTH) == B_OK) {
+					fGm.EnableInput(true, true);
+					fGmReady = true;
+				} else {
+					fGmFailed = true;
+				}
+				fGmLoading = false;
+				continue;
+			}
+			const uchar ch = (status & 0x0F) + 1;			// the synthesizer counts channels from 1
+			switch (status & 0xF0) {
+				case 0x80:	fGm.NoteOff(ch, d1, d2, 0); break;
+				case 0x90:	fGm.NoteOn(ch, d1, d2, 0); break;
+				case 0xA0:	fGm.KeyPressure(ch, d1, d2, 0); break;
+				case 0xB0:	fGm.ControlChange(ch, d1, d2, 0); break;
+				case 0xC0:	fGm.ProgramChange(ch, d1, 0); break;
+				case 0xD0:	fGm.ChannelPressure(ch, d1, 0); break;
+				case 0xE0:	fGm.PitchBend(ch, d1, d2, 0); break;
+			}
+		}
 	}
 }
 
@@ -393,10 +458,10 @@ void
 SongPlayer::_SilenceLocked()
 {
 	if (fGmReady) {
-		for (int ch = 1; ch <= 16; ch++) {
-			fGm.ControlChange(ch, 64, 0, 0);
-			fGm.ControlChange(ch, 123, 0, 0);
-			fGm.ControlChange(ch, 120, 0, 0);
+		for (int ch = 0; ch < 16; ch++) {
+			_GmPost(0xB0 | ch, 64, 0);
+			_GmPost(0xB0 | ch, 123, 0);
+			_GmPost(0xB0 | ch, 120, 0);
 		}
 	}
 	for (uchar ch = 0; ch < 16; ch++) {
@@ -446,16 +511,16 @@ SongPlayer::_SeekLocked(int64 us)
 	for (int c = 0; c < 16; c++) {
 		const bool gm = fRoute[c] == kRouteGm;
 		if (program[c] >= 0) {
-			if (gm && fGmReady)
-				fGm.ProgramChange(c + 1, program[c], 0);
+			if (gm)
+				_GmPost(0xC0 | c, program[c], 0);
 			else if (!gm)
 				SprayProgramChange(c, program[c], 0);
 		}
 		for (int k = 0; k < 120; k++) {
 			if (controller[c][k] < 0)
 				continue;
-			if (gm && fGmReady)
-				fGm.ControlChange(c + 1, k, controller[c][k], 0);
+			if (gm)
+				_GmPost(0xB0 | c, k, controller[c][k]);
 			else if (!gm)
 				SprayControlChange(c, k, controller[c][k], 0);
 		}

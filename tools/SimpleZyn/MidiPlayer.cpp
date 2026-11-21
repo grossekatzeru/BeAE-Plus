@@ -245,6 +245,7 @@ MidiPlayerWindow::_Build()
 		row.solo = new BCheckBox("solo", "S", new BMessage(MSG_MP_SWITCH));
 		row.solo->SetToolTip("Play only the channels with S");
 		row.used = false;
+		row.pendingGm = false;
 
 		BGroupView* line = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
 		line->GroupLayout()->AddView(row.channel);
@@ -340,15 +341,13 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 				&& channel >= 0 && channel < 16 && route >= 0 && route < kRoutes) {
 				Row& row = fRows[channel];
 				if (route == SongPlayer::kRouteGm && !fPlayer->IsGmReady()) {
+					// the synthesizer loads in the background: the row switches when it is ready
+					row.pendingGm = true;
+					fPlayer->RequestGm();
 					fStatus->SetText("Loading the General MIDI synthesizer of the system...");
-					UpdateIfNeeded();
-					if (!fPlayer->EnableGm()) {
-						(new BAlert("err", "The General MIDI synthesizer of the system could not be loaded.",
-							"OK", NULL, NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT))->Go(NULL);
-						row.route->Menu()->ItemAt(row.routeIndex)->SetMarked(true);
-						break;
-					}
+					break;
 				}
+				row.pendingGm = false;
 				row.routeIndex = route;
 				_ShowRoute(channel);
 				_ApplyChannels();
@@ -380,6 +379,7 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 		}
 		case MSG_MP_TICK: {
 			_UpdateDisplay();
+			_CheckGm();
 			bigtime_t now = system_time();
 			for (int ch = 0; ch < 16; ch++) {
 				if (!fRows[ch].used)
@@ -441,6 +441,40 @@ MidiPlayerWindow::_Load(const entry_ref& ref)
 
 
 // the rows of the table for the channels of the file
+// the rows that wait for the synthesizer of the system
+void
+MidiPlayerWindow::_CheckGm()
+{
+	bool waiting = false;
+	for (int ch = 0; ch < 16; ch++)
+		waiting = waiting || fRows[ch].pendingGm;
+	if (!waiting)
+		return;
+	const bool ready = fPlayer->IsGmReady();
+	if (!ready && !fPlayer->GmFailed())
+		return;
+	for (int ch = 0; ch < 16; ch++) {
+		Row& row = fRows[ch];
+		if (!row.pendingGm)
+			continue;
+		row.pendingGm = false;
+		if (ready) {
+			row.routeIndex = SongPlayer::kRouteGm;
+			_ShowRoute(ch);
+		} else {
+			row.route->Menu()->ItemAt(row.routeIndex)->SetMarked(true);
+		}
+	}
+	if (ready) {
+		_ApplyChannels();
+		fStatus->SetText("The General MIDI synthesizer is ready");
+	} else {
+		(new BAlert("err", "The General MIDI synthesizer of the system could not be loaded.", "OK", NULL,
+			NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT))->Go(NULL);
+	}
+}
+
+
 // what the row shows for the place where the channel sounds
 void
 MidiPlayerWindow::_ShowRoute(int ch)
@@ -470,6 +504,7 @@ MidiPlayerWindow::_ShowSong(const SmfSong& song)
 		Row& row = fRows[ch];
 		const SmfChannel& c = song.channels[ch];
 		row.used = c.notes > 0;
+		row.pendingGm = false;
 		BView* line = fTable->ChildAt(ch);
 		if (!row.used) {
 			if (!line->IsHidden())

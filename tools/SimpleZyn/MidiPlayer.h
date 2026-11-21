@@ -48,6 +48,7 @@ private:
 		BCheckBox*		mute;
 		BCheckBox*		solo;
 		int				routeIndex;		// 0 Zyn, 1 GM synth, 2 off
+		bool			pendingGm;		// waits for the synthesizer of the system to load
 		bool			used;			// the file plays this channel
 	};
 
@@ -55,6 +56,7 @@ private:
 	void			_Load(const entry_ref& ref);
 	void			_ShowSong(const SmfSong& song);
 	void			_ShowRoute(int channel);
+	void			_CheckGm();
 	void			_ApplyChannels();	// route, mute and solo of all rows go to the player
 	void			_PickInstrument(int channel);
 	void			_ShowTime(int64 us);
