@@ -4,6 +4,7 @@
 #ifndef MIDI_PLAYER_H
 #define MIDI_PLAYER_H
 
+#include <Entry.h>
 #include <Window.h>
 #include <String.h>
 #include <string>
@@ -48,6 +49,9 @@ private:
 		BCheckBox*		mute;
 		BCheckBox*		solo;
 		int				routeIndex;		// 0 Zyn, 1 GM synth, 2 off
+		std::string		instrumentFile;	// the instrument of Zyn chosen for the channel (empty: as it is)
+		std::string		instrumentName;
+		int				savedGmVolume;	// the volume that waits for the synthesizer of the system
 		bool			pendingGm;		// waits for the synthesizer of the system to load
 		bool			used;			// the file plays this channel
 	};
@@ -57,6 +61,10 @@ private:
 	void			_ShowSong(const SmfSong& song);
 	void			_ShowRoute(int channel);
 	void			_CheckGm();
+	void			_MarkDirty();
+	void			_SaveMap();			// the table is saved as an attribute of the .mid file
+	void			_LoadMap();
+	void			_ForgetMap();
 	void			_ApplyChannels();	// route, mute and solo of all rows go to the player
 	void			_PickInstrument(int channel);
 	void			_ShowTime(int64 us);
@@ -86,6 +94,10 @@ private:
 	int32			fDestId;
 	bool			fDragging;
 	bool			fLoaded;
+	entry_ref		fRef;				// the file that is open
+	SmfSong			fSong;
+	bool			fDirty;
+	bigtime_t		fDirtyTime;
 };
 
 #endif

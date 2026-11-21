@@ -9,7 +9,11 @@
 #include <FilePanel.h>
 #include <LayoutBuilder.h>
 #include <Menu.h>
+#include <MenuBar.h>
 #include <MenuField.h>
+#include <Node.h>
+#include <fs_attr.h>
+#include <TypeConstants.h>
 #include <MenuItem.h>
 #include <MessageRunner.h>
 #include <MidiConsumer.h>
@@ -38,6 +42,7 @@ enum {
 	MSG_MP_ROUTE	= 'mprt',		// "channel", "route"
 	MSG_MP_SWITCH	= 'mpsw',		// mute or solo changed
 	MSG_MP_VOLUME	= 'mpvl',		// "channel": the volume slider of a row
+	MSG_MP_FORGET	= 'mpfg',
 	MSG_MP_INSTR	= 'mpin'		// the button of the instrument: "channel"
 };
 
@@ -135,7 +140,9 @@ MidiPlayerWindow::MidiPlayerWindow(ZynControl* zyn, const std::vector<Bank>& ban
 	fTicks(0),
 	fDestId(-1),
 	fDragging(false),
-	fLoaded(false)
+	fLoaded(false),
+	fDirty(false),
+	fDirtyTime(0)
 {
 	fPlayerOk = fPlayer->Start();
 	_Build();
@@ -147,6 +154,7 @@ MidiPlayerWindow::MidiPlayerWindow(ZynControl* zyn, const std::vector<Bank>& ban
 bool
 MidiPlayerWindow::QuitRequested()
 {
+	_SaveMap();
 	fPlayer->Stop();						// the window only hides itself
 	Hide();
 	return false;
@@ -156,6 +164,7 @@ MidiPlayerWindow::QuitRequested()
 void
 MidiPlayerWindow::Quit()
 {
+	_SaveMap();
 	delete fRunner;
 	fRunner = NULL;
 	delete fPanel;
@@ -246,6 +255,7 @@ MidiPlayerWindow::_Build()
 		row.solo->SetToolTip("Play only the channels with S");
 		row.used = false;
 		row.pendingGm = false;
+		row.savedGmVolume = -1;
 
 		BGroupView* line = new BGroupView(B_HORIZONTAL, B_USE_SMALL_SPACING);
 		line->GroupLayout()->AddView(row.channel);
@@ -261,7 +271,19 @@ MidiPlayerWindow::_Build()
 		fTable->GroupLayout()->AddView(line);
 	}
 
-	BLayoutBuilder::Group<>(this, B_VERTICAL, B_USE_SMALL_SPACING)
+	BMenuBar* menuBar = new BMenuBar("menu");
+	BMenu* fileMenu = new BMenu("File");
+	fileMenu->AddItem(new BMenuItem("Open" B_UTF8_ELLIPSIS, new BMessage(MSG_MP_OPEN), 'O'));
+	fileMenu->AddSeparatorItem();
+	fileMenu->AddItem(new BMenuItem("Close", new BMessage(B_QUIT_REQUESTED), 'W'));
+	menuBar->AddItem(fileMenu);
+	BMenu* mapMenu = new BMenu("Mapping");
+	mapMenu->AddItem(new BMenuItem("Forget the saved mapping of this file", new BMessage(MSG_MP_FORGET)));
+	menuBar->AddItem(mapMenu);
+
+	BLayoutBuilder::Group<>(this, B_VERTICAL, 0)
+		.Add(menuBar)
+		.AddGroup(B_VERTICAL, B_USE_SMALL_SPACING)
 		.SetInsets(B_USE_WINDOW_INSETS)
 		.AddGroup(B_HORIZONTAL, B_USE_SMALL_SPACING)
 			.Add(open)
@@ -278,7 +300,8 @@ MidiPlayerWindow::_Build()
 		.End()
 		.Add(fTempo)
 		.Add(fTable)
-		.Add(fStatus);
+		.Add(fStatus)
+		.End();
 }
 
 
@@ -351,6 +374,7 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 				row.routeIndex = route;
 				_ShowRoute(channel);
 				_ApplyChannels();
+				_MarkDirty();
 			}
 			break;
 		}
@@ -362,14 +386,19 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 					fPlayer->SetGmVolume(channel, value);
 				else
 					fZyn->SetVolume(channel, value);
+				_MarkDirty();
 				char text[64];
 				snprintf(text, sizeof(text), "Channel %d volume: %d", (int)channel + 1, value);
 				fStatus->SetText(text);
 			}
 			break;
 		}
+		case MSG_MP_FORGET:
+			_ForgetMap();
+			break;
 		case MSG_MP_SWITCH:
 			_ApplyChannels();
+			_MarkDirty();
 			break;
 		case MSG_MP_INSTR: {
 			int32 channel;
@@ -380,6 +409,8 @@ MidiPlayerWindow::MessageReceived(BMessage* message)
 		case MSG_MP_TICK: {
 			_UpdateDisplay();
 			_CheckGm();
+			if (fDirty && system_time() - fDirtyTime > 1000000)
+				_SaveMap();
 			bigtime_t now = system_time();
 			for (int ch = 0; ch < 16; ch++) {
 				if (!fRows[ch].used)
@@ -423,6 +454,10 @@ MidiPlayerWindow::_Load(const entry_ref& ref)
 		(new BAlert("err", error.c_str(), "OK", NULL, NULL, B_WIDTH_AS_USUAL, B_STOP_ALERT))->Go(NULL);
 		return;
 	}
+	_SaveMap();								// the table of the file that was open
+	fPlayer->Stop();
+	fRef = ref;
+	fSong = song;
 	fPlayer->SetSong(song);
 	fLoaded = true;
 	fPlay->SetEnabled(true);
@@ -436,11 +471,140 @@ MidiPlayerWindow::_Load(const entry_ref& ref)
 	fFile->SetText(text.String());
 	SetTitle(BString("MIDI player - ") << ref.name);
 	_ShowSong(song);
+	_LoadMap();
 	_UpdateDisplay();
 }
 
 
 // the rows of the table for the channels of the file
+static const char* const kMapAttribute = "SimpleZyn:channels";
+
+
+void
+MidiPlayerWindow::_MarkDirty()
+{
+	if (!fLoaded)
+		return;
+	if (!fDirty)
+		fDirtyTime = system_time();
+	fDirty = true;
+}
+
+
+// the table (where every channel sounds, its instrument, volume, M and S) goes into an attribute
+// of the .mid file: it stays with the file when the file is renamed or moved
+void
+MidiPlayerWindow::_SaveMap()
+{
+	fDirty = false;
+	if (!fLoaded)
+		return;
+	BMessage map;
+	for (int ch = 0; ch < 16; ch++) {
+		const Row& row = fRows[ch];
+		if (!row.used)
+			continue;
+		BMessage c;
+		c.AddInt32("channel", ch);
+		c.AddInt32("route", row.pendingGm ? (int32)SongPlayer::kRouteGm : (int32)row.routeIndex);
+		c.AddString("file", row.instrumentFile.c_str());
+		c.AddString("name", row.instrumentName.c_str());
+		c.AddInt32("volume", row.volume->Value());
+		c.AddBool("mute", row.mute->Value() == B_CONTROL_ON);
+		c.AddBool("solo", row.solo->Value() == B_CONTROL_ON);
+		map.AddMessage("ch", &c);
+	}
+	const ssize_t size = map.FlattenedSize();
+	if (size <= 0)
+		return;
+	std::vector<char> buffer((size_t)size);
+	if (map.Flatten(&buffer[0], size) != B_OK)
+		return;
+	BNode node(&fRef);
+	if (node.InitCheck() == B_OK)
+		node.WriteAttr(kMapAttribute, B_MESSAGE_TYPE, 0, &buffer[0], (size_t)size);
+}
+
+
+void
+MidiPlayerWindow::_LoadMap()
+{
+	BNode node(&fRef);
+	attr_info info;
+	if (node.InitCheck() != B_OK || node.GetAttrInfo(kMapAttribute, &info) != B_OK || info.size <= 0
+		|| info.size > 1024 * 1024)
+		return;
+	std::vector<char> buffer((size_t)info.size);
+	if (node.ReadAttr(kMapAttribute, B_MESSAGE_TYPE, 0, &buffer[0], buffer.size()) != info.size)
+		return;
+	BMessage map;
+	if (map.Unflatten(&buffer[0]) != B_OK)
+		return;
+
+	bool wantsGm = false;
+	BMessage c;
+	for (int32 i = 0; map.FindMessage("ch", i, &c) == B_OK; i++) {
+		int32 ch, route, volume;
+		if (c.FindInt32("channel", &ch) != B_OK || ch < 0 || ch > 15 || !fRows[ch].used
+			|| c.FindInt32("route", &route) != B_OK || route < 0 || route >= kRoutes)
+			continue;
+		Row& row = fRows[ch];
+		bool mute = false, solo = false;
+		c.FindBool("mute", &mute);
+		c.FindBool("solo", &solo);
+		row.mute->SetValue(mute ? B_CONTROL_ON : B_CONTROL_OFF);
+		row.solo->SetValue(solo ? B_CONTROL_ON : B_CONTROL_OFF);
+		if (c.FindInt32("volume", &volume) != B_OK)
+			volume = row.volume->Value();
+		if (volume < 0)
+			volume = 0;
+		if (volume > 127)
+			volume = 127;
+		row.route->Menu()->ItemAt(route)->SetMarked(true);
+		if (route == SongPlayer::kRouteGm) {
+			row.pendingGm = true;			// it switches when the synthesizer is loaded
+			row.savedGmVolume = volume;
+			wantsGm = true;
+			continue;
+		}
+		row.routeIndex = route;
+		row.volume->SetValue(volume);
+		BString file, name;
+		if (c.FindString("file", &file) == B_OK && file.Length() > 0 && BEntry(file.String()).Exists()) {
+			fZyn->SetChannel(ch, ch);
+			fZyn->LoadInstrument(ch, file.String());
+			row.instrumentFile = file.String();
+			if (c.FindString("name", &name) == B_OK)
+				row.instrumentName = name.String();
+			row.instrument->SetLabel(row.instrumentName.c_str());
+		}
+		if (route == SongPlayer::kRouteZyn)
+			fZyn->SetVolume(ch, volume);
+	}
+	_ApplyChannels();
+	if (wantsGm) {
+		fPlayer->RequestGm();
+		fStatus->SetText("Loading the General MIDI synthesizer of the system...");
+	} else {
+		fStatus->SetText("The saved mapping of the file is restored");
+	}
+}
+
+
+void
+MidiPlayerWindow::_ForgetMap()
+{
+	if (!fLoaded)
+		return;
+	BNode node(&fRef);
+	if (node.InitCheck() == B_OK)
+		node.RemoveAttr(kMapAttribute);
+	fDirty = false;
+	_ShowSong(fSong);
+	fStatus->SetText("The saved mapping is deleted, the table is as at the start");
+}
+
+
 // the rows that wait for the synthesizer of the system
 void
 MidiPlayerWindow::_CheckGm()
@@ -467,6 +631,7 @@ MidiPlayerWindow::_CheckGm()
 	}
 	if (ready) {
 		_ApplyChannels();
+		_MarkDirty();
 		fStatus->SetText("The General MIDI synthesizer is ready");
 	} else {
 		(new BAlert("err", "The General MIDI synthesizer of the system could not be loaded.", "OK", NULL,
@@ -484,8 +649,10 @@ MidiPlayerWindow::_ShowRoute(int ch)
 	row.instrument->SetEnabled(!gm);
 	if (gm) {
 		row.instrument->SetLabel("(from the file)");
-		row.volume->SetValue(100);
-		fPlayer->SetGmVolume(ch, 100);
+		const int volume = row.savedGmVolume >= 0 ? row.savedGmVolume : 100;
+		row.savedGmVolume = -1;
+		row.volume->SetValue(volume);
+		fPlayer->SetGmVolume(ch, volume);
 	} else if (strcmp(row.instrument->Label(), "(from the file)") == 0) {
 		row.instrument->SetLabel("(as it is in Zyn)");
 		char path[48];
@@ -533,6 +700,9 @@ MidiPlayerWindow::_ShowSong(const SmfSong& song)
 		BMenu* menu = row.route->Menu();
 		menu->ItemAt(0)->SetMarked(true);
 		row.instrument->SetLabel("(as it is in Zyn)");
+		row.instrumentFile = "";
+		row.instrumentName = "";
+		row.savedGmVolume = -1;
 		row.instrument->SetEnabled(true);
 		// the volume of the part as the engine has it now
 		char path[48];
@@ -594,12 +764,18 @@ MidiPlayerWindow::_PickInstrument(int channel)
 	if (m != NULL && m->FindInt32("bank", &bank) == B_OK) {
 		if (bank < 0) {
 			fRows[channel].instrument->SetLabel("(as it is in Zyn)");
+			fRows[channel].instrumentFile = "";
+			fRows[channel].instrumentName = "";
+			_MarkDirty();
 		} else if (m->FindInt32("instrument", &ins) == B_OK && bank < (int32)fBanks.size()
 			&& ins >= 0 && ins < (int32)fBanks[bank].instruments.size()) {
 			const Instrument& instrument = fBanks[bank].instruments[ins];
 			fZyn->SetChannel(channel, channel);
 			fZyn->LoadInstrument(channel, instrument.file);
 			fRows[channel].instrument->SetLabel(instrument.name.c_str());
+			fRows[channel].instrumentFile = instrument.file;
+			fRows[channel].instrumentName = instrument.name;
+			_MarkDirty();
 			// it sounds now
 			fRows[channel].routeIndex = SongPlayer::kRouteZyn;
 			fRows[channel].route->Menu()->ItemAt(0)->SetMarked(true);

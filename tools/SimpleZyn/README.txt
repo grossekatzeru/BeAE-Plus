@@ -67,6 +67,10 @@ MIDI player (menu MIDI > MIDI player...)
   the banks: the choice loads the instrument into the Zyn part of the same number (channel N plays
   part N) and sets the part to listen to that channel. Every row has a volume slider (the volume of that part). "(as it is in Zyn)" does not change the part.
   Program changes and controllers of the file are not sent: the instruments are the ones you chose.
+  The table is saved by itself into the attribute "SimpleZyn:channels" of the .mid file (where every
+  channel sounds, its Zyn instrument, volume, M and S) and is restored when you open the file again:
+  the attribute stays with the file if it is renamed or moved (on a BFS volume). Menu Mapping > Forget
+  the saved mapping of this file deletes it.
   The menu "where it sounds" has three choices: Zyn, GM synth and off. GM synth is the General MIDI
   synthesizer of Haiku (the one the system MidiPlayer uses; it loads when you first choose it, it takes
   a moment): the channel is played with the instrument of the file (programs and drums of General
