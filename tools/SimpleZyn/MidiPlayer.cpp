@@ -235,7 +235,10 @@ MidiPlayerWindow::_Build()
 		BMessage* im = new BMessage(MSG_MP_INSTR);
 		im->AddInt32("channel", ch);
 		row.instrument = new BButton("instrument", "(as it is in Zyn)", im);
+		// the button takes all the space between the menu and the slider, whatever its label is
 		row.instrument->SetExplicitMinSize(BSize(210, B_SIZE_UNSET));
+		row.instrument->SetExplicitPreferredSize(BSize(210, B_SIZE_UNSET));
+		row.instrument->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNSET));
 		row.instrument->SetToolTip("Choose the instrument of the synthesizer for this channel");
 
 		BMessage* vm = new BMessage(MSG_MP_VOLUME);
@@ -262,7 +265,7 @@ MidiPlayerWindow::_Build()
 		line->GroupLayout()->AddView(row.name);
 		line->GroupLayout()->AddView(row.activity);
 		line->GroupLayout()->AddView(row.route);
-		line->GroupLayout()->AddView(row.instrument);
+		line->GroupLayout()->AddView(row.instrument, 1.0f);
 		line->GroupLayout()->AddView(row.volume);
 		line->GroupLayout()->AddView(row.mute);
 		line->GroupLayout()->AddView(row.solo);
