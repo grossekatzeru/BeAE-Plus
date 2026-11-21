@@ -66,6 +66,7 @@ private:
 	bool			fSendPrograms;
 	bool			fSendControllers;
 	int				fRoute[16];
+	int				fGmVolume[16];		// the volume of the slider of every channel of the synthesizer
 	// the synthesizer of the system is used only by its own thread: its calls may wait a long time
 	BMidiSynth		fGm;
 	BLocker			fGmLock;

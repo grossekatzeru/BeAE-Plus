@@ -27,6 +27,7 @@ SongPlayer::SongPlayer()
 {
 	for (int ch = 0; ch < 16; ch++) {
 		fRoute[ch] = kRouteZyn;
+		fGmVolume[ch] = 100;
 		fLastNote[ch] = 0;
 		fLastVelocity[ch] = 0;
 	}
@@ -194,6 +195,8 @@ SongPlayer::SetChannelRoute(int channel, int route)
 		_GmPost(0xB0 | channel, 120, 0);
 	}
 	fRoute[channel] = route;
+	if (route == kRouteGm)
+		_GmPost(0xB0 | channel, 7, fGmVolume[channel]);
 	// the new place needs the programs and controllers that are in force now
 	_SeekLocked(_PositionLocked());
 }
@@ -231,6 +234,7 @@ SongPlayer::SetGmVolume(int channel, int value)
 {
 	if (channel < 0 || channel > 15)
 		return;
+	fGmVolume[channel] = value;
 	_GmPost(0xB0 | channel, 7, value);
 }
 
@@ -343,6 +347,9 @@ SongPlayer::_Passes(const SmfEvent& e) const
 	uint8 cmd = e.status & 0xF0;
 	const int route = fRoute[e.status & 0x0F];
 	if (route == kRouteOff)
+		return false;
+	// "reset all controllers" of the file would put the volume back to the maximum
+	if (cmd == 0xB0 && e.d1 == 121)
 		return false;
 	if (route == kRouteGm) {
 		// the synthesizer plays the file as it is, only the volume belongs to the slider of the row
@@ -462,6 +469,7 @@ SongPlayer::_SilenceLocked()
 			_GmPost(0xB0 | ch, 64, 0);
 			_GmPost(0xB0 | ch, 123, 0);
 			_GmPost(0xB0 | ch, 120, 0);
+			_GmPost(0xB0 | ch, 7, fGmVolume[ch]);		// the volume of the slider stays
 		}
 	}
 	for (uchar ch = 0; ch < 16; ch++) {
