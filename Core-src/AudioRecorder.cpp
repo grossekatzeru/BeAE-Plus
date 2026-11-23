@@ -359,6 +359,8 @@ status_t AudioRecorder::SetCardInput(const char *name)
 					err = B_OK;
 				break;
 			}
+			if (err == B_OK)
+				break;		// записывается только первый АЦП (так читает и системная «Звукозапись»): второй не трогаем
 		}
 		delete web;
 	}
