@@ -6,6 +6,9 @@
 #include <MediaRoster.h>
 #include <MediaAddOn.h>
 #include <MediaRecorder.h>
+#include <ParameterWeb.h>
+#include <FindDirectory.h>
+#include <Path.h>
 #include <Autolock.h>
 #include <OS.h>
 #include <stdio.h>
@@ -125,6 +128,81 @@ size_t AudioRecorder::ReadListened(float *dst, size_t maxFrames)
 		dst[i] = fRing[(size_t)((start + i) % (int64)fRing.size())];
 	fRingRead = fRingWritten;
 	return (size_t)avail;
+}
+
+// Диагностика: все параметры узла системного входа (выбор входа, усиление) в файл ~/BeAE_input_params.txt.
+// Пишется один раз за запуск при первом открытии системного входа.
+static void DumpNodeParameters(BMediaRoster *roster, const media_node &node)
+{
+	static bool done = false;
+	if (done)
+		return;
+	done = true;
+
+	BPath path;
+	if (find_directory(B_USER_DIRECTORY, &path) != B_OK)
+		return;
+	path.Append("BeAE_input_params.txt");
+	FILE *f = fopen(path.Path(), "w");
+	if (f == NULL)
+		return;
+
+	live_node_info info;
+	if (roster->GetLiveNodeInfo(node, &info) == B_OK)
+		fprintf(f, "Node: '%s' (id %d, kind 0x%x)\n", info.name, (int)node.node, (unsigned)node.kind);
+
+	BParameterWeb *web = NULL;
+	status_t err = roster->GetParameterWebFor(node, &web);
+	fprintf(f, "GetParameterWebFor: %s\n", strerror(err));
+	if (err == B_OK && web != NULL) {
+		fprintf(f, "Parameters: %d\n\n", (int)web->CountParameters());
+		for (int32 i = 0; i < web->CountParameters(); i++) {
+			BParameter *p = web->ParameterAt(i);
+			if (p == NULL)
+				continue;
+			const char *type = "?";
+			switch (p->Type()) {
+				case BParameter::B_NULL_PARAMETER: type = "null"; break;
+				case BParameter::B_DISCRETE_PARAMETER: type = "discrete"; break;
+				case BParameter::B_CONTINUOUS_PARAMETER: type = "continuous"; break;
+				default: break;
+			}
+			fprintf(f, "[%d] id=%d name='%s' kind='%s' type=%s group='%s' in=%d out=%d\n",
+				(int)i, (int)p->ID(), p->Name(), p->Kind(), type,
+				p->Group() ? p->Group()->Name() : "-",
+				(int)p->CountInputs(), (int)p->CountOutputs());
+
+			if (p->Type() == BParameter::B_DISCRETE_PARAMETER) {
+				BDiscreteParameter *d = dynamic_cast<BDiscreteParameter*>(p);
+				int32 value = 0;
+				size_t size = sizeof(value);
+				bigtime_t when = 0;
+				status_t verr = d ? d->GetValue(&value, &size, &when) : B_ERROR;
+				fprintf(f, "    value=%d (%s) size=%d\n", (int)value, strerror(verr), (int)size);
+				if (d != NULL) {
+					for (int32 k = 0; k < d->CountItems(); k++)
+						fprintf(f, "    item %d: '%s' = %d\n", (int)k, d->ItemNameAt(k), (int)d->ItemValueAt(k));
+				}
+			} else if (p->Type() == BParameter::B_CONTINUOUS_PARAMETER) {
+				BContinuousParameter *c = dynamic_cast<BContinuousParameter*>(p);
+				float values[8] = {0};
+				size_t size = sizeof(values);
+				bigtime_t when = 0;
+				status_t verr = c ? c->GetValue(values, &size, &when) : B_ERROR;
+				if (c != NULL) {
+					fprintf(f, "    min=%g max=%g step=%g unit='%s' channels=%d\n",
+						c->MinValue(), c->MaxValue(), c->ValueStep(), c->Unit(), (int)c->CountChannels());
+				}
+				fprintf(f, "    values (%s, %d bytes):", strerror(verr), (int)size);
+				for (size_t k = 0; k < size / sizeof(float) && k < 8; k++)
+					fprintf(f, " %g", values[k]);
+				fprintf(f, "\n");
+			}
+		}
+		delete web;
+	}
+	fclose(f);
+	fprintf(stderr, "BeAE: input node parameters written to %s\n", path.Path());
 }
 
 // Живой узел-источник «сырого» звука с заданным именем; узел берётся (GetNodeFor), снимать - ReleaseNode.
@@ -275,6 +353,7 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 			return err;
 		}
 		fHaveNode = true;
+		DumpNodeParameters(roster, fInputNode);
 	}
 
 	if (fHaveNode)
