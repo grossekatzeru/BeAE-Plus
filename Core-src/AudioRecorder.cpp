@@ -18,6 +18,7 @@
 #include "AudioRecorder.h"
 #include "RecordConvert.h"
 #include "Mixer.h"
+#include "Preferences.h"
 
 static const size_t kChunkFloats = 1 << 20;		// 4 МБ на блок
 
@@ -257,6 +258,114 @@ static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_nod
 	return B_NAME_NOT_FOUND;
 }
 
+// Настоящий ли это вход карты: у драйвера в списке «Input» лежат и выходные пины (Line out, Speaker, Rear ...).
+static bool IsCardInputName(const char *name)
+{
+	BString n(name);
+	n.ToLower();
+	if (n.FindFirst("mic") >= 0 || n.FindFirst("aux") >= 0 || n.FindFirst("cd") >= 0
+			|| n.FindFirst("digital") >= 0 || n.FindFirst("spdif") >= 0 || n.FindFirst("stereo mix") >= 0)
+		return n.FindFirst(" out") < 0;
+	return n.Length() >= 3 && n.FindFirst(" in") == n.Length() - 3;		// заканчивается на « in» (Line in)
+}
+
+// Параметры выбора входа (kind «Input») узла; web принадлежит вызывающему.
+static void CollectInputMuxes(BParameterWeb *web, std::vector<BDiscreteParameter*> &out)
+{
+	for (int32 i = 0; i < web->CountParameters(); i++) {
+		BParameter *p = web->ParameterAt(i);
+		if (p == NULL || p->Type() != BParameter::B_DISCRETE_PARAMETER || p->Kind() == NULL)
+			continue;
+		if (strcmp(p->Kind(), B_INPUT_MUX) != 0)
+			continue;
+		BDiscreteParameter *d = dynamic_cast<BDiscreteParameter*>(p);
+		if (d != NULL)
+			out.push_back(d);
+	}
+}
+
+void AudioRecorder::ListCardInputs(std::vector<BString> &names, BString *current)
+{
+	names.clear();
+	if (current) *current = "";
+	BMediaRoster *roster = BMediaRoster::Roster();
+	if (roster == NULL)
+		return;
+	media_node node;
+	if (roster->GetAudioInput(&node) != B_OK)
+		return;
+	BParameterWeb *web = NULL;
+	if (roster->GetParameterWebFor(node, &web) == B_OK && web != NULL) {
+		std::vector<BDiscreteParameter*> muxes;
+		CollectInputMuxes(web, muxes);
+		for (size_t m = 0; m < muxes.size(); m++) {
+			BDiscreteParameter *d = muxes[m];
+			if (m == 0) {
+				for (int32 k = 0; k < d->CountItems(); k++) {
+					if (!IsCardInputName(d->ItemNameAt(k)))
+						continue;
+					BString n(d->ItemNameAt(k));
+					bool dup = false;
+					for (size_t j = 0; j < names.size(); j++)
+						if (names[j] == n) { dup = true; break; }
+					if (!dup)
+						names.push_back(n);
+				}
+			}
+			if (current != NULL && current->Length() == 0) {
+				int32 value = 0;
+				size_t size = sizeof(value);
+				bigtime_t when = 0;
+				if (d->GetValue(&value, &size, &when) == B_OK) {
+					for (int32 k = 0; k < d->CountItems(); k++) {
+						if (d->ItemValueAt(k) == value && IsCardInputName(d->ItemNameAt(k))) {
+							*current = d->ItemNameAt(k);
+							break;
+						}
+					}
+				}
+			}
+		}
+		delete web;
+	}
+	roster->ReleaseNode(node);
+}
+
+status_t AudioRecorder::SetCardInput(const char *name)
+{
+	if (name == NULL || name[0] == 0)
+		return B_BAD_VALUE;
+	BMediaRoster *roster = BMediaRoster::Roster();
+	if (roster == NULL)
+		return B_ERROR;
+	media_node node;
+	status_t err = roster->GetAudioInput(&node);
+	if (err != B_OK)
+		return err;
+	err = B_NAME_NOT_FOUND;
+	BParameterWeb *web = NULL;
+	if (roster->GetParameterWebFor(node, &web) == B_OK && web != NULL) {
+		std::vector<BDiscreteParameter*> muxes;
+		CollectInputMuxes(web, muxes);
+		for (size_t m = 0; m < muxes.size(); m++) {
+			BDiscreteParameter *d = muxes[m];
+			for (int32 k = 0; k < d->CountItems(); k++) {
+				if (strcmp(d->ItemNameAt(k), name) != 0)
+					continue;
+				int32 value = d->ItemValueAt(k);
+				status_t serr = d->SetValue(&value, sizeof(value), 0);
+				fprintf(stderr, "BeAE: card input '%s' -> parameter %d: %s\n", name, (int)d->ID(), strerror(serr));
+				if (serr == B_OK)
+					err = B_OK;
+				break;
+			}
+		}
+		delete web;
+	}
+	roster->ReleaseNode(node);
+	return err;
+}
+
 void AudioRecorder::ListSources(std::vector<BString> &names)
 {
 	names.clear();
@@ -354,6 +463,8 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		}
 		fHaveNode = true;
 		DumpNodeParameters(roster, fInputNode);
+		if (Prefs.rec_input_pin.Length() > 0)
+			SetCardInput(Prefs.rec_input_pin.String());		// выбранный пользователем вход карты
 	}
 
 	if (fHaveNode)

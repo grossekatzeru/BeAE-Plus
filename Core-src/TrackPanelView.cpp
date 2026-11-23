@@ -598,6 +598,21 @@ void TrackPanelView::ShowSourceMenu(int index)
 
 	const bool isExternal = strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0;
 	add(Language.get("TRK_SRC_SYSTEM"), "", t->source[0] == 0);
+	// вход самой карты (Mic in, Line in ...): значения вида "@pin:Имя" - не источник дорожки, а переключатель карты
+	{
+		std::vector<BString> pins;
+		BString cur;
+		AudioRecorder::ListCardInputs(pins, &cur);
+		if (Prefs.rec_input_pin.Length() > 0)
+			cur = Prefs.rec_input_pin;
+		for (size_t k = 0; k < pins.size(); k++) {
+			BString label("    ");
+			label << pins[k];
+			BString value("@pin:");
+			value << pins[k];
+			add(label.String(), value.String(), t->source[0] == 0 && pins[k] == cur);
+		}
+	}
 	if (!names.empty() || (t->source[0] && !isExternal))
 		add(NULL, NULL, false);
 	bool found = false;
@@ -615,7 +630,14 @@ void TrackPanelView::ShowSourceMenu(int index)
 	BMenuItem *chosen = menu->Go(ConvertToScreen(BPoint(field.left, field.bottom + 1)), false, true, ConvertToScreen(field), false);
 	if (chosen != NULL){
 		const int32 at = menu->IndexOf(chosen);
-		if (at >= 0 && at < (int32)values.size()){
+		if (at >= 0 && at < (int32)values.size() && values[at].FindFirst("@pin:") == 0){
+			BString pin;
+			values[at].CopyInto(pin, 5, values[at].Length() - 5);
+			Prefs.rec_input_pin = pin;
+			Mix.SetSource(index, "");							// вход карты - это системный вход
+			AudioRecorder::SetCardInput(pin.String());
+			Pool.changed = true;
+		} else if (at >= 0 && at < (int32)values.size()){
 			Mix.SetSource(index, values[at].String());
 			Recorder.PrepareExternal(values[at] == MIX_SOURCE_EXTERNAL);	// узел «BeAE recorder» сразу виден в Cortex
 			Pool.changed = true;

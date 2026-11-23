@@ -128,6 +128,8 @@ void Preferences::Init(){
 
    if(prefs.FindInt32("rec_latency_ms", &rec_latency_ms) != B_OK)
       rec_latency_ms = 0;
+   if(prefs.FindString("rec_input_pin", &rec_input_pin) != B_OK)
+      rec_input_pin.SetTo("");
 
    {
       if(prefs.FindString("joy_device", &joy_device) != B_OK) joy_device.SetTo("");
@@ -277,6 +279,7 @@ void Preferences::Sync(){
 
 	prefs.SetInt32("buffer_size",buffer_size);
 	prefs.SetInt32("rec_latency_ms",rec_latency_ms);
+	prefs.SetString("rec_input_pin",rec_input_pin.String());
 	prefs.SetInt32("cache_size",cache_size);
 	prefs.SetString("joy_device",joy_device.String());
 	prefs.SetString("joy_map",joy_map.String());
@@ -410,6 +413,7 @@ void Preferences::FactorySettings(){
 	keep_free = 500;		// keep 500 Mb free disk space
 	buffer_size = BUFFER_SIZE;
 	rec_latency_ms = 0;
+	rec_input_pin = "";
 	cache_size = CACHE_SIZE;
 	joy_device = "";
 	joy_map = "";

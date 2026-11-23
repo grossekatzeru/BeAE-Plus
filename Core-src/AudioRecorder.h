@@ -32,6 +32,11 @@ public:
 	void		PrepareExternal(bool on);
 	// Имена узлов, к которым можно подключиться (со свободным звуковым выходом), без системного входа и самого BeAE.
 	static void	ListSources(std::vector<BString> &names);
+	// Входы самой звуковой карты (Mic in, Line in ...) из параметра «Input» системного узла. В списке драйвера есть и выходные
+	// пины (Line out, Speaker ...): с них идёт шум, поэтому они отброшены. *current - выбранный сейчас вход (пусто, если неизвестен).
+	static void	ListCardInputs(std::vector<BString> &names, BString *current);
+	// Переключить вход карты по имени (во всех параметрах «Input» узла: у карты их по одному на входной АЦП).
+	static status_t	SetCardInput(const char *name);
 
 	// Открыть вход и начать запись. При ошибке вернёт код и текст в *error (ключ языка).
 	status_t	Start(BString *error);
