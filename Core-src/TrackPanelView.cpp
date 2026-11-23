@@ -313,6 +313,8 @@ void TrackPanelView::Draw(BRect update)
 				shown = Language.get("TRK_SRC_SYSTEM");
 			else if (strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0)
 				shown = Language.get("TRK_SRC_EXTERNAL");
+			else if (strcmp(t->source, MIX_SOURCE_SYSTEM2) == 0)
+				{ shown = "2: "; shown << (Prefs.rec_input_pin2.Length() > 0 ? Prefs.rec_input_pin2.String() : "?"); }
 			else
 				shown = t->source;
 			TruncateString(&shown, B_TRUNCATE_END, nb.Width() - 20);
@@ -612,6 +614,16 @@ void TrackPanelView::ShowSourceMenu(int index)
 			value << pins[k];
 			add(label.String(), value.String(), t->source[0] == 0 && pins[k] == cur);
 		}
+		// эксперимент: второй входной АЦП карты на этой дорожке (нужен второй свободный выход узла)
+		if (!pins.empty())
+			add(NULL, NULL, false);
+		for (size_t k = 0; k < pins.size(); k++) {
+			BString label("2: ");
+			label << pins[k];
+			BString value("@pin2:");
+			value << pins[k];
+			add(label.String(), value.String(), strcmp(t->source, MIX_SOURCE_SYSTEM2) == 0 && pins[k] == Prefs.rec_input_pin2);
+		}
 	}
 	if (!names.empty() || (t->source[0] && !isExternal))
 		add(NULL, NULL, false);
@@ -630,7 +642,14 @@ void TrackPanelView::ShowSourceMenu(int index)
 	BMenuItem *chosen = menu->Go(ConvertToScreen(BPoint(field.left, field.bottom + 1)), false, true, ConvertToScreen(field), false);
 	if (chosen != NULL){
 		const int32 at = menu->IndexOf(chosen);
-		if (at >= 0 && at < (int32)values.size() && values[at].FindFirst("@pin:") == 0){
+		if (at >= 0 && at < (int32)values.size() && values[at].FindFirst("@pin2:") == 0){
+			BString pin;
+			values[at].CopyInto(pin, 6, values[at].Length() - 6);
+			Prefs.rec_input_pin2 = pin;
+			Mix.SetSource(index, MIX_SOURCE_SYSTEM2);
+			AudioRecorder::SetCardInput(pin.String(), 1);
+			Pool.changed = true;
+		} else if (at >= 0 && at < (int32)values.size() && values[at].FindFirst("@pin:") == 0){
 			BString pin;
 			values[at].CopyInto(pin, 5, values[at].Length() - 5);
 			Prefs.rec_input_pin = pin;

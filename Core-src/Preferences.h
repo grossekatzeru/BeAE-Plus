@@ -78,6 +78,7 @@ class Preferences{
 	int32	keep_free;				// keep free diskspace
 
 	int32	buffer_size;			// media buffer-size
+	BString	rec_input_pin2;			// то же для второго входного АЦП (вторая дорожка записи)
 	BString	rec_input_pin;			// вход звуковой карты для записи (Mic in, Line in ...), пусто - как стоит в системе
 	int32	rec_latency_ms;			// компенсация задержки записи, мс
 	int32	cache_size;				// size of the VM cache

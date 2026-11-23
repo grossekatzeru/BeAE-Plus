@@ -202,6 +202,21 @@ static void DumpNodeParameters(BMediaRoster *roster, const media_node &node)
 		}
 		delete web;
 	}
+	{
+		media_output outs[16];
+		int32 n = 0;
+		status_t oerr = roster->GetAllOutputsFor(node, outs, 16, &n);
+		fprintf(f, "\nOutputs: %s, %d\n", strerror(oerr), (int)n);
+		for (int32 i = 0; oerr == B_OK && i < n; i++) {
+			fprintf(f, "  [%d] name='%s' source=%d/%d dest=%d/%d format type=%d",
+				(int)i, outs[i].name, (int)outs[i].source.port, (int)outs[i].source.id,
+				(int)outs[i].destination.port, (int)outs[i].destination.id, (int)outs[i].format.type);
+			if (outs[i].format.type == B_MEDIA_RAW_AUDIO)
+				fprintf(f, " rate=%g channels=%d", outs[i].format.u.raw_audio.frame_rate,
+					(int)outs[i].format.u.raw_audio.channel_count);
+			fprintf(f, "\n");
+		}
+	}
 	fclose(f);
 	fprintf(stderr, "BeAE: input node parameters written to %s\n", path.Path());
 }
@@ -331,7 +346,7 @@ void AudioRecorder::ListCardInputs(std::vector<BString> &names, BString *current
 	roster->ReleaseNode(node);
 }
 
-status_t AudioRecorder::SetCardInput(const char *name)
+status_t AudioRecorder::SetCardInput(const char *name, int muxIndex)
 {
 	if (name == NULL || name[0] == 0)
 		return B_BAD_VALUE;
@@ -348,6 +363,8 @@ status_t AudioRecorder::SetCardInput(const char *name)
 		std::vector<BDiscreteParameter*> muxes;
 		CollectInputMuxes(web, muxes);
 		for (size_t m = 0; m < muxes.size(); m++) {
+			if ((int)m != muxIndex)
+				continue;
 			BDiscreteParameter *d = muxes[m];
 			for (int32 k = 0; k < d->CountItems(); k++) {
 				if (strcmp(d->ItemNameAt(k), name) != 0)
@@ -359,8 +376,6 @@ status_t AudioRecorder::SetCardInput(const char *name)
 					err = B_OK;
 				break;
 			}
-			if (err == B_OK)
-				break;		// записывается только первый АЦП (так читает и системная «Звукозапись»): второй не трогаем
 		}
 		delete web;
 	}
@@ -445,7 +460,8 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 
 	fPhysical = false;
 	const bool external = !listen && fSource == MIX_SOURCE_EXTERNAL;
-	const bool named = !listen && !external && fSource.Length() > 0;
+	const bool second = !listen && fSource == MIX_SOURCE_SYSTEM2;	// системный вход, второй выход узла
+	const bool named = !listen && !external && !second && fSource.Length() > 0;
 
 	status_t err = B_OK;
 	if (external) {
@@ -467,6 +483,8 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		DumpNodeParameters(roster, fInputNode);
 		if (Prefs.rec_input_pin.Length() > 0)
 			SetCardInput(Prefs.rec_input_pin.String());		// выбранный пользователем вход карты
+		if (second && Prefs.rec_input_pin2.Length() > 0)
+			SetCardInput(Prefs.rec_input_pin2.String(), 1);	// вход второго АЦП
 	}
 
 	if (fHaveNode)
@@ -497,7 +515,26 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	media_output output;
 	int32 count = 0;
 	if (!external) {
-		err = roster->GetFreeOutputsFor(fInputNode, &output, 1, &count, B_MEDIA_RAW_AUDIO);
+		if (second) {
+			// второй выход узла (по порядку в GetAllOutputsFor), если он свободен
+			media_output all[16], freeOuts[16];
+			int32 nAll = 0, nFree = 0;
+			err = roster->GetAllOutputsFor(fInputNode, all, 16, &nAll);
+			status_t ferr = roster->GetFreeOutputsFor(fInputNode, freeOuts, 16, &nFree, B_MEDIA_RAW_AUDIO);
+			fprintf(stderr, "BeAE second input: outputs %d (%s), free %d (%s)\n", (int)nAll, strerror(err), (int)nFree, strerror(ferr));
+			count = 0;
+			if (err == B_OK && ferr == B_OK && nAll >= 2) {
+				for (int32 i = 0; i < nFree; i++) {
+					if (freeOuts[i].source.port == all[1].source.port && freeOuts[i].source.id == all[1].source.id) {
+						output = freeOuts[i];
+						count = 1;
+						break;
+					}
+				}
+			}
+		} else {
+			err = roster->GetFreeOutputsFor(fInputNode, &output, 1, &count, B_MEDIA_RAW_AUDIO);
+		}
 		if (err != B_OK || count < 1) {
 			if (error) *error = "REC_ERR_NO_FREE_OUTPUT";
 			if (err == B_OK) err = B_ERROR;

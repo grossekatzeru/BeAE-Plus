@@ -35,8 +35,8 @@ public:
 	// Входы самой звуковой карты (Mic in, Line in ...) из параметра «Input» системного узла. В списке драйвера есть и выходные
 	// пины (Line out, Speaker ...): с них идёт шум, поэтому они отброшены. *current - выбранный сейчас вход (пусто, если неизвестен).
 	static void	ListCardInputs(std::vector<BString> &names, BString *current);
-	// Переключить вход карты по имени (в первом параметре «Input» узла: с первого входного АЦП идёт запись).
-	static status_t	SetCardInput(const char *name);
+	// Переключить вход карты по имени (muxIndex - номер параметра «Input» узла, то есть входного АЦП; 0 - с него идёт обычная запись).
+	static status_t	SetCardInput(const char *name, int muxIndex = 0);
 
 	// Открыть вход и начать запись. При ошибке вернёт код и текст в *error (ключ языка).
 	status_t	Start(BString *error);

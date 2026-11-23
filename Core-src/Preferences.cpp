@@ -130,6 +130,8 @@ void Preferences::Init(){
       rec_latency_ms = 0;
    if(prefs.FindString("rec_input_pin", &rec_input_pin) != B_OK)
       rec_input_pin.SetTo("");
+   if(prefs.FindString("rec_input_pin2", &rec_input_pin2) != B_OK)
+      rec_input_pin2.SetTo("");
 
    {
       if(prefs.FindString("joy_device", &joy_device) != B_OK) joy_device.SetTo("");
@@ -280,6 +282,7 @@ void Preferences::Sync(){
 	prefs.SetInt32("buffer_size",buffer_size);
 	prefs.SetInt32("rec_latency_ms",rec_latency_ms);
 	prefs.SetString("rec_input_pin",rec_input_pin.String());
+	prefs.SetString("rec_input_pin2",rec_input_pin2.String());
 	prefs.SetInt32("cache_size",cache_size);
 	prefs.SetString("joy_device",joy_device.String());
 	prefs.SetString("joy_map",joy_map.String());
@@ -414,6 +417,7 @@ void Preferences::FactorySettings(){
 	buffer_size = BUFFER_SIZE;
 	rec_latency_ms = 0;
 	rec_input_pin = "";
+	rec_input_pin2 = "";
 	cache_size = CACHE_SIZE;
 	joy_device = "";
 	joy_map = "";

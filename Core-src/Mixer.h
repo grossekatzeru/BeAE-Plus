@@ -70,6 +70,7 @@ struct ClipFade {
 ClipFade ComputeClipFade(const std::vector<struct MixClip> &clips, bool haveExtra, const ClipSpan &extra, size_t i);
 float	ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t);	// множитель 0..1 в момент t (равномощный)
 
+#define MIX_SOURCE_SYSTEM2	"@system2"	// системный вход, второй выход узла карты (второй АЦП); эксперимент
 #define MIX_SOURCE_EXTERNAL	"@external"	// особое значение MixTrack::source: приёмник без подключения, соединяется пользователем в Cortex
 
 struct MixTrack {
