@@ -155,6 +155,7 @@ void SpectrumView::Pulse()
 SpectrumWindow::SpectrumWindow() : AnalyzeWindow(BRect(50,200,270, 300),Language.get("SPECTRUM_ANALYZER"))
 {
 	AddChild(view = new SpectrumView(Bounds()));
+	BeginAnalysis();
 }
 
 /*******************************************************
@@ -169,12 +170,13 @@ void SpectrumWindow::PlayBuffer(float *buffer, size_t size)
 				     44,  48,  52,  56,  60,  67,  74,  81,
 				     88, 110, 132, 154, 176, 202, 228, 254 };
 	
-	for (size_t j=0; j<size; j+=NUM_BANDS*512){
+	// j is an index into the buffer (floats): one block needs 512 of them
+	for (size_t j=0; j+512<=size; j+=NUM_BANDS*512){
 		for(i = 0; i < NUM_BANDS; i++)
 		{
 			for(c = 0, y = 0; c < 256; c+=xscale[i])
 			{
-				y += buffer[j*512+c*2];
+				y += buffer[j+c*2];
 			}
 			y /= ceil(256/(float)xscale[i]);
 			if(y > ((SpectrumView*)view)->Data[0][NUM_BANDS-i-1])

@@ -49,6 +49,8 @@ AnalyzeWindow::AnalyzeWindow(BRect r, const char *name)
 	// 25 frames per second by default
 	m_frames = 25;
 	m_count = 0;
+	m_active = false;
+	m_in_hook = 0;
 	// set the playHook
 	m_index = Pool.SetPlayHook( _PlayBuffer, PLAY_HOOKS/2, (void*)this);
 
@@ -64,22 +66,33 @@ void AnalyzeWindow::PlayBuffer(float *buffer, size_t size)
 {
 }
 
+void AnalyzeWindow::BeginAnalysis()
+{
+	m_active = true;
+}
+
 /*******************************************************
 *   
 *******************************************************/
 void AnalyzeWindow::_PlayBuffer(float *buffer, size_t size, void *cookie)
 {
 	AnalyzeWindow *win = (AnalyzeWindow*)cookie;	// cast to our own clas
+	if (win == NULL)
+		return;
 
-	// process effect
-	win->PlayBuffer(buffer, size);
+	atomic_add((int32*)&win->m_in_hook, 1);			// the window must not be deleted while we are inside
+	if (win->m_active){
+		// process effect
+		win->PlayBuffer(buffer, size);
 
-	// update with frames/second
-	win->m_count -= size;
-	if (win->m_count <0){
-		win->m_count = (int)Pool.system_frequency*2/win->m_frames;
-		win->PostMessage(UPDATE);
+		// update with frames/second
+		win->m_count -= size;
+		if (win->m_count <0){
+			win->m_count = (int)Pool.system_frequency*2/(win->m_frames > 0 ? win->m_frames : 1);
+			win->PostMessage(UPDATE);
+		}
 	}
+	atomic_add((int32*)&win->m_in_hook, -1);
 }
 
 /*******************************************************
@@ -99,7 +112,11 @@ void AnalyzeWindow::SetFramesPerSecond(int32 frames)
 *   
 *******************************************************/
 bool AnalyzeWindow::QuitRequested(){
+	m_active = false;
 	Pool.RemovePlayHook( _PlayBuffer, m_index );
+	// the audio thread may be inside the hook right now: wait until it leaves (at most half a second)
+	for (int i = 0; i < 500 && m_in_hook > 0; i++)
+		snooze(1000);
 	return true;
 }
 

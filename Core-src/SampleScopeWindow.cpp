@@ -103,6 +103,7 @@ void SampleScopeView::Draw(BRect r)
 SampleScopeWindow::SampleScopeWindow() : AnalyzeWindow(BRect(50, 50, 270, 150),Language.get("SAMPLE_SCOPE"))
 {
 	AddChild(view = new SampleScopeView(Bounds()));
+	BeginAnalysis();
 }
 
 /*******************************************************
@@ -110,7 +111,9 @@ SampleScopeWindow::SampleScopeWindow() : AnalyzeWindow(BRect(50, 50, 270, 150),L
 *******************************************************/
 void SampleScopeWindow::PlayBuffer(float *buffer, size_t size)
 {
-	for (size_t i=0; i<WIDTH; i++){
+	// a short buffer fills only the beginning of the picture
+	const size_t n = MIN((size_t)WIDTH, size / 2);
+	for (size_t i=0; i<n; i++){
 		((SampleScopeView*)view)->Data[0][i] = *buffer++;
 		((SampleScopeView*)view)->Data[1][i] = *buffer++;
 	}

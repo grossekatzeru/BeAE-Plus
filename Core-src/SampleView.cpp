@@ -86,6 +86,13 @@ SampleView::SampleView(BRect r) :
 
 	m_resized = true;		// need to create background buffers
 
+	pointer = 0;
+	t = t2 = 0;
+	edit_channel = 0;
+	screenBits = NULL;
+	screenWidth = 0;
+	leftWidth = rightWidth = 0;
+
 	if((viewSem = create_sem(1, "SampleView Sem")) < 0){
 //		debugger(CREATE_SEM_FAIL_MSG);
 	}
@@ -96,8 +103,8 @@ SampleView::SampleView(BRect r) :
 *****************************************************/
 SampleView::~SampleView()
 {
-	if (peak_buffer_l)	delete peak_buffer_l;
-	if (peak_buffer_r)	delete peak_buffer_r;
+	delete[] peak_buffer_l;				// allocated with new[]
+	delete[] peak_buffer_r;
 	if (leftCache)		delete leftCache;
 	if (rightCache)		delete rightCache;
 	if (leftSelected)	delete leftSelected;
@@ -713,6 +720,11 @@ void SampleView::MouseDown(BPoint p)
 					
 						if (Pool.l_pointer < 0)			Pool.l_pointer = 0;
 						if (Pool.r_pointer > Pool.size)	Pool.r_pointer = Pool.size;
+						// the visible part must never be empty: every conversion divides by its length
+						if (Pool.l_pointer >= Pool.r_pointer){
+							Pool.r_pointer = MIN(Pool.size, Pool.l_pointer + 1);
+							Pool.l_pointer = MAX((int64)0, Pool.r_pointer - 1);
+						}
 
 						Invalidate();
 						Pool.update_index = true;
@@ -1144,9 +1156,17 @@ void SampleView::DoDraw(int64 ptr, int32 add, float v)
 {
 	int32 step = (int32)ceil((Pool.r_pointer-Pool.l_pointer)/Bounds().Width());
 
+	// ptr is an index into the interleaved samples: with add == 2 an even index is the left channel
+	// and an odd one the right channel. All writes stay inside 0 .. size*add-1 and on that channel.
+	if (add < 1)	add = 1;
+	const int64 count = (int64)Pool.size * add;
+	if (count <= 0)	return;
+	if (ptr < 0)	ptr = 0;
+	if (ptr > count - 1)	ptr = count - 1;
+	const int64 parity = ptr % add;				// the channel
+	const int64 last = count - 1 - ((count - 1 - parity) % add);	// the last index of this channel
+
 	if (step<=1){
-		if (ptr > Pool.size*add) ptr = Pool.size*add;
-		if (ptr < 0 ) ptr = 0;
 #ifndef __VM_SYSTEM //RAM
 		Pool.sample_memory[ptr] = v;
 #else
@@ -1154,10 +1174,10 @@ void SampleView::DoDraw(int64 ptr, int32 add, float v)
 #endif
 	}else{
 
-		int32 start = ptr - step*add;	// left part
-		if (start < 0) start = 0;
+		int64 start = ptr - (int64)step*add;	// left part
+		if (start < parity) start = parity;
 		
-		for (int32 i=start; i<=ptr; i+=add){
+		for (int64 i=start; i<=ptr; i+=add){
 #ifndef __VM_SYSTEM //RAM
 			Pool.sample_memory[i] = v;
 #else
@@ -1165,10 +1185,10 @@ void SampleView::DoDraw(int64 ptr, int32 add, float v)
 #endif
 		}
 
-		int32 end = ptr + step*add;	// left part
-		if (end > Pool.size*add) end = Pool.size*add;
+		int64 end = ptr + (int64)step*add;	// right part
+		if (end > last) end = last;
 		
-		for (int32 i=ptr; i<=end; i+=add){
+		for (int64 i=ptr; i<=end; i+=add){
 #ifndef __VM_SYSTEM //RAM
 			Pool.sample_memory[i] = v;
 #else

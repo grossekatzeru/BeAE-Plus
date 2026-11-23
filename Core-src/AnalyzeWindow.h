@@ -50,9 +50,15 @@ class AnalyzeWindow : public BWindow {
 	// default set to 25/second
 	void SetFramesPerSecond(int32 frames);
 
+  protected:
+	// The derived class calls this when its view exists: before that the audio thread ignores the window
+	void BeginAnalysis();
+
   private:
 	static void _PlayBuffer(float *, size_t, void *);
 	int32 m_frames, m_count;
+	volatile bool m_active;			// the window may receive buffers
+	volatile int32 m_in_hook;		// how many audio-thread calls are inside this window now
 	int32 m_index;
 };
 
