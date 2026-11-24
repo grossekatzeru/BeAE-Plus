@@ -27,7 +27,6 @@ AudioRecorder Recorder;
 AudioRecorder::AudioRecorder()
 	:
 	fRecorder(NULL),
-	fExternalNode(false),
 	fHaveNode(false),
 	fPhysical(false),
 	fRecording(false),
@@ -58,7 +57,6 @@ AudioRecorder::AudioRecorder()
 AudioRecorder::~AudioRecorder()
 {
 	Stop();
-	fExternalNode = false;
 	if (fRecorder) {
 		fRecorder->Disconnect();
 		fRecorder->SetHooks(NULL, NULL, NULL);
@@ -504,14 +502,12 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	}
 
 	fPhysical = false;
-	const bool external = !listen && fSource == MIX_SOURCE_EXTERNAL;
 	const bool second = !listen && fSource == MIX_SOURCE_SYSTEM2;	// системный вход, второй выход узла
-	const bool named = !listen && !external && !second && fSource.Length() > 0;
+	// "@external" - устаревшее значение из старых проектов (режим «Внешний», убран): читаем как системный вход
+	const bool named = !listen && !second && fSource.Length() > 0 && fSource != MIX_SOURCE_EXTERNAL;
 
 	status_t err = B_OK;
-	if (external) {
-		// узел-приёмник без подключения: источник соединит пользователь (Cortex)
-	} else if (named) {
+	if (named) {
 		err = FindSourceNode(roster, fSource.String(), &fInputNode);
 		if (err != B_OK) {
 			if (error) *error = "REC_ERR_SOURCE_NOT_FOUND";
@@ -535,31 +531,16 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	if (fHaveNode)
 		fPhysical = (fInputNode.kind & B_PHYSICAL_INPUT) != 0;
 
-	if (external) {
-		if (fRecorder == NULL && !_CreateRecorder()) {
-			if (error) *error = "REC_ERR_RECORDER";
-			return B_ERROR;
-		}
-		fExternalNode = true;
-		if (!fRecorder->IsConnected()) {
-			// узел уже виден в Cortex: соедините с ним источник и нажмите Record ещё раз
-			if (error) *error = "REC_ERR_EXTERNAL_NOT_CONNECTED";
-			return B_MEDIA_NOT_CONNECTED;
-		}
-	} else {
-		if (fRecorder != NULL && fExternalNode)
-			PrepareExternal(false);
-		if (!_CreateRecorder()) {
-			if (error) *error = "REC_ERR_RECORDER";
-			if (fHaveNode) roster->ReleaseNode(fInputNode);
-			fHaveNode = false;
-			return B_ERROR;
-		}
+	if (!_CreateRecorder()) {
+		if (error) *error = "REC_ERR_RECORDER";
+		if (fHaveNode) roster->ReleaseNode(fInputNode);
+		fHaveNode = false;
+		return B_ERROR;
 	}
 
 	media_output output;
 	int32 count = 0;
-	if (!external) {
+	{
 		if (second) {
 			// второй выход узла (по порядку в GetAllOutputsFor), если он свободен
 			media_output all[16], freeOuts[16];
@@ -600,18 +581,14 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 	}
 
 	fInputLatency = 0;
-	if (!external) {
-		roster->GetLatencyFor(fInputNode, &fInputLatency);
-		fTimeSource = roster->MakeTimeSourceFor(fInputNode);	// для перевода меток буферов в system_time
-	}
+	roster->GetLatencyFor(fInputNode, &fInputLatency);
+	fTimeSource = roster->MakeTimeSourceFor(fInputNode);		// для перевода меток буферов в system_time
 	if (listen) fListening = true; else fRecording = true;
-	err = fRecorder->Start(external);			// у внешнего узла соединение уже есть (сделано в Cortex)
+	err = fRecorder->Start(false);
 	if (err != B_OK) {
 		fRecording = false;
 		fListening = false;
 		if (error) *error = "REC_ERR_START";
-		if (external)
-			return err;							// узел оставляем, чтобы соединение не пропало
 		fRecorder->Disconnect();
 		fRecorder->SetHooks(NULL, NULL, NULL);
 		goto fail;
@@ -647,37 +624,16 @@ bool AudioRecorder::_CreateRecorder()
 	return true;
 }
 
-void AudioRecorder::PrepareExternal(bool on)
-{
-	if (fRecording || fListening)
-		return;
-	if (on) {
-		if (fRecorder == NULL && _CreateRecorder())
-			fExternalNode = true;
-	} else if (fRecorder != NULL && fExternalNode) {
-		fRecorder->Stop(true);
-		fRecorder->Disconnect();
-		fRecorder->SetHooks(NULL, NULL, NULL);
-		delete fRecorder;
-		fRecorder = NULL;
-		fExternalNode = false;
-	}
-}
-
 void AudioRecorder::Stop()
 {
 	fRecording = false;
 	fListening = false;
 	if (fRecorder) {
 		fRecorder->Stop(true);
-		if (fExternalNode) {
-			// внешний узел остаётся в Cortex вместе с соединением; хук пишет данные только при fRecording
-		} else {
-			fRecorder->Disconnect();
-			fRecorder->SetHooks(NULL, NULL, NULL);
-			delete fRecorder;
-			fRecorder = NULL;
-		}
+		fRecorder->Disconnect();
+		fRecorder->SetHooks(NULL, NULL, NULL);
+		delete fRecorder;
+		fRecorder = NULL;
 	}
 	if (fTimeSource) {
 		fTimeSource->Release();

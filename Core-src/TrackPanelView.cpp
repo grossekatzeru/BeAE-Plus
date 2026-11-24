@@ -312,7 +312,7 @@ void TrackPanelView::Draw(BRect update)
 			if (t->source[0] == 0)
 				shown = Language.get("TRK_SRC_SYSTEM");
 			else if (strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0)
-				shown = Language.get("TRK_SRC_EXTERNAL");
+				shown = Language.get("TRK_SRC_SYSTEM");		// устаревшее значение из старых проектов
 			else if (strcmp(t->source, MIX_SOURCE_SYSTEM2) == 0)
 				{ shown = "2: "; shown << (Prefs.rec_input_pin2.Length() > 0 ? Prefs.rec_input_pin2.String() : "?"); }
 			else
@@ -598,8 +598,8 @@ void TrackPanelView::ShowSourceMenu(int index)
 		values.push_back(BString(value));
 	};
 
-	const bool isExternal = strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0;
-	add(Language.get("TRK_SRC_SYSTEM"), "", t->source[0] == 0);
+	const bool legacy = strcmp(t->source, MIX_SOURCE_EXTERNAL) == 0;		// "@external" из старых проектов = системный вход
+	add(Language.get("TRK_SRC_SYSTEM"), "", t->source[0] == 0 || legacy);
 	// вход самой карты (Mic in, Line in ...): значения вида "@pin:Имя" - не источник дорожки, а переключатель карты
 	{
 		std::vector<BString> pins;
@@ -625,7 +625,7 @@ void TrackPanelView::ShowSourceMenu(int index)
 			add(label.String(), value.String(), strcmp(t->source, MIX_SOURCE_SYSTEM2) == 0 && pins[k] == Prefs.rec_input_pin2);
 		}
 	}
-	if (!names.empty() || (t->source[0] && !isExternal))
+	if (!names.empty() || (t->source[0] && !legacy))
 		add(NULL, NULL, false);
 	bool found = false;
 	for (size_t k = 0; k < names.size(); k++){
@@ -633,10 +633,8 @@ void TrackPanelView::ShowSourceMenu(int index)
 		if (cur) found = true;
 		add(names[k].String(), names[k].String(), cur);
 	}
-	if (t->source[0] && !isExternal && !found)			// выбранного узла сейчас нет (приложение закрыто): показать, чтобы выбор был виден
+	if (t->source[0] && !legacy && !found)			// выбранного узла сейчас нет (приложение закрыто): показать, чтобы выбор был виден
 		add(t->source, t->source, true);
-	add(NULL, NULL, false);
-	add(Language.get("TRK_SRC_EXTERNAL"), MIX_SOURCE_EXTERNAL, isExternal);
 
 	BRect field = SourceRect(index);
 	BMenuItem *chosen = menu->Go(ConvertToScreen(BPoint(field.left, field.bottom + 1)), false, true, ConvertToScreen(field), false);
@@ -658,7 +656,6 @@ void TrackPanelView::ShowSourceMenu(int index)
 			Pool.changed = true;
 		} else if (at >= 0 && at < (int32)values.size()){
 			Mix.SetSource(index, values[at].String());
-			Recorder.PrepareExternal(values[at] == MIX_SOURCE_EXTERNAL);	// узел «BeAE recorder» сразу виден в Cortex
 			Pool.changed = true;
 		}
 	}

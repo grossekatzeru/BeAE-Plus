@@ -916,17 +916,10 @@ void MainWindow::StartRecording()
 		return;
 	}
 
-	// первой идёт дорожка с источником «Внешний» (её узел живёт в глобальном Recorder), иначе первая по порядку
+	// порядок как у дорожек: первая по порядку пишется глобальным Recorder, остальные - дополнительными
 	ClearExtraRecorders();
 	for (int i = 0; i < armedCount; i++)
 		rec_tracks.push_back(armedList[i]);
-	for (size_t i = 0; i < rec_tracks.size(); i++){
-		const MixTrack *mt = Mix.Track(rec_tracks[i]);
-		if (mt && strcmp(mt->source, MIX_SOURCE_EXTERNAL) == 0){
-			std::swap(rec_tracks[0], rec_tracks[i]);
-			break;
-		}
-	}
 
 	// один источник нельзя писать в две дорожки сразу: у выхода узла одно соединение
 	for (size_t i = 0; i < rec_tracks.size(); i++){

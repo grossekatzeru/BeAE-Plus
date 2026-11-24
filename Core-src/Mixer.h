@@ -71,7 +71,7 @@ ClipFade ComputeClipFade(const std::vector<struct MixClip> &clips, bool haveExtr
 float	ClipFadeGain(const ClipSpan &s, const ClipFade &f, double t);	// множитель 0..1 в момент t (равномощный)
 
 #define MIX_SOURCE_SYSTEM2	"@system2"	// системный вход, второй выход узла карты (второй АЦП); эксперимент
-#define MIX_SOURCE_EXTERNAL	"@external"	// особое значение MixTrack::source: приёмник без подключения, соединяется пользователем в Cortex
+#define MIX_SOURCE_EXTERNAL	"@external"	// УСТАРЕЛО (режим «Внешний» убран): встречается в старых проектах, читается как системный вход
 
 struct MixTrack {
 	bool	used;
@@ -86,7 +86,7 @@ struct MixTrack {
 	bool	autoOpen;			// полоса автоматизации развёрнута (иначе тонкая)
 	bool	showVol, showPan;	// показывать в полосе автоматизации кривые громкости/панорамы (на звук не влияет)
 	char	name[64];
-	char	source[96];		// источник записи: пусто - системный вход; иначе имя узла Media Kit; MIX_SOURCE_EXTERNAL - ждать подключения из Cortex
+	char	source[96];		// источник записи: пусто - системный вход; иначе имя узла Media Kit
 	std::vector<MixClip>	clips;
 	Envelope	volEnv;			// автоматизация громкости (дБ, множитель поверх gain); пусто - выключена
 	Envelope	panEnv;			// автоматизация панорамы (прибавляется к pan); пусто - выключена
