@@ -135,10 +135,10 @@ size_t AudioRecorder::ReadListened(float *dst, size_t maxFrames)
 // Пишется один раз за запуск при первом открытии системного входа.
 static void DumpNodeParameters(BMediaRoster *roster, const media_node &node)
 {
-	static bool done = false;
-	if (done)
+	static int dumps = 0;
+	if (dumps >= 6)			// файл перезаписывается при каждом открытии входа, но не бесконечно
 		return;
-	done = true;
+	dumps++;
 
 	BPath path;
 	if (find_directory(B_USER_DIRECTORY, &path) != B_OK)
@@ -480,11 +480,11 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 			return err;
 		}
 		fHaveNode = true;
-		DumpNodeParameters(roster, fInputNode);
 		if (Prefs.rec_input_pin.Length() > 0)
 			SetCardInput(Prefs.rec_input_pin.String());		// выбранный пользователем вход карты
 		if (second && Prefs.rec_input_pin2.Length() > 0)
 			SetCardInput(Prefs.rec_input_pin2.String(), 1);	// вход второго АЦП
+		DumpNodeParameters(roster, fInputNode);			// после выбора входов: в файле видно, что реально выставлено
 	}
 
 	if (fHaveNode)
