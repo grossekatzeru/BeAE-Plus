@@ -1,0 +1,86 @@
+diff -ruN a/multi_audio/MultiAudioNode.cpp b/multi_audio/MultiAudioNode.cpp
+--- a/multi_audio/MultiAudioNode.cpp
++++ b/multi_audio/MultiAudioNode.cpp
+@@ -486,6 +486,15 @@
+ 		}
+ 	}
+ 
++	// The buffer of every output must be sized for the output's own channels,
++	// not for all input channels of the device (those are split between the
++	// outputs). Otherwise a device with several stereo outputs hands out
++	// buffers that are twice (or more) as large as the data in them.
++	for (int32 i = 0; node_output* output = (node_output*)fOutputs.ItemAt(i);
++			i++) {
++		_UpdateOutputBufferSize(*output);
++	}
++
+ 	// Set up our parameter web
+ 	fWeb = MakeParameterWeb();
+ 	SetParameterWeb(fWeb);
+@@ -1533,8 +1542,7 @@
+ 
+ 			media_format newFormat = channel->fOutput.format;
+ 			newFormat.u.raw_audio.frame_rate = frameRate;
+-			newFormat.u.raw_audio.buffer_size
+-				= fInputPreferredFormat.u.raw_audio.buffer_size;
++			newFormat.u.raw_audio.buffer_size = _OutputBufferSize(*channel);
+ 
+ 			int32 changeTag = 0;
+ 			status_t error = RequestFormatChange(channel->fOutput.source,
+@@ -2365,12 +2373,8 @@
+ 	for (int32 i = 0; node_output* channel = (node_output*)fOutputs.ItemAt(i);
+ 			i++) {
+ 		channel->fPreferredFormat.u.raw_audio.frame_rate = frameRate;
+-		channel->fPreferredFormat.u.raw_audio.buffer_size
+-			= fInputPreferredFormat.u.raw_audio.buffer_size;
+-
+ 		channel->fOutput.format.u.raw_audio.frame_rate = frameRate;
+-		channel->fOutput.format.u.raw_audio.buffer_size
+-			= fInputPreferredFormat.u.raw_audio.buffer_size;
++		_UpdateOutputBufferSize(*channel);
+ 	}
+ 
+ 	// make sure the time base is reset
+@@ -2383,6 +2387,28 @@
+ }
+ 
+ 
++/*!	Size in bytes of one buffer of the given (recording) output: one device
++	buffer (return_record_buffer_size frames) of the output's own channels.
++*/
++size_t
++MultiAudioNode::_OutputBufferSize(const node_output& output) const
++{
++	return fDevice->BufferList().return_record_buffer_size
++		* (fInputPreferredFormat.u.raw_audio.format
++			& media_raw_audio_format::B_AUDIO_SIZE_MASK)
++		* output.fPreferredFormat.u.raw_audio.channel_count;
++}
++
++
++void
++MultiAudioNode::_UpdateOutputBufferSize(node_output& output)
++{
++	const size_t size = _OutputBufferSize(output);
++	output.fPreferredFormat.u.raw_audio.buffer_size = size;
++	output.fOutput.format.u.raw_audio.buffer_size = size;
++}
++
++
+ void
+ MultiAudioNode::_UpdateInternalLatency(const media_format& format)
+ {
+diff -ruN a/multi_audio/MultiAudioNode.h b/multi_audio/MultiAudioNode.h
+--- a/multi_audio/MultiAudioNode.h
++++ b/multi_audio/MultiAudioNode.h
+@@ -229,6 +229,10 @@
+ 
+ 			status_t			_SetNodeInputFrameRate(float frameRate);
+ 			status_t			_SetNodeOutputFrameRate(float frameRate);
++			size_t				_OutputBufferSize(
++									const node_output& output) const;
++			void				_UpdateOutputBufferSize(
++									node_output& output);
+ 			void				_UpdateInternalLatency(
+ 									const media_format& format);
+ 

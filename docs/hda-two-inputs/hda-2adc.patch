@@ -1,0 +1,158 @@
+diff -ruN a/hda/driver.h b/hda/driver.h
+--- a/hda/driver.h
++++ b/hda/driver.h
+@@ -32,6 +32,8 @@
+ #define MAX_CODEC_UNSOL_RESPONSES 16
+ #define MAX_INPUTS				32
+ #define MAX_IO_WIDGETS			8
++#define HDA_MAX_RECORD_CONVERTERS	2
++	// input converters (stereo pairs) recorded at once into one stream
+ #define MAX_ASSOCIATIONS		32
+ #define MAX_ASSOCIATION_PINS	16
+ 
+diff -ruN a/hda/hda_codec.cpp b/hda/hda_codec.cpp
+--- a/hda/hda_codec.cpp
++++ b/hda/hda_codec.cpp
+@@ -987,9 +987,10 @@
+ 
+ 	switch (widget->type) {
+ 		case WT_PIN_COMPLEX:
+-			// already used
+-			if ((widget->flags
+-					& (WIDGET_FLAG_INPUT_PATH | WIDGET_FLAG_OUTPUT_PATH)) != 0)
++			// used by the output path; an input pin may be shared by
++			// several input converters (a second ADC can record from the
++			// same pins through its own selector)
++			if ((widget->flags & WIDGET_FLAG_OUTPUT_PATH) != 0)
+ 				return false;
+ 
+ 			if (PIN_CAP_IS_INPUT(widget->d.pin.capabilities)) {
+@@ -1378,6 +1379,10 @@
+ 
+ 	uint32 count = 0;
+ 
++	// the record stream carries one stereo pair per input converter
++	const uint32 maxIo = (stream->type == STREAM_RECORD)
++		? HDA_MAX_RECORD_CONVERTERS : MAX_IO_WIDGETS;
++
+ 	for (uint32 i = 0; i < audioGroup->widget_count && count < MAX_IO_WIDGETS;
+ 			i++) {
+ 		hda_widget& widget = audioGroup->widgets[i];
+@@ -1450,6 +1455,12 @@
+ 			|| widget.d.io.formats == 0)
+ 			continue;
+ 
++		// the loop above must see all widgets (it enables the pins and
++		// unmutes the amplifiers of the path), only the number of
++		// converters in the stream is limited
++		if (count >= maxIo)
++			continue;
++
+ 		if (count == 0) {
+ 			stream->sample_format = widget.d.io.formats;
+ 			stream->sample_rate = widget.d.io.rates;
+diff -ruN a/hda/hda_controller.cpp b/hda/hda_controller.cpp
+--- a/hda/hda_controller.cpp
++++ b/hda/hda_controller.cpp
+@@ -1007,7 +1007,10 @@
+ 
+ 		uint32 response[2];
+ 		hda_send_verbs(codec, verb, response, 2);
+-		//channelNum += 2; // TODO stereo widget ? Every output gets the same stream for now
++		// Every output gets the same stream for now, but every input converter
++		// records into its own stereo pair of the record stream
++		if (stream->type == STREAM_RECORD)
++			channelNum += 2;
+ 		dprintf("%" B_PRIu32 " ", stream->io_widgets[i]);
+ 
+ 		hda_widget* widget = hda_audio_group_get_widget(audioGroup,
+diff -ruN a/hda/hda_multi_audio.cpp b/hda/hda_multi_audio.cpp
+--- a/hda/hda_multi_audio.cpp
++++ b/hda/hda_multi_audio.cpp
+@@ -32,22 +32,6 @@
+ } mixer_type;
+ 
+ 
+-static multi_channel_info sChannels[] = {
+-	{  0, B_MULTI_OUTPUT_CHANNEL,	B_CHANNEL_LEFT | B_CHANNEL_STEREO_BUS, 0 },
+-	{  1, B_MULTI_OUTPUT_CHANNEL,	B_CHANNEL_RIGHT | B_CHANNEL_STEREO_BUS, 0 },
+-	{  2, B_MULTI_INPUT_CHANNEL,	B_CHANNEL_LEFT | B_CHANNEL_STEREO_BUS, 0 },
+-	{  3, B_MULTI_INPUT_CHANNEL,	B_CHANNEL_RIGHT | B_CHANNEL_STEREO_BUS, 0 },
+-	{  4, B_MULTI_OUTPUT_BUS,		B_CHANNEL_LEFT | B_CHANNEL_STEREO_BUS,
+-			B_CHANNEL_MINI_JACK_STEREO },
+-	{  5, B_MULTI_OUTPUT_BUS,		B_CHANNEL_RIGHT | B_CHANNEL_STEREO_BUS,
+-			B_CHANNEL_MINI_JACK_STEREO },
+-	{  6, B_MULTI_INPUT_BUS,		B_CHANNEL_LEFT | B_CHANNEL_STEREO_BUS,
+-			B_CHANNEL_MINI_JACK_STEREO },
+-	{  7, B_MULTI_INPUT_BUS,		B_CHANNEL_RIGHT | B_CHANNEL_STEREO_BUS,
+-			B_CHANNEL_MINI_JACK_STEREO },
+-};
+-
+-
+ static int32
+ format2size(uint32 format)
+ {
+@@ -140,7 +124,7 @@
+ 
+ 	int32 inChannels = 0;
+ 	if (audioGroup->record_stream != NULL)
+-		inChannels = 2;
++		inChannels = 2 * (int32)max_c(1, audioGroup->record_stream->num_io_widgets);
+ 
+ 	int32 outChannels = 0;
+ 	if (audioGroup->playback_stream != NULL)
+@@ -155,9 +139,42 @@
+ 	TRACE("%s: request_channel_count: %" B_PRId32 "\n", __func__,
+ 		data->request_channel_count);
+ 
+-	if (data->request_channel_count >= (int)(sizeof(sChannels)
+-			/ sizeof(sChannels[0]))) {
+-		memcpy(data->channels, &sChannels, sizeof(sChannels));
++	// channel table: output channels, input channels (one stereo pair per
++	// input converter, the media add-on makes an "input N" output for each
++	// pair), then the buses
++	{
++		multi_channel_info table[4 * 4];
++		int32 count = 0;
++		const uint32 stereo[2] = {
++			B_CHANNEL_LEFT | B_CHANNEL_STEREO_BUS,
++			B_CHANNEL_RIGHT | B_CHANNEL_STEREO_BUS
++		};
++		for (int32 i = 0; i < outChannels && count < 16; i++, count++) {
++			table[count].channel_id = count;
++			table[count].kind = B_MULTI_OUTPUT_CHANNEL;
++			table[count].designations = stereo[i & 1];
++			table[count].connectors = 0;
++		}
++		for (int32 i = 0; i < inChannels && count < 16; i++, count++) {
++			table[count].channel_id = count;
++			table[count].kind = B_MULTI_INPUT_CHANNEL;
++			table[count].designations = stereo[i & 1];
++			table[count].connectors = 0;
++		}
++		for (int32 i = 0; i < 2 && count < 16; i++, count++) {
++			table[count].channel_id = count;
++			table[count].kind = B_MULTI_OUTPUT_BUS;
++			table[count].designations = stereo[i & 1];
++			table[count].connectors = B_CHANNEL_MINI_JACK_STEREO;
++		}
++		for (int32 i = 0; i < 2 && count < 16; i++, count++) {
++			table[count].channel_id = count;
++			table[count].kind = B_MULTI_INPUT_BUS;
++			table[count].designations = stereo[i & 1];
++			table[count].connectors = B_CHANNEL_MINI_JACK_STEREO;
++		}
++		if (data->request_channel_count >= count)
++			memcpy(data->channels, table, count * sizeof(table[0]));
+ 	}
+ 
+ 	if (audioGroup->playback_stream != NULL) {
+@@ -204,7 +221,7 @@
+ 
+ 	int32 inChannels = 0;
+ 	if (audioGroup->record_stream != NULL)
+-		inChannels = 2;
++		inChannels = 2 * (int32)max_c(1, audioGroup->record_stream->num_io_widgets);
+ 
+ 	int32 outChannels = 0;
+ 	if (audioGroup->playback_stream != NULL)
