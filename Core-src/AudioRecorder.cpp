@@ -43,6 +43,7 @@ AudioRecorder::AudioRecorder()
 	fFormatKnown(false),
 	fTrimCh(1),
 	fTrimSum(1),
+	fTrimOff(false),
 	fOutOfMemory(false),
 	fPeakL(0.0f),
 	fPeakR(0.0f),
@@ -80,6 +81,7 @@ void AudioRecorder::Clear()
 	fFormatKnown = false;
 	fTrimCh = 1;
 	fTrimSum = 1;
+	fTrimOff = false;
 	fOutOfMemory = false;
 	fFirstStamp = 0;
 	fFirstArrival = 0;
@@ -262,6 +264,38 @@ static void MultiAudioDataShare(BMediaRoster *roster, const media_node &node, co
 	*sum = total;
 	fprintf(stderr, "BeAE: multi_audio buffers hold %d of %d channels of data, the rest is padding\n",
 		(int)channels, (int)total);
+}
+
+// Хвост буфера целиком из нулей? (так выглядит нерабочая половина буфера multi_audio, см. выше)
+static bool TailIsZero(const void *data, size_t size)
+{
+	const uint8 *p = (const uint8 *)data;
+	size_t i = 0;
+	for (; i + 8 <= size; i += 8) {
+		uint64 v;
+		memcpy(&v, p + i, 8);
+		if (v != 0)
+			return false;
+	}
+	for (; i < size; i++)
+		if (p[i] != 0)
+			return false;
+	return true;
+}
+
+// Сколько байт буфера - настоящие данные. Если аддон multi_audio исправлен (буфер уже по размеру данных), в хвосте будут
+// отсчёты, и обрезка отключается насовсем; пока хвост нулевой - считаем реальной только первую долю.
+size_t AudioRecorder::_RealSize(const void *data, size_t size)
+{
+	if (fTrimSum <= fTrimCh || fTrimOff)
+		return size;
+	const size_t real = size / (size_t)fTrimSum * (size_t)fTrimCh;
+	if (real >= size)
+		return size;
+	if (TailIsZero((const uint8 *)data + real, size - real))
+		return real;
+	fTrimOff = true;
+	return size;
 }
 
 // Живой узел-источник «сырого» звука с заданным именем; узел берётся (GetNodeFor), снимать - ReleaseNode.
@@ -678,8 +712,7 @@ void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format
 		return;
 	if (format.type != B_MEDIA_RAW_AUDIO)
 		return;
-	if (fTrimSum > fTrimCh)
-		size = size / (size_t)fTrimSum * (size_t)fTrimCh;		// multi_audio: оставляем только настоящие данные
+	size = _RealSize(data, size);					// multi_audio: оставляем только настоящие данные
 
 	const media_raw_audio_format &raw = format.u.raw_audio;
 	const int bps = RecConv::BytesPerSample(raw.format);
@@ -760,8 +793,7 @@ void AudioRecorder::OnListenBuffer(void *data, size_t size, const media_format &
 {
 	if (format.type != B_MEDIA_RAW_AUDIO)
 		return;
-	if (fTrimSum > fTrimCh)
-		size = size / (size_t)fTrimSum * (size_t)fTrimCh;
+	size = _RealSize(data, size);
 	const media_raw_audio_format &raw = format.u.raw_audio;
 	const int bps = RecConv::BytesPerSample(raw.format);
 	const int srcCh = raw.channel_count;

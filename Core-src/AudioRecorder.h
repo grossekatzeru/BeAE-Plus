@@ -82,6 +82,7 @@ public:
 
 private:
 	bool		_CreateRecorder();
+	size_t		_RealSize(const void *data, size_t size);
 	static void	_RecordHook(void *cookie, bigtime_t timestamp, void *data, size_t size,
 							const media_format &format);
 	void		OnBuffer(void *data, size_t size, const media_format &format);
@@ -114,6 +115,7 @@ private:
 	bool			fFormatKnown;
 	int32			fTrimCh;			// multi_audio: реальные данные - первые fTrimCh/fTrimSum буфера (см. AudioRecorder.cpp)
 	int32			fTrimSum;
+	bool			fTrimOff;			// в хвосте буфера нашлись данные: аддон исправлен, обрезать не нужно
 	bool			fOutOfMemory;
 
 	BLocker			fLock;
