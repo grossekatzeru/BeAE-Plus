@@ -221,6 +221,41 @@ static void DumpNodeParameters(BMediaRoster *roster, const media_node &node)
 	fprintf(stderr, "BeAE: input node parameters written to %s\n", path.Path());
 }
 
+// Аддон multi_audio (драйвер hda и др.) считает размер буфера КАЖДОГО выхода по всем входным каналам карты. Пока выход
+// один стерео - всё сходится. Если у карты несколько стереовыходов (например две пары АЦП), буфер получается во столько раз
+// больше данных, во сколько выходов: вторая половина буфера - нули, запись идёт «пачками» шума с паузами. Здесь размер
+// сводится к реальному: буфер выхода * каналы выхода / сумма каналов всех выходов. Только для узла с выходами «input N» (так их называет multi_audio) и только когда
+// размер делится ровно так, как считает аддон (иначе формат не трогаем).
+static void FixMultiAudioBufferSize(BMediaRoster *roster, const media_node &node, media_format *fmt)
+{
+	if (roster == NULL || fmt == NULL || fmt->type != B_MEDIA_RAW_AUDIO)
+		return;
+
+	media_output outs[16];
+	int32 n = 0;
+	if (roster->GetAllOutputsFor(node, outs, 16, &n) != B_OK || n < 2)
+		return;
+	int32 sum = 0;
+	for (int32 i = 0; i < n; i++) {
+		// выходы multi_audio называются «input 0», «input 1» ...: по этому признаку узнаём аддон
+		if (strncmp(outs[i].name, "input ", 6) != 0)
+			return;
+		if (outs[i].format.type == B_MEDIA_RAW_AUDIO)
+			sum += (int32)outs[i].format.u.raw_audio.channel_count;
+	}
+
+	const media_raw_audio_format &raw = fmt->u.raw_audio;
+	const int32 ch = (int32)raw.channel_count;
+	const int32 size = (int32)(raw.format & media_raw_audio_format::B_AUDIO_SIZE_MASK);
+	const size_t bytes = raw.buffer_size;
+	if (ch < 1 || size < 1 || sum <= ch || bytes == 0 || bytes % ((size_t)sum * size) != 0)
+		return;
+
+	fmt->u.raw_audio.buffer_size = bytes / (size_t)sum * (size_t)ch;
+	fprintf(stderr, "BeAE: multi_audio buffer size %d -> %d (channels %d of %d)\n",
+		(int)bytes, (int)fmt->u.raw_audio.buffer_size, (int)ch, (int)sum);
+}
+
 // Живой узел-источник «сырого» звука с заданным именем; узел берётся (GetNodeFor), снимать - ReleaseNode.
 static status_t FindSourceNode(BMediaRoster *roster, const char *name, media_node *node)
 {
@@ -544,6 +579,7 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		media_format fmt;
 		fmt.type = B_MEDIA_RAW_AUDIO;
 		fmt.u.raw_audio = output.format.u.raw_audio;
+		FixMultiAudioBufferSize(roster, fInputNode, &fmt);
 
 		err = fRecorder->Connect(fInputNode, &output, &fmt);
 		if (err != B_OK) {
