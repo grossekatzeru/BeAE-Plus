@@ -42,6 +42,8 @@ AudioRecorder::AudioRecorder()
 	fSrcFormat(media_raw_audio_format::B_AUDIO_FLOAT),
 	fSwap(false),
 	fFormatKnown(false),
+	fTrimCh(1),
+	fTrimSum(1),
 	fOutOfMemory(false),
 	fPeakL(0.0f),
 	fPeakR(0.0f),
@@ -78,6 +80,8 @@ void AudioRecorder::Clear()
 	fPeakAcc = 0;
 	fPeakCount = 0;
 	fFormatKnown = false;
+	fTrimCh = 1;
+	fTrimSum = 1;
 	fOutOfMemory = false;
 	fFirstStamp = 0;
 	fFirstArrival = 0;
@@ -223,37 +227,43 @@ static void DumpNodeParameters(BMediaRoster *roster, const media_node &node)
 
 // Аддон multi_audio (драйвер hda и др.) считает размер буфера КАЖДОГО выхода по всем входным каналам карты. Пока выход
 // один стерео - всё сходится. Если у карты несколько стереовыходов (например две пары АЦП), буфер получается во столько раз
-// больше данных, во сколько выходов: вторая половина буфера - нули, запись идёт «пачками» шума с паузами. Здесь размер
-// сводится к реальному: буфер выхода * каналы выхода / сумма каналов всех выходов. Только для узла с выходами «input N» (так их называет multi_audio) и только когда
-// размер делится ровно так, как считает аддон (иначе формат не трогаем).
-static void FixMultiAudioBufferSize(BMediaRoster *roster, const media_node &node, media_format *fmt)
+// больше данных, во сколько выходов: настоящие данные - только начало буфера, остальное нули, и запись идёт «пачками»
+// шума с паузами. Менять размер при подключении нельзя (медиа-система отвергает формат: Bad media format), поэтому
+// размер принятых буферов сокращается до реального при приёме: *ch / *sum - доля данных (каналы выхода / все каналы
+// всех выходов). Только для узла с выходами «input N» (так их называет multi_audio) и только когда размер делится ровно
+// так, как считает аддон; иначе доля 1/1 и буферы не трогаются.
+static void MultiAudioDataShare(BMediaRoster *roster, const media_node &node, const media_format &fmt,
+	int32 *ch, int32 *sum)
 {
-	if (roster == NULL || fmt == NULL || fmt->type != B_MEDIA_RAW_AUDIO)
+	*ch = 1;
+	*sum = 1;
+	if (roster == NULL || fmt.type != B_MEDIA_RAW_AUDIO)
 		return;
 
 	media_output outs[16];
 	int32 n = 0;
 	if (roster->GetAllOutputsFor(node, outs, 16, &n) != B_OK || n < 2)
 		return;
-	int32 sum = 0;
+	int32 total = 0;
 	for (int32 i = 0; i < n; i++) {
 		// выходы multi_audio называются «input 0», «input 1» ...: по этому признаку узнаём аддон
 		if (strncmp(outs[i].name, "input ", 6) != 0)
 			return;
 		if (outs[i].format.type == B_MEDIA_RAW_AUDIO)
-			sum += (int32)outs[i].format.u.raw_audio.channel_count;
+			total += (int32)outs[i].format.u.raw_audio.channel_count;
 	}
 
-	const media_raw_audio_format &raw = fmt->u.raw_audio;
-	const int32 ch = (int32)raw.channel_count;
+	const media_raw_audio_format &raw = fmt.u.raw_audio;
+	const int32 channels = (int32)raw.channel_count;
 	const int32 size = (int32)(raw.format & media_raw_audio_format::B_AUDIO_SIZE_MASK);
 	const size_t bytes = raw.buffer_size;
-	if (ch < 1 || size < 1 || sum <= ch || bytes == 0 || bytes % ((size_t)sum * size) != 0)
+	if (channels < 1 || size < 1 || total <= channels || bytes == 0 || bytes % ((size_t)total * size) != 0)
 		return;
 
-	fmt->u.raw_audio.buffer_size = bytes / (size_t)sum * (size_t)ch;
-	fprintf(stderr, "BeAE: multi_audio buffer size %d -> %d (channels %d of %d)\n",
-		(int)bytes, (int)fmt->u.raw_audio.buffer_size, (int)ch, (int)sum);
+	*ch = channels;
+	*sum = total;
+	fprintf(stderr, "BeAE: multi_audio buffers hold %d of %d channels of data, the rest is padding\n",
+		(int)channels, (int)total);
 }
 
 // Живой узел-источник «сырого» звука с заданным именем; узел берётся (GetNodeFor), снимать - ReleaseNode.
@@ -579,7 +589,7 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 		media_format fmt;
 		fmt.type = B_MEDIA_RAW_AUDIO;
 		fmt.u.raw_audio = output.format.u.raw_audio;
-		FixMultiAudioBufferSize(roster, fInputNode, &fmt);
+		MultiAudioDataShare(roster, fInputNode, fmt, &fTrimCh, &fTrimSum);
 
 		err = fRecorder->Connect(fInputNode, &output, &fmt);
 		if (err != B_OK) {
@@ -712,6 +722,8 @@ void AudioRecorder::OnBuffer(void *data, size_t size, const media_format &format
 		return;
 	if (format.type != B_MEDIA_RAW_AUDIO)
 		return;
+	if (fTrimSum > fTrimCh)
+		size = size / (size_t)fTrimSum * (size_t)fTrimCh;		// multi_audio: оставляем только настоящие данные
 
 	const media_raw_audio_format &raw = format.u.raw_audio;
 	const int bps = RecConv::BytesPerSample(raw.format);
@@ -792,6 +804,8 @@ void AudioRecorder::OnListenBuffer(void *data, size_t size, const media_format &
 {
 	if (format.type != B_MEDIA_RAW_AUDIO)
 		return;
+	if (fTrimSum > fTrimCh)
+		size = size / (size_t)fTrimSum * (size_t)fTrimCh;
 	const media_raw_audio_format &raw = format.u.raw_audio;
 	const int bps = RecConv::BytesPerSample(raw.format);
 	const int srcCh = raw.channel_count;

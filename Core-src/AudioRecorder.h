@@ -114,6 +114,8 @@ private:
 	uint32			fSrcFormat;
 	bool			fSwap;
 	bool			fFormatKnown;
+	int32			fTrimCh;			// multi_audio: реальные данные - первые fTrimCh/fTrimSum буфера (см. AudioRecorder.cpp)
+	int32			fTrimSum;
 	bool			fOutOfMemory;
 
 	BLocker			fLock;
