@@ -469,10 +469,11 @@ status_t
 Stream::Stop()
 {
 	if (fIsRunning) {
-		// wait until possible notification handling finished...
+		// stop new callbacks from queueing transfers, then wait until the
+		// notification handling in progress finished
+		fIsRunning = false;
 		while (atomic_get(&fInsideNotify) != 0)
 			snooze(100);
-		fIsRunning = false;
 	}
 	gUSBModule->cancel_queued_transfers(fStreamEndpoint);
 
