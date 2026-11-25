@@ -1,0 +1,133 @@
+# usb_audio - Haiku USB Audio Class driver (BeAE-Plus fork)
+
+This directory holds the Haiku kernel driver `usb_audio`
+(`src/add-ons/kernel/drivers/audio/usb` in the Haiku tree) with fixes made for
+the BeAE-Plus project. The first commit of this directory (`b8950fc`) is the
+original, unmodified source; every change is a separate commit, so
+`git diff b8950fc -- drivers/usb_audio` shows exactly what was changed.
+
+**Status: stage 1 is written but NOT compiled and NOT tested on Haiku.**
+Only a syntax check against the Haiku headers was done. Treat it as
+experimental.
+
+Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
+
+## What the driver supports
+
+- USB Audio Class 1.0 devices (AudioControl + AudioStreaming interfaces),
+  Format Type I, PCM 8/16/18/20/24/32 bit and IEEE float, up to 2 channels
+  per stream, subframe sizes 1, 2 and 4 bytes.
+- USB Audio Class 2.0 devices are **not** supported yet: the AudioControl
+  header with `bcdADC != 0x0100` is rejected in
+  `AudioControlInterface::Init()`, so such a device is not initialised at all.
+  (This is about the audio class version, not the USB 2.0 bus.)
+
+## Changes made (stage 1)
+
+### Stream.cpp / Stream.h
+
+1. **Sampling rate is initialised.** `fSamplingRate` was never set, so the
+   driver reported rate 0 and created no buffers until the application
+   changed the format. `Stream::Init()` now selects 48000, else 44100, else
+   the highest rate of the alternate, and creates the buffers.
+2. **Recording: packets are packed.** Isochronous packets have different
+   length (44 or 45 frames at 44.1 kHz), but the old code requested a fixed
+   `floor(rate/1000)` frames per packet and treated the buffer as contiguous.
+   Longer packets were truncated, short ones left gaps, which gives clicks and
+   crackle. Now the stack receives packets into a separate raw area
+   (`request_length` = maximal packet size of the endpoint) and
+   `_HandleRecordedPackets()` copies only the real `actual_length` bytes into
+   the application buffers, skipping packets with an error status.
+3. **Playback: frames are spread over the packets.** The frames of a buffer are
+   distributed evenly (44, 44, ..., 45 at 44.1 kHz) and a buffer always covers
+   a whole number of 1/rate periods (`rate / gcd(rate, 1000)` frames in
+   `1000 / gcd(rate, 1000)` packets). Before, `floor()` was used for every
+   packet, so the device was fed slower than it played.
+4. **Buffer areas.** Created with `B_FULL_LOCK` (the USB callback writes to
+   them), the raw recording area is a kernel area. `_FreeBuffers()` replaces
+   the duplicated clean-up code, `delete[]` is used for the descriptor array,
+   the creation failures are handled.
+5. **`SetGlobalFormat()`.**
+   - the requested rate is validated against the device descriptor first (the
+     result used to be ignored);
+   - the `SET_CUR` sampling frequency request is sent before the buffers are
+     rebuilt, and the old rate is restored if the device refuses;
+   - the request is sent only if the endpoint has the Sampling Frequency
+     Control bit (bit 0 of `bmAttributes`) or the stream has several rates; a
+     fixed-rate device gets no request (many of them stall it);
+   - the structure returns the format the device really uses;
+   - buffers are created if they do not exist yet.
+6. **`OnSetConfiguration()`** sends the rate to the device (`_SendSamplingRate()`),
+   so the device runs at the rate the buffers were made for.
+7. **`Start()`**: `fIsRunning` is set before the transfers are queued (the
+   completion callback ignored its first calls otherwise); a queueing error
+   cancels the start.
+8. **`GetBuffers()`**: the channels of the second stream of the same direction
+   are written at offset `startChannel`. The old loop
+   `for (channel = startChannel; channel < fNumChannels; ...)` did not run for
+   such a stream and copied an uninitialised kernel stack array to user space;
+   even with a fixed loop the descriptors would have overwritten the ones of
+   the first stream. The number of channels is limited to what the caller
+   requested and the array is zeroed.
+
+### Device.cpp / Driver.cpp
+
+- `new Stream` is checked for NULL.
+- On a replug (`CompareAndReattach()` calls `_SetupEndpoints()` again) the old
+  streams are deleted; they were duplicated before.
+- `B_MULTI_GET_BUFFERS` and `B_MULTI_GET_MIX/SET_MIX` limit the sizes taken from
+  user space (`request_*_buffers` <= 16, `item_count` <= 1024); they size
+  arrays on the kernel stack.
+- `usb_audio_open()` finds the device by the number in the published name
+  (`audio/hmulti/usb/N`). The old loop stopped at the first empty slot of
+  `gDevices` and compared against a compacted name list, so it could open the
+  wrong device or fail after unplugging one.
+
+## Known problems that are NOT fixed yet
+
+- USB Audio Class 2.0 (clock sources, 4-byte feature unit controls, sample
+  rates via GET_RANGE/SET_CUR on the clock entity, AS interface revision 2).
+- More than 2 channels per stream; multi_audio structures are limited to 16
+  channels in `Device::Control` and the enable mask is a single `uint32`.
+- 24 bit in 3-byte subframes (blocked by Haiku ticket #20267, resampler).
+- High-speed microframes (125 us); packets are assumed to be 1 ms.
+- Explicit feedback endpoint for asynchronous playback.
+- Playback buffer sequencing: the logic of `fCurrentBuffer` and the double
+  queueing of the first buffer at start looks suspicious; left unchanged
+  because it can not be verified without hardware.
+- Re-initialisation of the AudioControl interface on replug may duplicate
+  controls.
+
+## Build and install
+
+Copy the files into `src/add-ons/kernel/drivers/audio/usb` of the Haiku tree
+(keep a copy of the original), `touch` them (jam compares file times), then
+from the generated directory:
+
+```
+jam -q usb_audio
+```
+
+Install without touching the system files:
+
+```
+mkdir -p ~/config/non-packaged/add-ons/kernel/drivers/dev/audio/hmulti
+cp <built usb_audio> ~/config/non-packaged/add-ons/kernel/drivers/dev/audio/hmulti/
+```
+
+Reboot. To roll back, delete that file and reboot (hold Shift at boot for the
+safe mode if the system does not start).
+
+## Diagnostics
+
+`usb_audio.settings` (installed to `~/config/settings/kernel/drivers/`):
+
+```
+trace 0x7F
+logfile /boot/home/usb_audio.log
+```
+
+Useful lines: `Alternate N EP:x selected`, `packets per buffer`,
+`packet max`, `set_speed ... for ep`, `N of M packets with errors skipped`.
+Please attach the log and the output of `listusb -v` for the device when
+reporting a problem.
