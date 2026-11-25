@@ -52,6 +52,20 @@ protected:
 			size_t			fAreaSize;
 			usb_iso_packet_descriptor* fDescriptors;
 			size_t			fDescriptorsCount;
+
+			// recording: the USB stack receives the iso packets into a raw
+			// buffer, the actual data of every packet is then copied (packed)
+			// into the buffers the application sees
+			area_id			fRawArea;
+			uint8*			fRawBuffers;
+			size_t			fRawBufferSize;		// bytes per sub-buffer
+			size_t			fPacketMax;			// bytes requested per packet
+			size_t			fPacketsPerBuffer;
+			size_t			fFrameSize;			// bytes per sample frame
+			size_t			fSubBufferBytes;	// bytes per application buffer
+			size_t			fFillBytes;			// bytes already stored in it
+			size_t			fWriteBuffer;		// the buffer which is filled
+			size_t			fRawIndex;			// raw sub-buffer last handled
 			uint8*			fBuffers;
 			uint8*			fKernelBuffers;
 			size_t			fCurrentBuffer;
@@ -65,6 +79,9 @@ protected:
 private:
 			status_t		_ChooseAlternate();
 			status_t		_SetupBuffers();
+			void			_FreeBuffers();
+			status_t		_SendSamplingRate();
+			void			_HandleRecordedPackets(size_t rawIndex);
 			status_t		_QueueNextTransfer(size_t buffer, bool start);
 	static	void			_TransferCallback(void* cookie, status_t status,
 								void* data, size_t actualLength);

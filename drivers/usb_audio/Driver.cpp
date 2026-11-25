@@ -176,15 +176,20 @@ usb_audio_open(const char* name, uint32 flags, void** cookie)
 	MutexLocker _(gDriverLock);
 
 	*cookie = NULL;
-	status_t status = ENODEV;
-	for (int32 i = 0; i < MAX_DEVICES && gDevices[i] != NULL; i++) {
-		if (strcmp(gDeviceNames[i], name) == 0) {
-			status = gDevices[i]->Open(flags);
-			*cookie = gDevices[i];
-			break;
-		}
-	}
 
+	// the name ends with the (one based) index of the device in gDevices,
+	// see publish_devices(); the array may have gaps after unplugging
+	size_t baseLength = strlen(sDeviceBaseName);
+	if (strncmp(name, sDeviceBaseName, baseLength) != 0)
+		return ENODEV;
+
+	int32 index = atoi(name + baseLength) - 1;
+	if (index < 0 || index >= MAX_DEVICES || gDevices[index] == NULL)
+		return ENODEV;
+
+	status_t status = gDevices[index]->Open(flags);
+	if (status == B_OK)
+		*cookie = gDevices[index];
 	return status;
 }
 

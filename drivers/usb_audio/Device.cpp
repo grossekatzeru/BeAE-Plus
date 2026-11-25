@@ -15,6 +15,11 @@
 #include "Settings.h"
 
 
+// sanity limits of the sizes taken from the user, they allocate memory
+static const int32 kMaxRequestedBuffers = 16;
+static const int32 kMaxMixValues = 1024;
+
+
 Device::Device(usb_device device)
 	:
 	fStatus(B_ERROR),
@@ -259,6 +264,8 @@ Device::Control(uint32 op, void* buffer, size_t length)
 				return B_BAD_ADDRESS;
 
 			multi_mix_value* originalValues = info.values;
+			if (info.item_count < 0 || info.item_count > kMaxMixValues)
+				return B_BAD_VALUE;
 			size_t mixValueSize = info.item_count * sizeof(multi_mix_value);
 			multi_mix_value* values = (multi_mix_value*)alloca(mixValueSize);
 			if (user_memcpy(values, info.values, mixValueSize) != B_OK)
@@ -334,6 +341,12 @@ Device::Control(uint32 op, void* buffer, size_t length)
 				return B_BAD_ADDRESS;
 			buffer_desc **original_playback_descs = list.playback_buffers;
 			buffer_desc **original_record_descs = list.record_buffers;
+
+			// the arrays below are on the kernel stack
+			if (list.request_playback_buffers > kMaxRequestedBuffers
+				|| list.request_record_buffers > kMaxRequestedBuffers) {
+				return B_BAD_VALUE;
+			}
 
 			buffer_desc *playback_descs[list.request_playback_buffers];
 			buffer_desc *record_descs[list.request_record_buffers];
@@ -793,6 +806,11 @@ Device::_SetupEndpoints()
 		return B_ERROR;
 	}
 
+	// on a replug the streams are made anew, don't keep the old ones
+	for (int i = 0; i < fStreams.Count(); i++)
+		delete fStreams[i];
+	fStreams.MakeEmpty();
+
 	for (size_t i = 0; i < config->interface_count; i++) {
 		usb_interface_info* Interface = config->interface[i].active;
 		if (Interface == NULL || Interface->descr == NULL)
@@ -808,6 +826,8 @@ Device::_SetupEndpoints()
 				{
 					Stream* stream = new(std::nothrow) Stream(this, i,
 						&config->interface[i]);
+					if (stream == NULL)
+						return B_NO_MEMORY;
 					if (stream->Init() == B_OK) {
 						// put the stream in the correct order:
 						// first output that input ones.
