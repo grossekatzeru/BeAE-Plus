@@ -860,11 +860,24 @@ Device::_MultiBufferExchange(multi_buffer_info* multiInfo)
 	}
 
 	status = B_ERROR;
+	int32 used = -1;
 	for (int i = 0; i < fStreams.Count(); i++) {
 		if (fStreams[i]->ExchangeBuffer(&Info)) {
 			status = B_OK;
+			used = i;
 			break;
 		}
+	}
+
+	// diagnostics: the first exchanges
+	static int32 sExchanges = 0;
+	if (sExchanges < 16) {
+		atomic_add(&sExchanges, 1);
+		TRACE(ERR, "exchange: stream %d (%s) played cycle %d, recorded cycle %d, "
+			"frames %ld/%ld\n", (int)used,
+			used >= 0 ? (fStreams[used]->IsInput() ? "input" : "output") : "-",
+			(int)Info.playback_buffer_cycle, (int)Info.record_buffer_cycle,
+			(long)Info.played_frames_count, (long)Info.recorded_frames_count);
 	}
 
 	if (status != B_OK) {
