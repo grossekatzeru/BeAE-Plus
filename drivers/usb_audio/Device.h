@@ -85,6 +85,7 @@ private:
 			status_t		_MultiBufferForceStop();
 
 			sem_id			fBuffersReadySem;
+			int32			fExchangeLog;
 };
 
 

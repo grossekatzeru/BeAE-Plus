@@ -34,7 +34,8 @@ Device::Device(usb_device device)
 	fDevice(device),
 	fNonBlocking(false),
 	fAudioControl(this),
-	fBuffersReadySem(-1)
+	fBuffersReadySem(-1),
+	fExchangeLog(0)
 {
 	strlcpy(fName, "USB Audio", sizeof(fName));
 
@@ -162,6 +163,8 @@ Device::Open(uint32 flags)
 
 	// TODO: are we need this???
 	fNonBlocking = (flags & O_NONBLOCK) == O_NONBLOCK;
+	fExchangeLog = 0;
+	TRACE(ERR, "device opened (the first exchanges are logged)\n");
 	fOpen = true;
 	return result;
 }
@@ -880,9 +883,8 @@ Device::_MultiBufferExchange(multi_buffer_info* multiInfo)
 	}
 
 	// diagnostics: the first exchanges
-	static int32 sExchanges = 0;
-	if (sExchanges < 16) {
-		atomic_add(&sExchanges, 1);
+	if (fExchangeLog < 24) {
+		atomic_add(&fExchangeLog, 1);
 		TRACE(ERR, "exchange: stream %d (%s) played cycle %d, recorded cycle %d, "
 			"frames %ld/%ld\n", (int)used,
 			used >= 0 ? (fStreams[used]->IsInput() ? "input" : "output") : "-",
