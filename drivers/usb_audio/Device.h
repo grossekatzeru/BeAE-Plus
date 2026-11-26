@@ -43,6 +43,7 @@ public:
 							AudioControl() { return fAudioControl; }
 
 private:
+			void			_UpdateChannelLimits();
 			status_t		_SetupEndpoints();
 
 // protected:

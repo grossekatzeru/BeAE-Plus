@@ -284,7 +284,7 @@ public:
 								Vector<multi_channel_info>& Channels,
 								multi_description* Description,
 								Vector<_AudioControl*>& USBTerminals,
-								bool isForInput);
+								bool isForInput, uint32 maxChannels = 0);
 			uint32			GetBusChannelsDescription(
 								Vector<multi_channel_info>& Channels,
 								multi_description* Description);
@@ -300,7 +300,8 @@ protected:
 			uint32			GetTerminalChannels(
 								Vector<multi_channel_info>& Channels,
 								AudioChannelCluster* cluster,
-								channel_kind kind, uint32 connectors = 0);
+								channel_kind kind, uint32 connectors = 0,
+								uint32 wanted = 0);
 
 			void			_HarvestRecordFeatureUnits(_AudioControl* rootControl,
 								AudioControlsMap& Map);

@@ -18,6 +18,11 @@
 // sanity limits of the sizes taken from the user, they allocate memory
 static const int32 kMaxRequestedBuffers = 16;
 static const int32 kMaxMixValues = 1024;
+static const int32 kMaxMixControls = 4096;
+
+// The multi_audio API keeps the enabled channels in a 32 bit mask, so the
+// channels of all streams and the bus channels together are limited by it.
+static const uint32 kMaxTotalChannels = 32;
 
 
 Device::Device(usb_device device)
@@ -136,7 +141,7 @@ Device::Control(uint32 op, void* buffer, size_t length)
 		case B_MULTI_GET_DESCRIPTION:
 		{
 			multi_description description;
-			multi_channel_info channels[16];
+			multi_channel_info channels[kMaxTotalChannels];
 			multi_channel_info* originalChannels;
 
 			if (user_memcpy(&description, buffer, sizeof(multi_description))
@@ -145,8 +150,11 @@ Device::Control(uint32 op, void* buffer, size_t length)
 
 			originalChannels = description.channels;
 			description.channels = channels;
-			if (description.request_channel_count > 16)
-				description.request_channel_count = 16;
+			memset(channels, 0, sizeof(channels));
+			if (description.request_channel_count > (int32)kMaxTotalChannels)
+				description.request_channel_count = kMaxTotalChannels;
+			if (description.request_channel_count < 0)
+				description.request_channel_count = 0;
 
 			status_t status = _MultiGetDescription(&description);
 			if (status != B_OK)
@@ -299,6 +307,9 @@ Device::Control(uint32 op, void* buffer, size_t length)
 				return B_BAD_ADDRESS;
 			}
 
+			if (info.control_count < 0 || info.control_count > kMaxMixControls)
+				return B_BAD_VALUE;
+
 			original_controls = info.controls;
 			allocSize = sizeof(multi_mix_control) * info.control_count;
 			controls = (multi_mix_control *)malloc(allocSize);
@@ -344,7 +355,9 @@ Device::Control(uint32 op, void* buffer, size_t length)
 
 			// the arrays below are on the kernel stack
 			if (list.request_playback_buffers > kMaxRequestedBuffers
-				|| list.request_record_buffers > kMaxRequestedBuffers) {
+				|| list.request_record_buffers > kMaxRequestedBuffers
+				|| list.request_playback_buffers < 0
+				|| list.request_record_buffers < 0) {
 				return B_BAD_VALUE;
 			}
 
@@ -476,6 +489,8 @@ Device::_MultiGetDescription(multi_description* multiDescription)
 			sizeof(multi_description)) != B_OK)
 		return B_BAD_ADDRESS;
 
+	_UpdateChannelLimits();
+
 	Description.interface_version = B_CURRENT_INTERFACE_VERSION;
 	Description.interface_minimum = B_CURRENT_INTERFACE_VERSION;
 
@@ -514,7 +529,7 @@ Device::_MultiGetDescription(multi_description* multiDescription)
 		USBTerminal.PushBack(fAudioControl.Find(fStreams[i]->TerminalLink()));
 
 		fAudioControl.GetChannelsDescription(Channels, &Description, USBTerminal,
-			fStreams[i]->IsInput());
+			fStreams[i]->IsInput(), fStreams[i]->ExposedChannels());
 		fStreams[i]->GetFormatsAndRates(&Description);
 	}
 
@@ -534,6 +549,54 @@ Device::_MultiGetDescription(multi_description* multiDescription)
 		return B_BAD_ADDRESS;
 
 	return B_OK;
+}
+
+
+void
+Device::_UpdateChannelLimits()
+{
+	// Everything reported to the multi_audio API (the channels of the streams
+	// and the bus channels) has to fit into kMaxTotalChannels. The streams
+	// carry all their channels in the USB frames anyway, but only the first
+	// ones are reported when there are too many.
+	Vector<multi_channel_info> busChannels;
+	multi_description dummy;
+	memset(&dummy, 0, sizeof(dummy));
+	uint32 bus = fAudioControl.GetBusChannelsDescription(busChannels, &dummy);
+
+	int32 left = fStreams.Count();
+	if (left <= 0)
+		return;
+
+	uint32 remaining = kMaxTotalChannels > bus ? kMaxTotalChannels - bus : 2;
+	bool settled[left];
+	for (int32 i = 0; i < left; i++)
+		settled[i] = false;
+
+	// streams which need less than an equal share get everything they need,
+	// the others share the rest
+	uint32 limit = remaining / left;
+	bool changed = true;
+	while (changed && left > 0) {
+		changed = false;
+		for (int32 i = 0; i < fStreams.Count(); i++) {
+			uint32 channels = fStreams[i]->FrameChannels();
+			if (settled[i] || channels > limit)
+				continue;
+			settled[i] = true;
+			remaining -= channels;
+			left--;
+			changed = true;
+		}
+		if (left > 0)
+			limit = remaining / left;
+	}
+
+	for (int32 i = 0; i < fStreams.Count(); i++) {
+		fStreams[i]->SetChannelLimit(settled[i] ? 0 : (limit > 0 ? limit : 1));
+		TRACE(INF, "stream %d: %d channels in the frame, %d reported.\n", i,
+			fStreams[i]->FrameChannels(), fStreams[i]->ExposedChannels());
+	}
 }
 
 
@@ -585,6 +648,7 @@ Device::_MultiGetEnabledChannels(multi_channel_enable* Enable)
 
 	Enable->lock_source = B_MULTI_LOCK_INTERNAL;
 
+	_UpdateChannelLimits();
 	uint32 offset = 0;
 	for (int i = 0; i < fStreams.Count() && status == B_OK; i++)
 		status = fStreams[i]->GetEnabledChannels(offset, Enable);
@@ -597,6 +661,7 @@ status_t
 Device::_MultiSetEnabledChannels(multi_channel_enable* Enable)
 {
 	status_t status = B_OK;
+	_UpdateChannelLimits();
 	uint32 offset = 0;
 	for (int i = 0; i < fStreams.Count() && status == B_OK; i++)
 		status = fStreams[i]->SetEnabledChannels(offset, Enable);
@@ -658,6 +723,8 @@ Device::_MultiGetBuffers(multi_buffer_list* List)
 		List->request_record_buffers,
 		List->request_record_channels,
 		List->request_record_buffer_size);
+
+	_UpdateChannelLimits();
 
 	List->flags = 0;
 	List->return_playback_channels = 0;

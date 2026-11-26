@@ -15,8 +15,8 @@ Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
 ## What the driver supports
 
 - USB Audio Class 1.0 devices (AudioControl + AudioStreaming interfaces),
-  Format Type I, PCM 8/16/18/20/24/32 bit and IEEE float, up to 2 channels
-  per stream, subframe sizes 1, 2 and 4 bytes.
+  Format Type I, PCM 8/16/18/20/24/32 bit and IEEE float, up to 32 channels
+  per stream (stage 2, see below), subframe sizes 1, 2 and 4 bytes.
 - USB Audio Class 2.0 devices are **not** supported yet: the AudioControl
   header with `bcdADC != 0x0100` is rejected in
   `AudioControlInterface::Init()`, so such a device is not initialised at all.
@@ -83,12 +83,40 @@ Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
   `gDevices` and compared against a compacted name list, so it could open the
   wrong device or fail after unplugging one.
 
+## Changes made (stage 2: more than 2 channels)
+
+Also not compiled and not tested on Haiku, and not tested with a multichannel
+device at all.
+
+- `Stream::_ChooseAlternate()` accepts streams with up to 32 channels (was 2).
+  The alternate with the most channels/bits is still preferred.
+- The multi_audio API (and the `multi_audio` media add-on) keeps the enabled
+  channels in a 32 bit mask, so the stream channels plus the bus channels can
+  not exceed 32 together. `Device::_UpdateChannelLimits()` shares this budget
+  between the streams (a small stream keeps all its channels, the rest is
+  divided equally). A stream with more channels still carries all of them in
+  the USB frame; only the first ones are reported to the API
+  (`Stream::ExposedChannels()`), and the buffer descriptors, enabled-channel
+  bits and the description use the same number.
+- `B_MULTI_GET_DESCRIPTION` no longer truncates the channel list to 16
+  entries (32 now); the list is zeroed and `request_channel_count` is checked.
+- `AudioControlInterface::GetTerminalChannels()` reports exactly as many
+  channels as the stream has. The designations come from the cluster's channel
+  configuration bitmap; if it is empty ("unspecified" layout of a
+  multi-channel interface) or has fewer bits than channels, the missing
+  channels get a generic designation. Before, such a stream was reported with
+  0 or fewer channels and the channel numbers did not match the buffers.
+- `B_MULTI_LIST_MIX_CONTROLS` and negative buffer counts are range checked.
+
+Limit: 32 reported channels in total. A device with e.g. 18 inputs and 20
+outputs shows 16 + 16; more needs a change of the multi_audio add-on and
+the API.
+
 ## Known problems that are NOT fixed yet
 
 - USB Audio Class 2.0 (clock sources, 4-byte feature unit controls, sample
   rates via GET_RANGE/SET_CUR on the clock entity, AS interface revision 2).
-- More than 2 channels per stream; multi_audio structures are limited to 16
-  channels in `Device::Control` and the enable mask is a single `uint32`.
+- More than 32 reported channels in total (the multi_audio API limit).
 - 24 bit in 3-byte subframes (blocked by Haiku ticket #20267, resampler).
 - High-speed microframes (125 us); packets are assumed to be 1 ms.
 - Explicit feedback endpoint for asynchronous playback.

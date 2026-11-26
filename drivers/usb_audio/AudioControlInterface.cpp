@@ -1074,7 +1074,7 @@ AudioControlInterface::InitACHeader(size_t interface,
 uint32
 AudioControlInterface::GetChannelsDescription(
 	Vector<multi_channel_info>& Channels, multi_description* Description,
-	Vector<_AudioControl*>& Terminals, bool isForInput)
+	Vector<_AudioControl*>& Terminals, bool isForInput, uint32 maxChannels)
 {
 	uint32 addedChannels = 0;
 
@@ -1086,8 +1086,15 @@ AudioControlInterface::GetChannelsDescription(
 			continue;
 		}
 
+		// the number of reported channels is the number of channels in the
+		// stream, it has to match the layout of the buffers
+		uint32 wanted = cluster->ChannelsCount();
+		if (maxChannels != 0 && wanted > maxChannels)
+			wanted = maxChannels;
+
 		uint32 channels = GetTerminalChannels(Channels, cluster,
-			isForInput ? B_MULTI_INPUT_CHANNEL : B_MULTI_OUTPUT_CHANNEL);
+			isForInput ? B_MULTI_INPUT_CHANNEL : B_MULTI_OUTPUT_CHANNEL, 0,
+			wanted);
 
 		if (isForInput)
 			Description->input_channel_count += channels;
@@ -1103,9 +1110,13 @@ AudioControlInterface::GetChannelsDescription(
 
 uint32
 AudioControlInterface::GetTerminalChannels(Vector<multi_channel_info>& Channels,
-		AudioChannelCluster* cluster, channel_kind kind, uint32 connectors)
+		AudioChannelCluster* cluster, channel_kind kind, uint32 connectors,
+		uint32 wanted)
 {
-	if (cluster->ChannelsCount() < 2) { // mono channel
+	if (wanted == 0)
+		wanted = cluster->ChannelsCount();
+
+	if (wanted < 2) { // mono channel
 		multi_channel_info info;
 		info.channel_id	= Channels.Count();
 		info.kind		= kind;
@@ -1120,7 +1131,8 @@ AudioControlInterface::GetTerminalChannels(Vector<multi_channel_info>& Channels,
 
 	// Haiku multi-aduio designations have the same bits
 	// as USB Audio 2.0 cluster spatial locations :-)
-	for (size_t i = 0; i < kChannels; i++) {
+	for (size_t i = 0; i < kChannels && Channels.Count() - startCount < wanted;
+			i++) {
 		uint32 designation = 1 << i;
 		if ((cluster->ChannelsConfig() & designation) == designation) {
 			multi_channel_info info;
@@ -1130,6 +1142,19 @@ AudioControlInterface::GetTerminalChannels(Vector<multi_channel_info>& Channels,
 			info.connectors	= connectors;
 			Channels.PushBack(info);
 		}
+	}
+
+	// The channel configuration may be empty ("unspecified" layout of a
+	// multi-channel interface) or describe less channels than there are.
+	// Every channel of the frame needs an entry, otherwise the channel
+	// numbers do not match the buffers.
+	while (Channels.Count() - startCount < wanted) {
+		multi_channel_info info;
+		info.channel_id	= Channels.Count();
+		info.kind		= kind;
+		info.designations= B_CHANNEL_MONO_BUS;
+		info.connectors	= connectors;
+		Channels.PushBack(info);
 	}
 
 	return Channels.Count() - startCount;

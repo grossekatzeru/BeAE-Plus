@@ -34,6 +34,13 @@ public:
 							const usb_configuration_info* config);
 
 			bool			ExchangeBuffer(multi_buffer_info* Info);
+			// Channels the stream carries in every sample frame, and the
+			// number of them reported to the multi_audio API (the API
+			// handles at most 32 channels altogether, see Device.cpp)
+			uint32			FrameChannels();
+			uint32			ExposedChannels();
+			void			SetChannelLimit(uint32 limit) { fChannelLimit = limit; }
+
 			status_t		GetEnabledChannels(uint32& offset,
 								multi_channel_enable* Enable);
 			status_t		SetEnabledChannels(uint32& offset,
@@ -70,6 +77,7 @@ protected:
 			uint8*			fKernelBuffers;
 			size_t			fCurrentBuffer;
 			size_t			fSamplesCount;
+			uint32			fChannelLimit;		// 0 - no limit
 
 			bigtime_t		fRealTime;
 			uint32			fStartingFrame;

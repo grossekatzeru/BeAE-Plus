@@ -39,12 +39,18 @@ Stream::Stream(Device* device, size_t interface, usb_interface_list* List)
 	fRawIndex(0),
 	fCurrentBuffer(0),
 	fSamplesCount(0),
+	fChannelLimit(0),
 	fRealTime(0),
 	fStartingFrame(0),
 	fProcessedBuffers(0),
 	fInsideNotify(0)
 {
 }
+
+
+// The frame of a stream may carry more channels than the multi_audio API
+// can handle: it keeps the channels in a 32 bit mask.
+static const uint32 kMaxStreamChannels = 32;
 
 
 Stream::~Stream()
@@ -92,7 +98,7 @@ Stream::_ChooseAlternate()
 		TypeIFormatDescriptor* format
 			= static_cast<TypeIFormatDescriptor*>(fAlternates[i]->Format());
 
-		if (format->fNumChannels > 2) {
+		if (format->fNumChannels > kMaxStreamChannels) {
 			TRACE(ERR, "Ignore alternate %d - channel count %d "
 				"is not supported.\n", i, format->fNumChannels);
 			continue;
@@ -629,6 +635,25 @@ Stream::_DumpDescriptors()
 }
 
 
+uint32
+Stream::FrameChannels()
+{
+	TypeIFormatDescriptor* format = static_cast<TypeIFormatDescriptor*>(
+		fAlternates[fActiveAlternate]->Format());
+	return format->fNumChannels;
+}
+
+
+uint32
+Stream::ExposedChannels()
+{
+	uint32 channels = FrameChannels();
+	if (fChannelLimit != 0 && channels > fChannelLimit)
+		channels = fChannelLimit;
+	return channels;
+}
+
+
 status_t
 Stream::GetEnabledChannels(uint32& offset, multi_channel_enable* Enable)
 {
@@ -636,8 +661,11 @@ Stream::GetEnabledChannels(uint32& offset, multi_channel_enable* Enable)
 	if (cluster == 0)
 		return B_ERROR;
 
-	for (size_t i = 0; i < cluster->ChannelsCount(); i++) {
-		B_SET_CHANNEL(Enable->enable_bits, offset++, true);
+	// the description reports ExposedChannels() channels for the stream
+	for (size_t i = 0; i < ExposedChannels(); i++) {
+		if (offset < 32)
+			B_SET_CHANNEL(Enable->enable_bits, offset, true);
+		offset++;
 		TRACE(INF, "Report channel %d as enabled.\n", offset);
 	}
 
@@ -652,9 +680,9 @@ Stream::SetEnabledChannels(uint32& offset, multi_channel_enable* Enable)
 	if (cluster == 0)
 		return B_ERROR;
 
-	for (size_t i = 0; i < cluster->ChannelsCount(); i++, offset++) {
+	for (size_t i = 0; i < ExposedChannels(); i++, offset++) {
 		TRACE(INF, "%s channel %d.\n",
-			(B_TEST_CHANNEL(Enable->enable_bits, offset)
+			(offset < 32 && B_TEST_CHANNEL(Enable->enable_bits, offset)
 			? "Enable" : "Disable"), offset + 1);
 	}
 
@@ -767,7 +795,7 @@ Stream::GetBuffers(multi_buffer_list* List)
 
 	// the channels of this stream follow the channels of the streams already
 	// handled (startChannel); never write more than the caller asked for
-	int32 channels = format->fNumChannels;
+	int32 channels = ExposedChannels();
 	if (channels > requestChannels - startChannel)
 		channels = requestChannels - startChannel;
 	if (channels <= 0)
