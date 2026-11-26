@@ -532,6 +532,23 @@ Stream::_HandleRecordedPackets(size_t rawIndex)
 	size_t bad = 0;
 	status_t firstBad = B_OK;
 
+	// diagnostics: what the USB stack reports for the first transfers
+	static int32 sReported = 0;
+	if (sReported < 6) {
+		atomic_add(&sReported, 1);
+		size_t total = 0;
+		for (size_t i = 0; i < fPacketsPerBuffer; i++)
+			total += descriptors[i].actual_length;
+		TRACE(ERR, "recorded transfer %ld: %ld bytes in %ld packets, "
+			"first packets (length/actual/status): %ld/%ld/%#x %ld/%ld/%#x "
+			"%ld/%ld/%#x\n", rawIndex, total, fPacketsPerBuffer,
+			descriptors[0].request_length, descriptors[0].actual_length,
+			descriptors[0].status, descriptors[1].request_length,
+			descriptors[1].actual_length, descriptors[1].status,
+			descriptors[2].request_length, descriptors[2].actual_length,
+			descriptors[2].status);
+	}
+
 	for (size_t i = 0; i < fPacketsPerBuffer; i++) {
 		// the packets have different length (44 or 45 frames at 44.1 kHz) and
 		// the device may send nothing: copy the real data only, otherwise the
