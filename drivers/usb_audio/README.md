@@ -189,3 +189,15 @@ returned as it is. Not compiled or tested on Haiku.
 the resampler and the record cycles, and whether a buffer was produced.
 Apply in `src/add-ons/media/media-add-ons/multi_audio` with `patch -p2 < ...`.
 Not compiled or tested on Haiku.
+
+## Why recording stayed at 0:00: the node is never started
+
+The DIAG patch showed `run=1` (B_STOPPED) for a connected USB node.
+`BMediaRecorder::Start()` calls `StartTimeSource()` for a producer that is a
+time source (and `multi_audio` nodes are), and never `StartNode()`.
+`MultiAudioNode::TimeSourceOp(B_TIMESOURCE_START)` did nothing, so the node
+stayed stopped and `_OutputThread` (which sends recorded buffers only in
+`B_STARTED`) delivered nothing. It worked for the default output device
+only because the system mixer starts that node. `multi_audio-start.patch`
+queues a `B_START` event in `TimeSourceOp`. Apply with `patch -p2` in
+`src/add-ons/media/media-add-ons/multi_audio`. Not compiled or tested on Haiku.

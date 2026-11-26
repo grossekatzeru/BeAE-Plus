@@ -1,0 +1,18 @@
+--- a/multi_audio/MultiAudioNode.cpp	2026-11-26 14:07:42.028404312 +0000
++++ b/multi_audio/MultiAudioNode.cpp	2026-11-26 14:07:42.096806029 +0000
+@@ -1309,7 +1309,14 @@
+ 	switch (op.op) {
+ 		case B_TIMESOURCE_START:
+ 			PRINT(("TimeSourceOp op B_TIMESOURCE_START\n"));
+-			// Do nothing.
++			// BMediaRecorder starts a producer that is a time source with
++			// StartTimeSource() only, it never calls StartNode(). Without a
++			// start event the node stays B_STOPPED and the output thread
++			// never delivers the recorded buffers. Start the node here.
++			if (RunState() != BMediaEventLooper::B_STARTED) {
++				media_timed_event startEvent(0, BTimedEventQueue::B_START);
++				EventQueue()->AddEvent(startEvent);
++			}
+ 			break;
+ 		case B_TIMESOURCE_STOP:
+ 			PRINT(("TimeSourceOp op B_TIMESOURCE_STOP\n"));
