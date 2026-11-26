@@ -171,8 +171,10 @@ Device::Close()
 		return B_OK;
 	}
 
+	// The buffers belong to the team which opened the device, the next
+	// opener makes its own ones.
 	for (int i = 0; i < fStreams.Count(); i++)
-		fStreams[i]->Stop();
+		fStreams[i]->ReleaseBuffers();
 
 	fOpen = false;
 

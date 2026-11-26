@@ -29,7 +29,12 @@ Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
 1. **Sampling rate is initialised.** `fSamplingRate` was never set, so the
    driver reported rate 0 and created no buffers until the application
    changed the format. `Stream::Init()` now selects 48000, else 44100, else
-   the highest rate of the alternate, and creates the buffers.
+   the highest rate of the alternate. The buffers are still created in the
+   ioctl context (`SetGlobalFormat()` or, if it was not called, `GetBuffers()`)
+   and released in `Device::Close()`: the area given to the application has to
+   be made by a thread of the application's team, otherwise the application
+   gets kernel addresses it can not use (an earlier version of this change
+   created them in `Init()`, which broke recording).
 2. **Recording: packets are packed.** Isochronous packets have different
    length (44 or 45 frames at 44.1 kHz), but the old code requested a fixed
    `floor(rate/1000)` frames per packet and treated the buffer as contiguous.

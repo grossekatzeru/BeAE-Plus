@@ -88,6 +88,9 @@ private:
 			status_t		_ChooseAlternate();
 			status_t		_SetupBuffers();
 			void			_FreeBuffers();
+public:
+			void			ReleaseBuffers();
+private:
 			status_t		_SendSamplingRate();
 			void			_HandleRecordedPackets(size_t rawIndex);
 			status_t		_QueueNextTransfer(size_t buffer, bool start);

@@ -173,8 +173,19 @@ Stream::Init()
 		alternate->SetSamplingRate(0);
 	}
 
-	fStatus = _SetupBuffers();
+	// The buffers are not made here: the area handed to the application must
+	// be created in the context of the calling team (see GetBuffers() and
+	// SetGlobalFormat()), here we run in the kernel team and the application
+	// would get addresses it can not access.
 	return fStatus;
+}
+
+
+void
+Stream::ReleaseBuffers()
+{
+	Stop();
+	_FreeBuffers();
 }
 
 
@@ -443,6 +454,9 @@ Stream::_SendSamplingRate()
 status_t
 Stream::Start()
 {
+	if (fAreaSize == 0)
+		return B_NO_INIT;
+
 	status_t result = B_BUSY;
 	if (!fIsRunning) {
 		if (fIsInput) {
@@ -784,8 +798,13 @@ Stream::SetGlobalFormat(multi_format_info* Format)
 status_t
 Stream::GetBuffers(multi_buffer_list* List)
 {
-	if (fAreaSize == 0)
-		return B_NO_INIT;
+	// the area is created in the context of the calling team: the thread
+	// which makes the ioctl() belongs to the application
+	if (fAreaSize == 0) {
+		status_t status = _SetupBuffers();
+		if (status != B_OK)
+			return status;
+	}
 
 	int32 startChannel = List->return_playback_channels;
 	int32 requestChannels = List->request_playback_channels;
