@@ -530,15 +530,19 @@ Stream::_HandleRecordedPackets(size_t rawIndex)
 	usb_iso_packet_descriptor* descriptors
 		= fDescriptors + rawIndex * fPacketsPerBuffer;
 	size_t bad = 0;
+	status_t firstBad = B_OK;
 
 	for (size_t i = 0; i < fPacketsPerBuffer; i++) {
 		// the packets have different length (44 or 45 frames at 44.1 kHz) and
 		// the device may send nothing: copy the real data only, otherwise the
 		// recording gets gaps (clicks)
+		// A short packet is normal here (the packets are requested with the
+		// maximal size), and the status of a short packet may be not B_OK, so
+		// the received bytes are used whenever there are any.
 		size_t length = descriptors[i].actual_length;
 		if (descriptors[i].status != B_OK) {
-			bad++;
-			continue;
+			if (bad++ == 0)
+				firstBad = descriptors[i].status;
 		}
 		if (length > fPacketMax)
 			length = fPacketMax;
@@ -568,9 +572,10 @@ Stream::_HandleRecordedPackets(size_t rawIndex)
 		}
 	}
 
-	if (bad != 0)
-		TRACE(ERR, "%ld of %ld packets with errors skipped\n", bad,
-			fPacketsPerBuffer);
+	if (bad != 0) {
+		TRACE(ERR, "%ld of %ld packets with a status (first: %#x: %s)\n", bad,
+			fPacketsPerBuffer, firstBad, strerror(firstBad));
+	}
 }
 
 

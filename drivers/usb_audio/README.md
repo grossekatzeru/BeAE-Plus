@@ -37,7 +37,7 @@ Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
    crackle. Now the stack receives packets into a separate raw area
    (`request_length` = maximal packet size of the endpoint) and
    `_HandleRecordedPackets()` copies only the real `actual_length` bytes into
-   the application buffers, skipping packets with an error status.
+   the application buffers, using every packet with received data, a packet status other than B_OK is only logged.
 3. **Playback: frames are spread over the packets.** The frames of a buffer are
    distributed evenly (44, 44, ..., 45 at 44.1 kHz) and a buffer always covers
    a whole number of 1/rate periods (`rate / gcd(rate, 1000)` frames in
@@ -163,6 +163,6 @@ logfile /boot/home/usb_audio.log
 ```
 
 Useful lines: `Alternate N EP:x selected`, `packets per buffer`,
-`packet max`, `set_speed ... for ep`, `N of M packets with errors skipped`.
+`packet max`, `set_speed ... for ep`, `N of M packets with a status`.
 Please attach the log and the output of `listusb -v` for the device when
 reporting a problem.
