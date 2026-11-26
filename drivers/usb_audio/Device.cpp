@@ -49,7 +49,6 @@ Device::Device(usb_device device)
 	fVendorID = deviceDescriptor->vendor_id;
 	fProductID = deviceDescriptor->product_id;
 	fUSBVersion = deviceDescriptor->usb_version;
-	_ReadProductName(deviceDescriptor);
 
 	fBuffersReadySem = create_sem(0, DRIVER_NAME "_buffers_ready");
 	if (fBuffersReadySem < B_OK) {
@@ -60,6 +59,11 @@ Device::Device(usb_device device)
 
 	if (_SetupEndpoints() != B_OK)
 		return;
+
+	// this is done only for real audio devices: a Device object is made for
+	// every USB device the driver is offered, and not every device
+	// (hubs, mice) likes string requests at this moment
+	_ReadProductName(deviceDescriptor);
 
 	// must be set in derived class constructor
 	fStatus = B_OK;
