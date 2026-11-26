@@ -112,6 +112,13 @@ Limit: 32 reported channels in total. A device with e.g. 18 inputs and 20
 outputs shows 16 + 16; more needs a change of the multi_audio add-on and
 the API.
 
+## Device names
+
+`friendly_name` (what the Media preferences list) is the USB product string of
+the device instead of the fixed "USB Audio" (`Device::_ReadProductName()`,
+UTF-16 to UTF-8, up to 31 bytes). If the device has no string, "USB Audio" is
+used. The name comes from the device, so cards of the same model look alike.
+
 ## Known problems that are NOT fixed yet
 
 - USB Audio Class 2.0 (clock sources, 4-byte feature unit controls, sample

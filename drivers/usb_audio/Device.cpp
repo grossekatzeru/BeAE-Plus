@@ -36,6 +36,8 @@ Device::Device(usb_device device)
 	fAudioControl(this),
 	fBuffersReadySem(-1)
 {
+	strlcpy(fName, "USB Audio", sizeof(fName));
+
 	const usb_device_descriptor* deviceDescriptor
 		= gUSBModule->get_device_descriptor(device);
 
@@ -47,6 +49,7 @@ Device::Device(usb_device device)
 	fVendorID = deviceDescriptor->vendor_id;
 	fProductID = deviceDescriptor->product_id;
 	fUSBVersion = deviceDescriptor->usb_version;
+	_ReadProductName(deviceDescriptor);
 
 	fBuffersReadySem = create_sem(0, DRIVER_NAME "_buffers_ready");
 	if (fBuffersReadySem < B_OK) {
@@ -60,6 +63,67 @@ Device::Device(usb_device device)
 
 	// must be set in derived class constructor
 	fStatus = B_OK;
+}
+
+
+void
+Device::_ReadProductName(const usb_device_descriptor* deviceDescriptor)
+{
+	if (deviceDescriptor->product == 0)
+		return;
+
+	// the first string descriptor lists the supported languages
+	uint8 buffer[256];
+	size_t actual = 0;
+	status_t status = gUSBModule->get_descriptor(fDevice, USB_DESCRIPTOR_STRING,
+		0, 0, buffer, sizeof(buffer), &actual);
+	if (status != B_OK || actual < 4)
+		return;
+	uint16 language = buffer[2] | (buffer[3] << 8);
+
+	actual = 0;
+	status = gUSBModule->get_descriptor(fDevice, USB_DESCRIPTOR_STRING,
+		deviceDescriptor->product, language, buffer, sizeof(buffer), &actual);
+	if (status != B_OK || actual < 4)
+		return;
+
+	// UTF-16LE to UTF-8
+	size_t length = min_c((size_t)buffer[0], actual);
+	size_t out = 0;
+	char name[sizeof(fName)];
+	for (size_t i = 2; i + 1 < length; i += 2) {
+		uint32 c = buffer[i] | (buffer[i + 1] << 8);
+		if (c < 0x20 || (c >= 0xd800 && c < 0xe000))
+			continue;
+
+		char encoded[3];
+		size_t size;
+		if (c < 0x80) {
+			encoded[0] = c;
+			size = 1;
+		} else if (c < 0x800) {
+			encoded[0] = 0xc0 | (c >> 6);
+			encoded[1] = 0x80 | (c & 0x3f);
+			size = 2;
+		} else {
+			encoded[0] = 0xe0 | (c >> 12);
+			encoded[1] = 0x80 | ((c >> 6) & 0x3f);
+			encoded[2] = 0x80 | (c & 0x3f);
+			size = 3;
+		}
+
+		// never cut a character in the middle
+		if (out + size >= sizeof(name))
+			break;
+		memcpy(name + out, encoded, size);
+		out += size;
+	}
+	name[out] = '\0';
+
+	if (out > 0) {
+		strlcpy(fName, name, sizeof(fName));
+		TRACE(INF, "Product name: %s\n", fName);
+	}
 }
 
 
@@ -495,7 +559,9 @@ Device::_MultiGetDescription(multi_description* multiDescription)
 	Description.interface_version = B_CURRENT_INTERFACE_VERSION;
 	Description.interface_minimum = B_CURRENT_INTERFACE_VERSION;
 
-	strlcpy(Description.friendly_name, "USB Audio",
+	// the product name of the device, so that several devices can be told
+	// apart in the Media preferences
+	strlcpy(Description.friendly_name, fName,
 		sizeof(Description.friendly_name));
 
 	strlcpy(Description.vendor_info, "S.Zharski",

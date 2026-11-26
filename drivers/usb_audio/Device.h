@@ -45,6 +45,8 @@ public:
 private:
 			void			_UpdateChannelLimits();
 			status_t		_SetupEndpoints();
+			void			_ReadProductName(
+								const usb_device_descriptor* deviceDescriptor);
 
 // protected:
 	virtual	status_t		StartDevice() { return B_OK; }
@@ -63,6 +65,7 @@ private:
 			uint16			fVendorID;
 			uint16			fProductID;
 	const	char*			fDescription;
+			char			fName[32];
 			bool			fNonBlocking;
 
 			AudioControlInterface	fAudioControl;
