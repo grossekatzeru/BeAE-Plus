@@ -180,3 +180,12 @@ so the wait passed while no buffer was ready. Now the semaphore is drained in
 `Open()`, `fProcessedBuffers` is reset in `Stream::Start()`, and the exchange
 waits again when a count has no ready buffer; any other wait error is
 returned as it is. Not compiled or tested on Haiku.
+
+## Diagnostic patch for the media add-on
+
+`multi_audio-diag.patch` adds two `debug_printf` lines to
+`MultiAudioNode::_OutputThread` (they go to `/var/log/syslog`, prefix
+`multi_audio DIAG`): the node run state, the connection, the buffer group,
+the resampler and the record cycles, and whether a buffer was produced.
+Apply in `src/add-ons/media/media-add-ons/multi_audio` with `patch -p2 < ...`.
+Not compiled or tested on Haiku.

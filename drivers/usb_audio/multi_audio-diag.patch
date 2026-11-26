@@ -1,0 +1,47 @@
+--- a/multi_audio/MultiAudioNode.cpp	2026-11-26 09:32:01.138777101 +0000
++++ b/multi_audio/MultiAudioNode.cpp	2026-11-26 09:32:01.186384144 +0000
+@@ -10,6 +10,7 @@
+ #include "MultiAudioNode.h"
+ 
+ #include <stdio.h>
++#include <OS.h>
+ #include <string.h>
+ 
+ #include <Autolock.h>
+@@ -1848,6 +1849,22 @@
+ 		for (int32 i = 0; i < fOutputs.CountItems(); i++) {
+ 			node_output* output = (node_output*)fOutputs.ItemAt(i);
+ 
++			// DIAG: why is nothing delivered? (rate limited)
++			{
++				static int32 sDiag = 0;
++				if (sDiag++ % 100 == 0) {
++					debug_printf("multi_audio DIAG: out %d run=%d dest=%d "
++						"group=%p resampler=%p enabled=%d cycle=%d old=%d "
++						"recbufs=%d\n", (int)i, (int)RunState(),
++						(int)output->fOutput.destination.id,
++						output->fBufferGroup, output->fResampler,
++						(int)output->fOutputEnabled,
++						(int)bufferInfo.record_buffer_cycle,
++						(int)output->fOldBufferCycle,
++						(int)fDevice->BufferList().return_record_buffers);
++				}
++			}
++
+ 			// make sure we're both started *and* connected before delivering a
+ 			// buffer
+ 			if (RunState() == BMediaEventLooper::B_STARTED
+@@ -1864,6 +1881,13 @@
+ 
+ 					// Get the next buffer of data
+ 					BBuffer* buffer = _FillNextBuffer(bufferInfo, *output);
++					{
++						static int32 sDiag2 = 0;
++						if (sDiag2++ < 20 || sDiag2 % 100 == 0)
++							debug_printf("multi_audio DIAG: buffer %p "
++								"enabled=%d\n", buffer,
++								(int)output->fOutputEnabled);
++					}
+ 					if (buffer != NULL) {
+ 						// send the buffer downstream if and only if output is
+ 						// enabled
