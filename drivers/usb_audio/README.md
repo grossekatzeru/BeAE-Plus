@@ -171,3 +171,12 @@ Useful lines: `Alternate N EP:x selected`, `packets per buffer`,
 `packet max`, `set_speed ... for ep`, `N of M packets with a status`.
 Please attach the log and the output of `listusb -v` for the device when
 reporting a problem.
+
+## Buffer exchange: stale semaphore (found with tools/usb_record_test)
+
+`B_MULTI_BUFFER_EXCHANGE` returned `B_ERROR` at once on a freshly opened
+device: the shared `fBuffersReadySem` kept counts from the previous session,
+so the wait passed while no buffer was ready. Now the semaphore is drained in
+`Open()`, `fProcessedBuffers` is reset in `Stream::Start()`, and the exchange
+waits again when a count has no ready buffer; any other wait error is
+returned as it is. Not compiled or tested on Haiku.

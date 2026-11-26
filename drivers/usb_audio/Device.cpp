@@ -152,6 +152,10 @@ Device::Open(uint32 flags)
 	if (fRemoved)
 		return B_ERROR;
 
+	// the previous session may have left counts in the semaphore
+	while (acquire_sem_etc(fBuffersReadySem, 1, B_RELATIVE_TIMEOUT, 0) == B_OK)
+		;
+
 	status_t result = StartDevice();
 	if (result != B_OK)
 		return result;
@@ -852,19 +856,25 @@ Device::_MultiBufferExchange(multi_buffer_info* multiInfo)
 			fStreams[i]->Start();
 	}
 
-	status_t status = acquire_sem_etc(fBuffersReadySem, 1,
-		B_CAN_INTERRUPT, 0);
-	if (status == B_TIMED_OUT) {
-		TRACE(ERR, "Timeout during buffers exchange.\n");
-		return status;
-	}
-
-	status = B_ERROR;
+	status_t status = B_ERROR;
 	int32 used = -1;
-	for (int i = 0; i < fStreams.Count(); i++) {
-		if (fStreams[i]->ExchangeBuffer(&Info)) {
+	for (;;) {
+		status = acquire_sem_etc(fBuffersReadySem, 1, B_CAN_INTERRUPT, 0);
+		if (status != B_OK) {
+			TRACE(ERR, "Waiting for buffers failed: %08x.\n", status);
+			return status;
+		}
+
+		// The semaphore is shared by the streams; a count without a ready
+		// buffer is stale, just wait again.
+		for (int i = 0; i < fStreams.Count(); i++) {
+			if (fStreams[i]->ExchangeBuffer(&Info)) {
+				used = i;
+				break;
+			}
+		}
+		if (used >= 0) {
 			status = B_OK;
-			used = i;
 			break;
 		}
 	}

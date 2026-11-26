@@ -466,6 +466,8 @@ Stream::Start()
 			fCurrentBuffer = (size_t)-1;
 		}
 
+		atomic_set(&fProcessedBuffers, 0);
+
 		// the callback ignores its calls until this flag is set
 		fIsRunning = true;
 		for (size_t i = 0; i < kSamplesBufferCount; i++) {
