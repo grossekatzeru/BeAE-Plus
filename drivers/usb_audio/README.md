@@ -76,7 +76,7 @@ Original code: Copyright (c) 2009-13 S.Zharski, MIT license.
 - On a replug (`CompareAndReattach()` calls `_SetupEndpoints()` again) the old
   streams are deleted; they were duplicated before.
 - `B_MULTI_GET_BUFFERS` and `B_MULTI_GET_MIX/SET_MIX` limit the sizes taken from
-  user space (`request_*_buffers` <= 16, `item_count` <= 1024); they size
+  user space (`request_*_buffers` <= 64, `item_count` <= 1024); they size
   arrays on the kernel stack.
 - `usb_audio_open()` finds the device by the number in the published name
   (`audio/hmulti/usb/N`). The old loop stopped at the first empty slot of

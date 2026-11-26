@@ -16,7 +16,8 @@
 
 
 // sanity limits of the sizes taken from the user, they allocate memory
-static const int32 kMaxRequestedBuffers = 16;
+// the multi_audio add-on asks for MAX_BUFFERS (32) buffers
+static const int32 kMaxRequestedBuffers = 64;
 static const int32 kMaxMixValues = 1024;
 static const int32 kMaxMixControls = 4096;
 
