@@ -110,6 +110,7 @@ public:
 	// Дорожки. AddTrack: данные копируются, получается дорожка с одним клипом на 0 с (если frames > 0).
 	int		AddTrack(const char *name, const float *data, int64_t frames, int channels, float rate = 44100.0f);
 	int		AddEmptyTrack(const char *name, int channels);
+	int		DuplicateTrack(int i, const char *nameSuffix);	// дубль дорожки как есть (клипы, громкость, эффекты, автоматизация); индекс или -1
 	void	RemoveTrack(int i);								// основную (0) удалить нельзя
 	void	ResetAll();										// новый проект: одна пустая дорожка 0
 	int		Active() const { return fActive; }

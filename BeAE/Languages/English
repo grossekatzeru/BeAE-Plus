@@ -484,3 +484,7 @@ CARD_ASK = "Set up the sound card \"%s\".\n\nYou can also do this later in Prefe
 CARD_NONE = "No sound cards found"
 CARD_LIST_TIP = "Sound card whose recording latency is shown and measured"
 CAL_ERR_TIMING = "The time stamps of this card are inconsistent, the measurement was rejected. See the report below."
+TRACK_DUPLICATE = "Copy track"
+TRACK_DELETE = "Delete track"
+TRACK_COPY_SUFFIX = " (copy)"
+TRACK_DELETE_ASK = "Delete the track \"%s\"?\n\nThis cannot be undone."

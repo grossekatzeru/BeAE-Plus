@@ -115,6 +115,8 @@ enum {MONO=1, STEREO=2};
 #define CLIP_PASTE_N		'cPsN'
 #define CLIP_DELETE			'cDel'
 #define CLIP_SAVE			'cSav'
+#define TRACK_DELETE		'tkDl'	// меню дорожки: удалить активную дорожку
+#define TRACK_DUPLICATE		'tkDp'	// меню дорожки: дубль активной дорожки как есть
 #define CLIP_LOCK			'cLck'
 #define CLIP_GROUP			'cGrp'
 #define OPEN_MIX			'opnM'

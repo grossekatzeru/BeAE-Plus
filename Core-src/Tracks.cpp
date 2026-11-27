@@ -871,6 +871,19 @@ int Tracks_Add()
 	return Mix.AddEmptyTrack(name, 2);
 }
 
+int Tracks_DuplicateActive(const char *nameSuffix)
+{
+	if (Recorder.IsRecording())
+		return -1;
+	int created = -1;
+	gUndo.clear(); gRedo.clear();					// число дорожек изменилось - прежние снимки не годятся
+	Restructure([&](int lane, int stashed, const ViewState&){
+		created = Mix.DuplicateTrack(lane, nameSuffix);	// активный клип уже лежит в микшере (stashed)
+		return stashed;
+	}, true, false);
+	return created;
+}
+
 void Tracks_RemoveActive()
 {
 	int a = Mix.Active();

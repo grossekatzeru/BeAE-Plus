@@ -1764,6 +1764,30 @@ void MainWindow::MessageReceived(BMessage *message)
 	case CLIP_DELETE:
 		if (Tracks_DeleteClip()) Pool.changed = true;
 		break;
+	case TRACK_DUPLICATE:
+		if (!Recorder.IsRecording() && Tracks_DuplicateActive(Language.get("TRACK_COPY_SUFFIX")) >= 0){
+			Pool.changed = true;
+			Pool.sample_view_dirty = true;
+			Invalidate();
+		}
+		break;
+	case TRACK_DELETE:
+	{
+		if (Recorder.IsRecording() || Tracks_Count() < 2)
+			break;
+		const MixTrack *t = Mix.Track(Mix.Active());
+		char text[300];
+		snprintf(text, sizeof(text), Language.get("TRACK_DELETE_ASK"), t ? t->name : "");
+		BAlert *alert = new BAlert(NULL, text, Language.get("CANCEL"), Language.get("TRACK_DELETE"));
+		alert->SetShortcut(0, B_ESCAPE);
+		if (alert->Go() == 1){
+			Tracks_RemoveActive();
+			Pool.changed = true;
+			Pool.sample_view_dirty = true;
+			Invalidate();
+		}
+		break;
+	}
 	case CLIP_GROUP:
 		if (!Recorder.IsRecording() && Tracks_ToggleSelectionGroup()){
 			Pool.changed = true;

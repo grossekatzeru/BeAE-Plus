@@ -51,6 +51,7 @@ int		Tracks_ImportClip(int lane, const SourceRef &src, double seconds, const cha
 double	Tracks_Offset(int index);				// положение начала клипа на ленте, сек
 bool	Tracks_ActiveRange(int64 &first, int64 &last);	// где в окне волны лежит звук активной дорожки (без тишины по краям)
 int		Tracks_Add();							// добавить пустую дорожку, вернуть индекс или -1
+int		Tracks_DuplicateActive(const char *nameSuffix);	// дубль активной дорожки как есть; индекс новой или -1 (отмена правок клипов сбрасывается)
 void	Tracks_RemoveActive();					// удалить активную дорожку (последнюю оставшуюся удалить нельзя)
 void	Tracks_SaveRange(int64 &start, int64 &end);	// диапазон кадров активной дорожки без добавленной тишины
 

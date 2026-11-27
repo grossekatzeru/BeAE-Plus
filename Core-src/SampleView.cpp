@@ -610,6 +610,11 @@ void SampleView::MouseDown(BPoint p)
 				menuItem->SetMarked(Pool.tool_mode == MOVE_TOOL);
 				menu->AddSeparatorItem();
 				menu->AddItem(new BMenuItem(Language.get("CLIP_SAVE"), new BMessage(CLIP_SAVE)));
+				menu->AddSeparatorItem();
+				menu->AddItem(menuItem = new BMenuItem(Language.get("TRACK_DUPLICATE"), new BMessage(TRACK_DUPLICATE)));
+				menuItem->SetEnabled(!Recorder.IsRecording());
+				menu->AddItem(menuItem = new BMenuItem(Language.get("TRACK_DELETE"), new BMessage(TRACK_DELETE)));
+				menuItem->SetEnabled(!Recorder.IsRecording() && Tracks_Count() >= 2);
 				#ifdef __SAMPLE_STUDIO_LE
 					menu->AddItem(menuItem = new BMenuItem(Language.get("EDIT_PASTE_MIX"), new BMessage(PASTE_MIXED), KeyBind.GetKey("EDIT_PASTE_MIX"), KeyBind.GetMod("EDIT_PASTE_MIX")));
 					menuItem->SetEnabled(ClipBoard.HasClip());

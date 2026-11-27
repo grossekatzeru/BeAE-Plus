@@ -105,6 +105,50 @@ void Mixer::ResetAll()
 	fRevision++;
 }
 
+int Mixer::DuplicateTrack(int i, const char *nameSuffix)
+{
+	if (i < 0 || i >= MIX_MAX_TRACKS)
+		return -1;
+	Lock();
+	if (!fTracks[i].used) { Unlock(); return -1; }
+	int idx = -1;
+	for (int k=1; k<MIX_MAX_TRACKS; k++) {
+		if (!fTracks[k].used) { idx = k; break; }
+	}
+	if (idx < 0) { Unlock(); return -1; }
+	MixTrack &d = fTracks[idx];
+	d = fTracks[i];										// всё как есть: звук (источники общие), громкость, панорама, огибающие, источник записи
+	d.armed = false;									// две дорожки с одним источником писать нельзя
+	for (size_t k = 0; k < d.clips.size(); k++) {
+		d.clips[k].selected = false;
+		d.clips[k].group = 0;							// группы не переносим: иначе копия двигалась бы вместе с оригиналом
+	}
+	if (nameSuffix) {
+		const size_t room = sizeof(d.name) - 1;
+		size_t len = strlen(d.name);
+		const size_t add = strlen(nameSuffix);
+		if (add < room) {
+			if (len + add > room) {
+				len = room - add;
+				while (len > 0 && ((unsigned char)d.name[len] & 0xC0) == 0x80) len--;		// не рвать UTF-8 символ
+			}
+			memcpy(d.name + len, nameSuffix, add + 1);
+		}
+	}
+	if (idx >= fCount) fCount = idx+1;
+	Unlock();
+	// цепочка эффектов: те же плагины и параметры (отдельные экземпляры)
+	fFx[idx].Clear();
+	for (int k = 0; k < fFx[i].Count(); k++) {
+		const FxChain::Slot *sl = fFx[i].At(k);
+		std::string err;
+		if (sl && fFx[idx].AddCopyOf(*sl, sl->rate, &err))
+			fFx[idx].SetEnabled(fFx[idx].Count() - 1, sl->enabled);
+	}
+	fRevision++;
+	return idx;
+}
+
 void Mixer::RemoveTrack(int i)
 {
 	if (i < 1 || i >= MIX_MAX_TRACKS) return;
