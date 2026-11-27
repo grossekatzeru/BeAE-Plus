@@ -5,7 +5,8 @@
 //
 // Usage: usb_record_test /dev/audio/hmulti/usb/1 [seconds] [-p]
 //   -p  also feed silence to the playback buffers (like the media add-on).
-//   -s  feed a 440 Hz sine to the playback buffers (you should hear it).
+//   -s  feed a 440 Hz sine to the playback buffers (you should hear it):
+//       2 s left only, 2 s right only, 2 s both, repeated.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,6 +87,7 @@ main(int argc, char** argv)
 			feedPlayback = sine = true;
 	}
 	double phase = 0;
+	int lastMode = -1;
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -192,8 +194,16 @@ main(int argc, char** argv)
 			for (int c = 0; c < bl.return_playback_channels; c++) {
 				buffer_desc& d = playPtr[bi.playback_buffer_cycle][c];
 				double p = phase;
+				// which channel sounds: 0 left only, 1 right only, 2 both
+				int mode = (int)(((system_time() - start) / 2000000) % 3);
+				if (c == 0 && mode != lastMode) {
+					printf("-> %s\n", mode == 0 ? "LEFT only" : mode == 1
+						? "RIGHT only" : "BOTH");
+					lastMode = mode;
+				}
+				bool on = (mode == 2) || (mode == c);
 				for (uint32 i = 0; i < bl.return_playback_buffer_size; i++) {
-					double v = sine ? 0.3 * sin(p) : 0.0;
+					double v = (sine && on) ? 0.3 * sin(p) : 0.0;
 					p += 2 * M_PI * 440.0 / 48000.0;
 					char* at = d.base + i * d.stride;
 					switch (fi.output.format) {
