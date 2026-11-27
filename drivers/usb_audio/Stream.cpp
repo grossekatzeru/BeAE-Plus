@@ -640,6 +640,37 @@ Stream::_TransferCallback(void* cookie, status_t status, void* data,
 		stream->_HandleRecordedPackets(stream->fRawIndex);
 		status = stream->_QueueNextTransfer(stream->fRawIndex, false);
 	} else {
+		// diagnostics: did the controller really send the packets of the first playback transfers?
+		static int32 sPlayDiag = 0;
+		if (sPlayDiag < 6 && stream->fSubBufferBytes > 0) {
+			atomic_add(&sPlayDiag, 1);
+			size_t index = ((uint8*)data - stream->fKernelBuffers)
+				/ stream->fSubBufferBytes;
+			if (index >= kSamplesBufferCount)
+				index = 0;
+			usb_iso_packet_descriptor* d
+				= stream->fDescriptors + index * stream->fPacketsPerBuffer;
+			size_t total = 0, requested = 0, bad = 0, nonZero = 0;
+			for (size_t i = 0; i < stream->fPacketsPerBuffer; i++) {
+				total += d[i].actual_length;
+				requested += d[i].request_length;
+				if (d[i].status != B_OK)
+					bad++;
+			}
+			const uint8* bytes = (const uint8*)data;
+			for (size_t i = 0; i < stream->fSubBufferBytes; i++)
+				if (bytes[i] != 0)
+					nonZero++;
+			TRACE(ERR, "played transfer %ld: buffer %ld, status %#x, "
+				"%ld of %ld bytes sent in %ld packets (%ld bad), first "
+				"packet %ld/%ld status %#x, non-zero bytes in the buffer %ld "
+				"of %ld\n", (long)sPlayDiag, (long)index, (int)status,
+				(long)total, (long)requested, (long)stream->fPacketsPerBuffer,
+				(long)bad, (long)d[0].actual_length, (long)d[0].request_length,
+				(int)d[0].status, (long)nonZero,
+				(long)stream->fSubBufferBytes);
+		}
+
 		if (atomic_add(&stream->fProcessedBuffers, 1)
 				> (int32)kSamplesBufferCount) {
 			TRACE(ERR, "Processed buffers overflow:%d\n",
