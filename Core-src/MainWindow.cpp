@@ -1768,7 +1768,7 @@ void MainWindow::MessageReceived(BMessage *message)
 		if (!Recorder.IsRecording() && Tracks_DuplicateActive(Language.get("TRACK_COPY_SUFFIX")) >= 0){
 			Pool.changed = true;
 			Pool.sample_view_dirty = true;
-			Invalidate();
+			Pool.RedrawWindow();
 		}
 		break;
 	case TRACK_DELETE:
@@ -1784,7 +1784,7 @@ void MainWindow::MessageReceived(BMessage *message)
 			Tracks_RemoveActive();
 			Pool.changed = true;
 			Pool.sample_view_dirty = true;
-			Invalidate();
+			Pool.RedrawWindow();
 		}
 		break;
 	}
