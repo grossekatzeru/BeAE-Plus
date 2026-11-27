@@ -5,6 +5,7 @@
 //
 // Usage: usb_record_test /dev/audio/hmulti/usb/1 [seconds] [-p]
 //   -p  also feed silence to the playback buffers (like the media add-on).
+//   -s  feed a 440 Hz sine to the playback buffers (you should hear it).
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,9 +78,14 @@ main(int argc, char** argv)
 	const char* path = argc > 1 ? argv[1] : "/dev/audio/hmulti/usb/1";
 	int seconds = argc > 2 ? atoi(argv[2]) : 10;
 	bool feedPlayback = false;
-	for (int i = 1; i < argc; i++)
+	bool sine = false;
+	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-p") == 0)
 			feedPlayback = true;
+		if (strcmp(argv[i], "-s") == 0)
+			feedPlayback = sine = true;
+	}
+	double phase = 0;
 
 	fd = open(path, O_WRONLY);
 	if (fd < 0) {
@@ -185,8 +191,21 @@ main(int argc, char** argv)
 			&& bi.playback_buffer_cycle < bl.return_playback_buffers) {
 			for (int c = 0; c < bl.return_playback_channels; c++) {
 				buffer_desc& d = playPtr[bi.playback_buffer_cycle][c];
-				for (uint32 i = 0; i < bl.return_playback_buffer_size; i++)
-					memset(d.base + i * d.stride, 0, 4);
+				double p = phase;
+				for (uint32 i = 0; i < bl.return_playback_buffer_size; i++) {
+					double v = sine ? 0.3 * sin(p) : 0.0;
+					p += 2 * M_PI * 440.0 / 48000.0;
+					char* at = d.base + i * d.stride;
+					switch (fi.output.format) {
+						case B_FMT_16BIT: *(int16*)at = (int16)(v * 32767); break;
+						case B_FMT_FLOAT: *(float*)at = (float)v; break;
+						case B_FMT_8BIT_S: *(int8*)at = (int8)(v * 127); break;
+						case B_FMT_8BIT_U: *(uint8*)at = (uint8)(128 + v * 127); break;
+						default: *(int32*)at = (int32)(v * 2147483647.0); break;
+					}
+				}
+				if (c == bl.return_playback_channels - 1)
+					phase = p;
 			}
 		}
 		if (n <= 40 || n % 50 == 0)
