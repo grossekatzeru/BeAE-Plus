@@ -114,6 +114,7 @@ int32 Run(void *data)
 	// затем берём медиану-ish (2-й снизу), чтобы единичный выброс не влиял.
 	const int kTrials = 5;
 	std::vector<double> results;
+	int rejected = 0;
 	BString diag;
 	char line[400];
 	{
@@ -156,7 +157,8 @@ int32 Run(void *data)
 		const bigtime_t fh = cookie.firstHook, fa = Recorder.FirstArrival(), fs = Recorder.FirstStamp();
 		bool got = false;
 		double corr = 0;
-		const bigtime_t stampReal = Recorder.FirstStampReal();
+		const bigtime_t stampReal = Recorder.AlignReal();
+		const bool stampOk = Recorder.StampPlausible();
 		if (mem != NULL && frames > 0 && rate > 1.0){
 			std::vector<float> mono((size_t)frames);
 			for (long long i = 0; i < frames; i++)
@@ -168,16 +170,19 @@ int32 Run(void *data)
 					corr = ms + (double)(stampReal - fh) / 1000.0;
 				else
 					corr = ms;
-				results.push_back(corr);
+				if (corr < -50.0 || corr > 3000.0)
+					rejected++;			// абсурдное значение: метки времени не сходятся, не принимаем
+				else
+					results.push_back(corr);
 			}
 		}
 		snprintf(line, sizeof(line),
-			"#%d: %s%.0f ms | rec.Start %.1f, play.Start %.1f..%.1f | 1st buf %.1f (stamp %.1f) | 1st hook %.1f | in-lat %.1f | stampReal %.1f | corrected %.1f (ms from call)\n",
+			"#%d: %s%.0f ms | rec.Start %.1f, play.Start %.1f..%.1f | 1st buf %.1f (stamp %.1f) | 1st hook %.1f | in-lat %.1f | stampReal %.1f%s | corrected %.1f (ms from call)\n",
 			t + 1, got ? "" : "no signal ", got ? ms : 0.0,
 			(tRecRet - tCall) / 1000.0, (tRecRet - tCall) / 1000.0, (tPlRet - tCall) / 1000.0,
 			fa ? (fa - tCall) / 1000.0 : -1.0, fs ? (fs - tCall) / 1000.0 : -1.0,
 			fh ? (fh - tCall) / 1000.0 : -1.0, (double)Recorder.InputLatency() / 1000.0,
-			stampReal ? (stampReal - tCall) / 1000.0 : -1.0, got ? corr : 0.0);
+			stampReal ? (stampReal - tCall) / 1000.0 : -1.0, stampOk ? "" : " [arrival]", got ? corr : 0.0);
 		diag << line;
 		free(mem);
 		Recorder.Clear();
@@ -186,7 +191,7 @@ int32 Run(void *data)
 	delete player;
 
 	if (results.empty()){
-		Reply(target, false, 0, "CAL_ERR_NO_SIGNAL", diag.String());
+		Reply(target, false, 0, rejected > 0 ? "CAL_ERR_TIMING" : "CAL_ERR_NO_SIGNAL", diag.String());
 	}else{
 		std::sort(results.begin(), results.end());
 		const size_t idx = results.size() > 1 ? 1 : 0;

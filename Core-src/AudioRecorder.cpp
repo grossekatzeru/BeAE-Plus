@@ -516,6 +516,20 @@ void AudioRecorder::ListSources(std::vector<BString> &names)
 		roster->ReleaseNode(systemInput);
 }
 
+bool AudioRecorder::StampPlausible() const
+{
+	const bigtime_t stamp = fFirstStampReal, arrival = fFirstArrival;
+	if (stamp <= 0 || arrival <= 0)
+		return false;
+	const bigtime_t diff = arrival - stamp;
+	return diff > -1000000 && diff < 1000000;
+}
+
+bigtime_t AudioRecorder::AlignReal() const
+{
+	return StampPlausible() ? fFirstStampReal : fFirstArrival;
+}
+
 void AudioRecorder::ListCards(std::vector<BString> &names, BString *system)
 {
 	names.clear();

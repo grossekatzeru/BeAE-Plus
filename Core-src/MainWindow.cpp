@@ -1048,7 +1048,7 @@ void MainWindow::FinishTrackRecording(AudioRecorder &rec)
 		return;
 	}
 
-	const bigtime_t recStampReal = rec.FirstStampReal();
+	const bigtime_t recStampReal = rec.AlignReal();	// метка первого буфера или момент его прихода (см. AudioRecorder::AlignReal)
 	const bigtime_t recFirstHook = Pool.rec_first_hook;
 	float *mem = rec.CopyData(256);	// 256 float запаса, как «+1024» при загрузке файла
 	if (mem == NULL){

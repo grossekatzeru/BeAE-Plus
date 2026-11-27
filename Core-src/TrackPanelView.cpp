@@ -711,9 +711,9 @@ void TrackPanelView::MouseDown(BPoint p)
 		if (Mix.Track(index)->armed){
 			Mix.SetArmed(index, false);
 		}else{
-			// Shift или Ctrl: добавить дорожку к уже готовым к записи (запись нескольких дорожек сразу, с разных источников)
-			const bool add = (modifiers() & (B_SHIFT_KEY | B_CONTROL_KEY)) != 0;
-			Mix.SetArmed(index, true, !add);
+			// обычный щелчок добавляет дорожку к уже готовым к записи (запись нескольких дорожек сразу, с разных источников);
+			// выключить - повторный щелчок по R
+			Mix.SetArmed(index, true, false);
 			Tracks_Activate(index);		// запись идёт в активную дорожку
 		}
 		Invalidate();
