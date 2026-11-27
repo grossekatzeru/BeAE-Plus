@@ -21,6 +21,8 @@ Stream::Stream(Device* device, size_t interface, usb_interface_list* List)
 	fDevice(device),
 	fStatus(B_NO_INIT),
 	fStreamEndpoint(0),
+	fUsbDevice(0),
+	fUsbConfig(NULL),
 	fIsRunning(false),
 	fArea(-1),
 	fKernelArea(-1),
@@ -186,6 +188,9 @@ Stream::ReleaseBuffers()
 {
 	Stop();
 	_FreeBuffers();
+	// back to the zero-bandwidth alternate: the next session selects the
+	// working one again, which resets the endpoint (see Start())
+	_SetIdle();
 }
 
 
@@ -384,17 +389,39 @@ Stream::OnSetConfiguration(usb_device device,
 		return B_ERROR;
 	}
 
+	fUsbDevice = device;
+	fUsbConfig = config;
+	return _ActivateAlternate();
+}
+
+
+// Selects the working alternate setting, finds the endpoint handle (it can
+// change after the selection) and sets the sampling rate. Called when the
+// configuration is set and before every start of the stream: after the
+// transfers of an isochronous endpoint were cancelled and the media server
+// opened the device again, the endpoint stayed unusable for playback until
+// the cable was replugged.
+status_t
+Stream::_ActivateAlternate()
+{
+	if (fUsbConfig == NULL) {
+		TRACE(ERR, "NULL configuration. Not set.\n");
+		return B_NO_INIT;
+	}
+
 	usb_interface_info* interface
-		= &config->interface[fInterface].alt[fActiveAlternate];
+		= &fUsbConfig->interface[fInterface].alt[fActiveAlternate];
 	if (interface == NULL) {
 		TRACE(ERR, "NULL interface. Not set.\n");
 		return B_ERROR;
 	}
 
-	status_t status = gUSBModule->set_alt_interface(device, interface);
+	status_t status = gUSBModule->set_alt_interface(fUsbDevice, interface);
 	uint8 address = fAlternates[fActiveAlternate]->Endpoint()->fEndpointAddress;
 
 	TRACE(INF, "set_alt_interface %x\n", status);
+	if (status != B_OK)
+		return status;
 
 	for (size_t i = 0; i < interface->endpoint_count; i++) {
 		if (address == interface->endpoint[i].descr->endpoint_address) {
@@ -411,6 +438,21 @@ Stream::OnSetConfiguration(usb_device device,
 	TRACE(INF, "%s Stream Endpoint [address %#04x] was not found.\n",
 		fIsInput ? "Input" : "Output", address);
 	return B_ERROR;
+}
+
+
+void
+Stream::_SetIdle()
+{
+	if (fUsbConfig == NULL || fDevice->fRemoved || fActiveAlternate == 0)
+		return;
+
+	usb_interface_info* idle = &fUsbConfig->interface[fInterface].alt[0];
+	status_t status = gUSBModule->set_alt_interface(fUsbDevice, idle);
+	TRACE(INF, "%s stream: idle alternate: %s\n", fIsInput ? "Input" : "Output",
+		strerror(status));
+	if (status == B_OK)
+		fStreamEndpoint = 0;				// the pipe is gone with the alternate
 }
 
 
@@ -468,6 +510,14 @@ Stream::Start()
 
 		atomic_set(&fProcessedBuffers, 0);
 
+		// reselect the working alternate: resets the endpoint after a
+		// previous session
+		result = _ActivateAlternate();
+		if (result != B_OK) {
+			TRACE(ERR, "Can't activate the alternate: %s\n", strerror(result));
+			return result;
+		}
+
 		// the callback ignores its calls until this flag is set
 		fIsRunning = true;
 		for (size_t i = 0; i < kSamplesBufferCount; i++) {
@@ -497,7 +547,8 @@ Stream::Stop()
 		while (atomic_get(&fInsideNotify) != 0)
 			snooze(100);
 	}
-	gUSBModule->cancel_queued_transfers(fStreamEndpoint);
+	if (fStreamEndpoint != 0)
+		gUSBModule->cancel_queued_transfers(fStreamEndpoint);
 
 	return B_OK;
 }

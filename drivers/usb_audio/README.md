@@ -201,3 +201,14 @@ stayed stopped and `_OutputThread` (which sends recorded buffers only in
 only because the system mixer starts that node. `multi_audio-start.patch`
 queues a `B_START` event in `TimeSourceOp`. Apply with `patch -p2` in
 `src/add-ons/media/media-add-ons/multi_audio`. Not compiled or tested on Haiku.
+
+## Playback silent after the media server was restarted
+
+After a session (the media server closed the device) playback stayed silent
+until the cable was replugged, while the log showed correct transfers
+(`played transfer ...`). The alternate setting was selected only once, when
+the configuration was set. Now `Stream::Start()` selects the working
+alternate again (`_ActivateAlternate()`: new endpoint handle, sampling rate)
+and `ReleaseBuffers()` returns the interface to the zero-bandwidth alternate
+(`_SetIdle()`). The port (USB 3.0 / 3.1) turned out to be irrelevant.
+Not compiled or tested on Haiku.

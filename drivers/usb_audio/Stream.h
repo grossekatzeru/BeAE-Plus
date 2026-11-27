@@ -53,6 +53,8 @@ protected:
 			status_t		fStatus;
 
 			usb_pipe		fStreamEndpoint;
+			usb_device		fUsbDevice;
+			const usb_configuration_info*	fUsbConfig;
 
 			bool			fIsRunning;
 			area_id			fArea, fKernelArea;
@@ -91,6 +93,8 @@ private:
 public:
 			void			ReleaseBuffers();
 private:
+			status_t		_ActivateAlternate();
+			void			_SetIdle();
 			status_t		_SendSamplingRate();
 			void			_HandleRecordedPackets(size_t rawIndex);
 			status_t		_QueueNextTransfer(size_t buffer, bool start);
