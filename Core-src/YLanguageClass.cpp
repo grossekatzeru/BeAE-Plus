@@ -259,37 +259,30 @@ void YLanguageClass::ReadInto(BFile *langfile){
                // This is a perfect line lets add it in to our
                // little list
                
-               // Fix for the \n char
-               i = Text.FindFirst("\\n");
-               while(i >= 0){
-                  //Text[i] = ' ';
-                  //Text[i+1] = '\n';
-                  Text.Remove(i,1);
-                  i = Text.FindFirst("\\n");
-               }
-               // Fix for the \t char
-               i = Text.FindFirst("\\t");
-               while(i >= 0){
-                  //Text[i] = ' ';
-                  //Text[i+1] = '\t';
-                  Text.Remove(i,1);
-                  i = Text.FindFirst("\\t");
-               }
-               // Fix for the \\ char
-               i = Text.FindFirst("\\\\");
-               while(i >= 0){
-                  //Text[i] = ' ';
-                  //Text[i+1] = '\\';
-                  Text.Remove(i,1);
-                  i = Text.FindFirst("\\\\");
-               }
-               // Fix for the \" char
-               i = Text.FindFirst("\\\"");
-               while(i >= 0){
-                  //Text[i] = ' ';
-                  //Text[i+1] = '"';
-                  Text.Remove(i,1);
-                  i = Text.FindFirst("\\\"");
+               // Escape-последовательности \n \t \\ \" : один проход (раньше убирался только символ «\»,
+               // и вместо перевода строки в тексте оставалась буква «n»)
+               {
+                  BString decoded;
+                  const char *c = Text.String();
+                  while(*c){
+                     if(c[0] == '\\' && c[1] != '\0'){
+                        const char *rep = NULL;
+                        switch(c[1]){
+                           case 'n':  rep = "\n"; break;
+                           case 't':  rep = "\t"; break;
+                           case '\\': rep = "\\"; break;
+                           case '"':  rep = "\""; break;
+                        }
+                        if(rep != NULL){
+                           decoded.Append(rep);
+                           c += 2;
+                           continue;
+                        }
+                     }
+                     decoded.Append(c, 1);
+                     c++;
+                  }
+                  Text = decoded;
                }
                
                // Add the key to the table. We need to 

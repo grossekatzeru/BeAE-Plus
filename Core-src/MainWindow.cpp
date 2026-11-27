@@ -64,6 +64,8 @@
 #include "ProjectIO.h"
 #include "VMSystem.h"
 #include "AudioRecorder.h"
+#include "LatencyCal.h"
+#include "CardLatency.h"
 #include "LadspaFilter.h"
 #include "Mixer.h"
 #include "Tracks.h"
@@ -1062,7 +1064,8 @@ void MainWindow::FinishTrackRecording(AudioRecorder &rec)
 	// Постоянная часть — измеренная задержка железа (Fine tune); переменную часть (момент старта записи
 	// и воспроизведения у медиасервера каждый раз разный) берём из меток времени.
 	{
-		double skipMs = rec.IsPhysicalInput() ? (double)Prefs.rec_latency_ms : 0.0;	// задержка железа - только у звуковой карты
+		const int cardLatencyMs = rec.IsPhysicalInput() ? Prefs.card_latency.Get(rec.CardName()) : 0;
+		double skipMs = (double)cardLatencyMs;	// задержка железа - только у звуковой карты
 		if (recStampReal > 0 && recFirstHook > 0)
 			skipMs += (double)(recFirstHook - recStampReal) / 1000.0;
 		if (skipMs < 0)
@@ -1073,7 +1076,7 @@ void MainWindow::FinishTrackRecording(AudioRecorder &rec)
 			FILE *lf = stderr;
 			fprintf(lf, "rec: pref %d ms | skip %.1f ms | rec.Start ret +%.1f, tail start +%.1f | "
 				"1st hook %s%.1f | stampReal %s%.1f | hook-stamp %.1f | frames %lld rate %.0f\n",
-				(int)Prefs.rec_latency_ms, skipMs,
+				(int)cardLatencyMs, skipMs,
 				(sRecRet - sRecCall) / 1000.0, (sRecTail - sRecCall) / 1000.0,
 				recFirstHook > 0 ? "+" : "none ", recFirstHook > 0 ? (recFirstHook - sRecCall) / 1000.0 : 0.0,
 				recStampReal > 0 ? "+" : "none ", recStampReal > 0 ? (recStampReal - sRecCall) / 1000.0 : 0.0,
@@ -1179,6 +1182,44 @@ bool MainWindow::QuitRequested()
 	}
 }
 
+// Новые звуковые карты: для каждой, у которой ещё нет задержки записи, спрашиваем, измерить ли её сейчас.
+// Если отказались, спросим снова при следующем запуске.
+void MainWindow::CheckCards()
+{
+	BString system;
+	std::vector<BString> cards;
+	AudioRecorder::ListCards(cards, &system);
+	std::vector<std::string> names;
+	for (size_t i = 0; i < cards.size(); i++)
+		names.push_back(cards[i].String());
+	int legacy = Prefs.rec_latency_ms;
+	std::vector<std::string> pending = CardLat::Pending(names, Prefs.card_latency, system.String(), &legacy);
+	Prefs.rec_latency_ms = legacy;
+
+	fPendingCards.clear();
+	for (size_t i = 0; i < pending.size(); i++)
+		fPendingCards.push_back(BString(pending[i].c_str()));
+	AskNextCard();
+}
+
+void MainWindow::AskNextCard()
+{
+	while (!fPendingCards.empty()) {
+		const BString card = fPendingCards.front();
+		fPendingCards.erase(fPendingCards.begin());
+
+		char text[600];
+		snprintf(text, sizeof(text), Language.get("CARD_ASK"), card.String());
+		BAlert *alert = new BAlert(NULL, text, Language.get("CANCEL"), Language.get("CAL_START"));
+		alert->SetShortcut(0, B_ESCAPE);
+		if (alert->Go() != 1)
+			continue;						// отказ: эта карта останется без задержки до следующего запуска
+		// то же окно, что у кнопки «Точная настройка»; результат придёт в LATENCY_RESULT
+		if (LatencyCalAsk(BMessenger(this), card.String()))
+			return;
+	}
+}
+
 void MainWindow::MessageReceived(BMessage *message)
 {
 	RealtimeFilter *filter = NULL;
@@ -1189,6 +1230,19 @@ void MainWindow::MessageReceived(BMessage *message)
 //	message->PrintToStream();
 
 	switch (message->what){
+	case CHECK_CARDS:
+		CheckCards();
+		break;
+
+	case LATENCY_RESULT: {				// измерение с запроса при запуске закончилось
+		BString card;
+		int32 ms = 0;
+		if (LatencyCalFinish(message, &card, &ms))
+			Prefs.card_latency.Set(card.String(), ms);
+		AskNextCard();
+		break;
+	}
+
 	case JOY_TICK: {
 		static bool lastWrite = false;
 		Joy.Tick();

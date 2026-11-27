@@ -8,6 +8,7 @@
 #include <AppKit.h>
 #include <InterfaceKit.h>
 #include <Spinner.h>
+#include <String.h>
 #include <string>
 #include <vector>
 
@@ -22,11 +23,17 @@ private:
 	void	ShowFrames(int32 frames);		// значение в поле, бегунке и подсказке про задержку записи
 	void	SetFrames(int32 frames, bool apply);
 	void	UpdateHint();
+	void	RefreshCards();					// список звуковых карт
+	void	SelectCard(int32 index);		// показать задержку выбранной карты
 	void	ApplyBuffer();					// перезапустить проигрыватель с новым буфером
 
 	BSlider			*s_buffer;
 	BTextControl	*t_buffer;
 	BStringView		*v_rec_hint;
+	BMenuField		*m_cards;			// карты: у каждой своя задержка записи
+	BPopUpMenu		*pm_cards;
+	std::vector<BString> cards;
+	BString			curCard;			// выбранная карта (пусто - карт нет)
 	BSpinner		*s_latency;
 	BButton			*b_fine;
 	BString			fFineLabel;		// подпись кнопки до начала измерения

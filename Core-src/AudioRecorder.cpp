@@ -516,6 +516,60 @@ void AudioRecorder::ListSources(std::vector<BString> &names)
 		roster->ReleaseNode(systemInput);
 }
 
+void AudioRecorder::ListCards(std::vector<BString> &names, BString *system)
+{
+	names.clear();
+	if (system != NULL)
+		*system = "";
+	BMediaRoster *roster = BMediaRoster::Roster();
+	if (roster == NULL)
+		return;
+
+	media_node systemInput;
+	if (roster->GetAudioInput(&systemInput) == B_OK) {
+		live_node_info info;
+		if (roster->GetLiveNodeInfo(systemInput, &info) == B_OK) {
+			if (system != NULL)
+				*system = info.name;
+			names.push_back(BString(info.name));
+		}
+		roster->ReleaseNode(systemInput);
+	}
+
+	media_format fmt;
+	fmt.type = B_MEDIA_RAW_AUDIO;
+	fmt.u.raw_audio = media_raw_audio_format::wildcard;
+	live_node_info infos[64];
+	int32 count = 64;
+	if (roster->GetLiveNodes(infos, &count, NULL, &fmt, NULL, B_BUFFER_PRODUCER | B_PHYSICAL_INPUT) == B_OK) {
+		for (int32 i = 0; i < count; i++) {
+			BString n(infos[i].name);
+			if (strncmp(n.String(), "BeAE", 4) == 0)
+				continue;
+			bool known = false;
+			for (size_t k = 0; k < names.size() && !known; k++)
+				known = (names[k] == n);
+			if (!known)
+				names.push_back(n);
+		}
+	}
+	// спящие входы (карты, не выбранные «по умолчанию» в настройках Медиа)
+	dormant_node_info dinfos[32];
+	int32 dcount = 32;
+	if (roster->GetDormantNodes(dinfos, &dcount, NULL, &fmt, NULL, B_BUFFER_PRODUCER | B_PHYSICAL_INPUT) == B_OK) {
+		for (int32 i = 0; i < dcount; i++) {
+			BString n(dinfos[i].name);
+			if (strncmp(n.String(), "BeAE", 4) == 0)
+				continue;
+			bool known = false;
+			for (size_t k = 0; k < names.size() && !known; k++)
+				known = (names[k] == n);
+			if (!known)
+				names.push_back(n);
+		}
+	}
+}
+
 status_t AudioRecorder::Open(BString *error, bool listen)
 {
 	if (listen) {
@@ -564,6 +618,12 @@ status_t AudioRecorder::Open(BString *error, bool listen)
 
 	if (fHaveNode)
 		fPhysical = (fInputNode.kind & B_PHYSICAL_INPUT) != 0;
+	fCardName = "";
+	if (fHaveNode) {
+		live_node_info nodeInfo;
+		if (roster->GetLiveNodeInfo(fInputNode, &nodeInfo) == B_OK)
+			fCardName = nodeInfo.name;
+	}
 
 	if (!_CreateRecorder()) {
 		if (error) *error = "REC_ERR_RECORDER";

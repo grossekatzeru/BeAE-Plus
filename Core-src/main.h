@@ -41,6 +41,7 @@ class MyApplication : public BApplication {
 	virtual void	MessageReceived(BMessage *message);
 	virtual void	RefsReceived(BMessage *message);
 	virtual bool	QuitRequested();
+	virtual void	ReadyToRun();
 
 	void	Save(BMessage*);
 

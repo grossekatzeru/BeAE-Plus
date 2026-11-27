@@ -43,7 +43,7 @@ Original BeAE: Frans van Nispen. The full version history is in `BeAE/Help/histo
 
 ## Recording
 
-The red Record button records from the system audio input. The format (sample rate, channels, sample type) is whatever the Haiku media mixer / input provides. Press Record or Stop to finish. The VU meters show the input level while recording. Preferences → Audio → *Fine tune* measures the latency of your sound hardware and puts it into *Recording latency*; the result window shows a detailed report.
+The red Record button records from the system audio input. The format (sample rate, channels, sample type) is whatever the Haiku media mixer / input provides. Press Record or Stop to finish. The VU meters show the input level while recording. Preferences → Audio has a list of the sound cards found; every card has its own *Recording latency*. *Fine tune* measures the latency of the selected card and stores it for that card; the result window shows a detailed report. At start BeAE asks to measure every card that has no value yet (it asks again at each start until the card is measured).
 
 ## LADSPA plug-ins
 

@@ -1,5 +1,7 @@
 #include <LayoutBuilder.h>
 #include <InterfaceKit.h>
+#include <MenuField.h>
+#include <PopUpMenu.h>
 #include <SeparatorView.h>
 #include <String.h>
 #include <Path.h>
@@ -18,6 +20,7 @@
 #define LATENCY_CHANGED		'abLt'
 #define FINE_TUNE			'abFt'
 #define FONT_SELECTED		'abSf'
+#define CARD_SELECTED		'abCd'
 
 #define FRAME_BYTES			8			// стерео float: 2 канала по 4 байта
 #define MIN_FRAMES			64
@@ -53,9 +56,14 @@ PrefAudio::PrefAudio() : BView("Prefs audio", 0)
 	v_rec_hint = new BStringView(NULL, "");
 	v_rec_hint->SetHighUIColor(B_PANEL_TEXT_COLOR, B_DARKEN_2_TINT);
 
+	pm_cards = new BPopUpMenu("");
+	m_cards = new BMenuField("cards", NULL, pm_cards);
+	m_cards->SetExplicitMaxSize(BSize(B_SIZE_UNLIMITED, B_SIZE_UNSET));	// во всю ширину: имя карты бывает длинным
+	m_cards->SetToolTip(Language.get("CARD_LIST_TIP"));
+
 	s_latency = new BSpinner(NULL, Language.get("REC_LATENCY"), new BMessage(LATENCY_CHANGED));
 	s_latency->SetRange(0, 1000);
-	s_latency->SetValue(Prefs.rec_latency_ms);
+	s_latency->SetValue(0);
 
 	b_fine = new BButton("fine", Language.get("AUDIO_FINE_TUNE"), new BMessage(FINE_TUNE));
 
@@ -91,6 +99,7 @@ PrefAudio::PrefAudio() : BView("Prefs audio", 0)
 		.End()
 		.Add(new BSeparatorView(B_HORIZONTAL))
 		.Add(title_rec)
+		.Add(m_cards)
 		.Add(v_rec_hint)
 		.Add(s_latency)
 		.AddGroup(B_HORIZONTAL)
@@ -104,6 +113,7 @@ PrefAudio::PrefAudio() : BView("Prefs audio", 0)
 		.Add(v_fonts)
 		.AddGlue();
 
+	RefreshCards();
 	ShowFrames(Prefs.buffer_size / FRAME_BYTES);
 }
 
@@ -111,8 +121,51 @@ PrefAudio::~PrefAudio()
 {
 }
 
+// найти звуковые карты и заполнить выпадающий список; выбранной остаётся прежняя, иначе системная
+void PrefAudio::RefreshCards()
+{
+	BString system;
+	AudioRecorder::ListCards(cards, &system);
+
+	while (pm_cards->CountItems() > 0)
+		delete pm_cards->RemoveItem((int32)0);
+
+	if (cards.empty()) {
+		BMenuItem *none = new BMenuItem(Language.get("CARD_NONE"), NULL);
+		none->SetEnabled(false);
+		pm_cards->AddItem(none);
+		curCard = "";
+		s_latency->SetEnabled(false);
+		b_fine->SetEnabled(false);
+		return;
+	}
+
+	int32 pick = 0;
+	for (size_t i = 0; i < cards.size(); i++) {
+		BMessage *m = new BMessage(CARD_SELECTED);
+		m->AddInt32("index", (int32)i);
+		pm_cards->AddItem(new BMenuItem(cards[i].String(), m));
+		if (curCard.Length() > 0 ? cards[i] == curCard : cards[i] == system)
+			pick = (int32)i;
+	}
+	pm_cards->SetTargetForItems(this);
+	pm_cards->ItemAt(pick)->SetMarked(true);
+	s_latency->SetEnabled(true);
+	b_fine->SetEnabled(true);
+	SelectCard(pick);
+}
+
+void PrefAudio::SelectCard(int32 index)
+{
+	if (index < 0 || (size_t)index >= cards.size())
+		return;
+	curCard = cards[index];
+	s_latency->SetValue(Prefs.card_latency.Get(curCard.String()));
+}
+
 void PrefAudio::AttachedToWindow()
 {
+	pm_cards->SetTargetForItems(this);
 	s_buffer->SetTarget(this);
 	t_buffer->SetTarget(this);
 	s_latency->SetTarget(this);
@@ -186,50 +239,39 @@ void PrefAudio::MessageReceived(BMessage *msg)
 		SetFrames(atoi(t_buffer->Text()), true);
 		break;
 
-	case LATENCY_CHANGED:
-		Prefs.rec_latency_ms = s_latency->Value();
+	case CARD_SELECTED:
+		SelectCard(msg->FindInt32("index"));
 		break;
 
-	case FINE_TUNE:									// измерение задержки записи
+	case LATENCY_CHANGED:
+		// SetValue() при выборе карты тоже шлёт это сообщение: не записываем неизменённое значение,
+		// иначе карта без задержки «определилась» бы нулём и при запуске о ней уже не спрашивали бы
+		if (curCard.Length() > 0 && s_latency->Value() != Prefs.card_latency.Get(curCard.String()))
+			Prefs.card_latency.Set(curCard.String(), s_latency->Value());
+		break;
+
+	case FINE_TUNE:									// измерение задержки записи выбранной карты
 	{
-		if (Recorder.IsRecording() || Pool.IsPlaying()){
-			(new BAlert(NULL, Language.get("CAL_ERR_BUSY"), Language.get("OK")))->Go();
+		if (curCard.Length() == 0)
 			break;
-		}
-		BAlert *a = new BAlert(NULL, Language.get("CAL_INTRO"), Language.get("CANCEL"), Language.get("CAL_START"));
-		if (a->Go() != 1)
-			break;
-		b_fine->SetEnabled(false);
 		fFineLabel = b_fine->Label();
-		b_fine->SetLabel(Language.get("CAL_RUNNING"));
-		LatencyCalStart(BMessenger(this));
+		if (LatencyCalAsk(BMessenger(this), curCard.String())){
+			b_fine->SetEnabled(false);
+			b_fine->SetLabel(Language.get("CAL_RUNNING"));
+		}
 		break;
 	}
 
 	case LATENCY_RESULT:							// ответ потока измерения
 	{
-		b_fine->SetEnabled(true);
+		b_fine->SetEnabled(curCard.Length() > 0);
 		b_fine->SetLabel(fFineLabel.String());
-		if (msg->FindBool("ok")){
-			int32 ms = (int32)(msg->FindFloat("ms") + 0.5f);
-			if (ms < 0) ms = 0;
-			if (ms > 1000) ms = 1000;
-			Prefs.rec_latency_ms = ms;
-			s_latency->SetValue(ms);
-			char s[200];
-			snprintf(s, sizeof(s), Language.get("CAL_RESULT"), (int)ms);
-			BString full(s);
-			const char *diag = msg->FindString("diag");
-			if (diag && diag[0])
-				full << "\n\n[diag]\n" << diag;
-			(new BAlert(NULL, full.String(), Language.get("OK")))->Go();
-		}else{
-			const char *key = msg->FindString("err");
-			BString text(Language.get(key && key[0] ? key : "CAL_ERR_NO_SIGNAL"));
-			const char *diag = msg->FindString("diag");
-			if (diag && diag[0])
-				text << "\n\n[diag]\n" << diag;
-			(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
+		BString card;
+		int32 ms = 0;
+		if (LatencyCalFinish(msg, &card, &ms)){
+			Prefs.card_latency.Set(card.String(), ms);
+			if (card == curCard)
+				s_latency->SetValue(ms);
 		}
 		break;
 	}

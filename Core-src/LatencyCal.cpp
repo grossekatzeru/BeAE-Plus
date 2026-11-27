@@ -1,3 +1,4 @@
+#include <Alert.h>
 #include <MediaDefs.h>
 #include <Message.h>
 #include <OS.h>
@@ -45,7 +46,11 @@ void PlayHook(void *cookie, void *buffer, size_t size, const media_raw_audio_for
 
 struct Job {
 	BMessenger target;
+	BString card;		// карта, для которой измеряем (имя узла; пусто - системный вход)
+	BString source;		// источник для Recorder.SetSource ("" - системный вход)
 };
+
+BString gReplyCard;		// карта текущего измерения (поток измерения один за раз)
 
 void Reply(BMessenger &target, bool ok, float ms, const char *err, const char *diag = "")
 {
@@ -54,6 +59,7 @@ void Reply(BMessenger &target, bool ok, float ms, const char *err, const char *d
 	m.AddFloat("ms", ms);
 	m.AddString("err", err);
 	m.AddString("diag", diag);
+	m.AddString("card", gReplyCard.String());
 	target.SendMessage(&m);
 }
 
@@ -61,6 +67,8 @@ int32 Run(void *data)
 {
 	Job *job = (Job *)data;
 	BMessenger target = job->target;
+	const BString source = job->source;
+	gReplyCard = job->card;
 	delete job;
 
 	if (Recorder.IsRecording() || Recorder.IsListening() || Pool.IsPlaying()){
@@ -113,7 +121,7 @@ int32 Run(void *data)
 		diag << line;
 	}
 	BString error;
-	Recorder.SetSource("");							// калибровка всегда с системного входа
+	Recorder.SetSource(source.String());			// карта, которую измеряем (пусто - системный вход)
 	for (int t = 0; t < kTrials; t++){
 		cookie.frame = 0;
 		cookie.silent = false;
@@ -195,14 +203,67 @@ int32 Run(void *data)
 
 }	// namespace
 
-void LatencyCalStart(BMessenger target)
+// Одно и то же окно для кнопки «Точная настройка» и для проверки карт при запуске.
+bool LatencyCalAsk(BMessenger target, const char *card)
 {
+	if (Recorder.IsRecording() || Pool.IsPlaying()){
+		(new BAlert(NULL, Language.get("CAL_ERR_BUSY"), Language.get("OK")))->Go();
+		return false;
+	}
+	BString cardName(card ? card : "");
+	BString system;
+	{
+		std::vector<BString> cards;
+		AudioRecorder::ListCards(cards, &system);
+	}
+	if (cardName.Length() == 0)
+		cardName = system;
+
+	BString text(Language.get("CAL_INTRO"));
+	if (cardName.Length() > 0){
+		text << "\n\n" << Language.get("CAL_CARD") << " " << cardName;
+	}
+	BAlert *a = new BAlert(NULL, text.String(), Language.get("CANCEL"), Language.get("CAL_START"));
+	a->SetShortcut(0, B_ESCAPE);
+	if (a->Go() != 1)
+		return false;
+
 	Job *job = new Job;
 	job->target = target;
+	job->card = cardName;
+	job->source = (cardName.Length() == 0 || cardName == system) ? "" : cardName;
 	thread_id t = spawn_thread(Run, "latency calibration", B_NORMAL_PRIORITY, job);
 	if (t < B_OK){
 		delete job;
-		return;
+		return false;
 	}
 	resume_thread(t);
+	return true;
+}
+
+// Ответ потока измерения: показывает результат или ошибку. true - измерение удалось.
+bool LatencyCalFinish(BMessage *msg, BString *card, int32 *ms)
+{
+	if (card) *card = msg->FindString("card");
+	if (msg->FindBool("ok")){
+		int32 v = (int32)(msg->FindFloat("ms") + 0.5f);
+		if (v < 0) v = 0;
+		if (v > 1000) v = 1000;
+		if (ms) *ms = v;
+		char s[200];
+		snprintf(s, sizeof(s), Language.get("CAL_RESULT"), (int)v);
+		BString full(s);
+		const char *diag = msg->FindString("diag");
+		if (diag && diag[0])
+			full << "\n\n[diag]\n" << diag;
+		(new BAlert(NULL, full.String(), Language.get("OK")))->Go();
+		return true;
+	}
+	const char *key = msg->FindString("err");
+	BString text(Language.get(key && key[0] ? key : "CAL_ERR_NO_SIGNAL"));
+	const char *diag = msg->FindString("diag");
+	if (diag && diag[0])
+		text << "\n\n[diag]\n" << diag;
+	(new BAlert(NULL, text.String(), Language.get("OK")))->Go();
+	return false;
 }

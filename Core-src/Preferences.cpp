@@ -128,6 +128,19 @@ void Preferences::Init(){
 
    if(prefs.FindInt32("rec_latency_ms", &rec_latency_ms) != B_OK)
       rec_latency_ms = 0;
+   {
+      BMessage cards;
+      if(prefs.FindMessage("card_latency", &cards) == B_OK){
+         char *name;
+         type_code type;
+         int32 count;
+         for(int32 i = 0; cards.GetInfo(B_INT32_TYPE, i, &name, &type, &count) == B_OK; i++){
+            int32 ms;
+            if(cards.FindInt32(name, &ms) == B_OK)
+               card_latency.Set(name, ms);
+         }
+      }
+   }
    if(prefs.FindString("rec_input_pin", &rec_input_pin) != B_OK)
       rec_input_pin.SetTo("");
    if(prefs.FindString("rec_input_pin2", &rec_input_pin2) != B_OK)
@@ -281,6 +294,13 @@ void Preferences::Sync(){
 
 	prefs.SetInt32("buffer_size",buffer_size);
 	prefs.SetInt32("rec_latency_ms",rec_latency_ms);
+	{
+		BMessage cards;
+		const std::map<std::string, int> &all = card_latency.All();
+		for(std::map<std::string, int>::const_iterator it = all.begin(); it != all.end(); ++it)
+			cards.AddInt32(it->first.c_str(), it->second);
+		prefs.SetMessage("card_latency", &cards);
+	}
 	prefs.SetString("rec_input_pin",rec_input_pin.String());
 	prefs.SetString("rec_input_pin2",rec_input_pin2.String());
 	prefs.SetInt32("cache_size",cache_size);
@@ -416,6 +436,7 @@ void Preferences::FactorySettings(){
 	keep_free = 500;		// keep 500 Mb free disk space
 	buffer_size = BUFFER_SIZE;
 	rec_latency_ms = 0;
+	card_latency.Clear();
 	rec_input_pin = "";
 	rec_input_pin2 = "";
 	cache_size = CACHE_SIZE;

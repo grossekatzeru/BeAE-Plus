@@ -37,6 +37,8 @@ class AudioRecorder;
 #include "TransportView.h"
 #include "ToolBarView.h"
 
+#define CHECK_CARDS	'abCc'		// после запуска: найти звуковые карты без измеренной задержки записи
+
 class MainWindow : public BWindow {
  public:
 	MainWindow(BRect frame);
@@ -51,6 +53,9 @@ class MainWindow : public BWindow {
 	
  private:
 	void StartRecording();
+	void CheckCards();					// карты без задержки записи: предложить измерить
+	void AskNextCard();					// следующая карта из fPendingCards
+	std::vector<BString> fPendingCards;
 	BMenuItem	*fGroupItem;		// «Group» в меню Clip
 	BMenuItem	*fLockItem;			// «Закрепить во времени» в меню Clip (галочка = активный клип закреплён)
 	void HandleDrop(BMessage *message);	// файлы, брошенные в окно: клипами на дорожки, проект - открыть

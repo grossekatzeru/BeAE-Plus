@@ -84,6 +84,13 @@ MyApplication::MyApplication():BApplication("application/x-vnd.BeAE-BeAE")
 	mainWindow->Show();
 }
 
+// Окно уже показано: проверить звуковые карты (для новых предлагается определить задержку записи)
+void MyApplication::ReadyToRun()
+{
+	if (mainWindow != NULL)
+		mainWindow->PostMessage(CHECK_CARDS);
+}
+
 MyApplication::~MyApplication()
 {
 	Pool.ShutdownPlayer();		// Pool - глобальный объект и умирает позже приложения: без этого вход «BeAE» оставался в системном микшере

@@ -31,6 +31,11 @@ public:
 	// соединить в Cortex до нажатия Record. Во время записи не трогает узел.
 	// Имена узлов, к которым можно подключиться (со свободным звуковым выходом), без системного входа и самого BeAE.
 	static void	ListSources(std::vector<BString> &names);
+	// Звуковые карты (физические входы Media Kit, живые и спящие) без программных узлов; пустая строка в *system -
+	// если системного входа нет. Системная карта идёт первой. Имя карты - ключ задержки записи (Prefs.card_latency).
+	static void	ListCards(std::vector<BString> &names, BString *system);
+	// Карта, с которой идёт или шла последняя запись (имя узла Media Kit; пусто, если неизвестна).
+	const char*	CardName() const { return fCardName.String(); }
 	// Входы самой звуковой карты (Mic in, Line in ...) из параметра «Input» системного узла. В списке драйвера есть и выходные
 	// пины (Line out, Speaker ...): с них идёт шум, поэтому они отброшены. *current - выбранный сейчас вход (пусто, если неизвестен).
 	static void	ListCardInputs(std::vector<BString> &names, BString *current);
@@ -91,6 +96,7 @@ private:
 	status_t	Open(BString *error, bool listen);
 
 	BString			fSource;
+	BString			fCardName;			// имя узла-источника последней открытой записи
 	BMediaRecorder	*fRecorder;
 	media_node		fInputNode;
 	bool			fHaveNode;
